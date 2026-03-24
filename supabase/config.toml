@@ -1,0 +1,22 @@
+project_id = "iyccgbrarlvsaojzydjq"
+
+[functions.chat]
+verify_jwt = true
+
+[functions.text-to-speech]
+verify_jwt = true
+
+[functions.extract-memory]
+verify_jwt = true
+
+[functions.study-coach]
+verify_jwt = true
+
+[functions.future-predict]
+verify_jwt = false
+
+[functions.generate-chat-title]
+verify_jwt = true
+
+[functions.leaderboard]
+verify_jwt = true
