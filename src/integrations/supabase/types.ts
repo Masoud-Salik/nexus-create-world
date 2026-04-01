@@ -92,7 +92,6 @@ export type Database = {
         Row: {
           created_at: string | null
           id: string
-          is_pinned: boolean
           local_time: string | null
           time_of_day: string | null
           title: string | null
@@ -102,7 +101,6 @@ export type Database = {
         Insert: {
           created_at?: string | null
           id?: string
-          is_pinned?: boolean
           local_time?: string | null
           time_of_day?: string | null
           title?: string | null
@@ -112,7 +110,6 @@ export type Database = {
         Update: {
           created_at?: string | null
           id?: string
-          is_pinned?: boolean
           local_time?: string | null
           time_of_day?: string | null
           title?: string | null
@@ -274,36 +271,6 @@ export type Database = {
         }
         Relationships: []
       }
-      feedback: {
-        Row: {
-          category: string
-          created_at: string
-          email: string | null
-          id: string
-          message: string
-          rating: number | null
-          user_id: string
-        }
-        Insert: {
-          category?: string
-          created_at?: string
-          email?: string | null
-          id?: string
-          message: string
-          rating?: number | null
-          user_id: string
-        }
-        Update: {
-          category?: string
-          created_at?: string
-          email?: string | null
-          id?: string
-          message?: string
-          rating?: number | null
-          user_id?: string
-        }
-        Relationships: []
-      }
       friends_identities: {
         Row: {
           created_at: string | null
@@ -333,27 +300,6 @@ export type Database = {
           personality_notes?: string | null
           relationship?: string | null
           updated_at?: string | null
-          user_id?: string
-        }
-        Relationships: []
-      }
-      friendships: {
-        Row: {
-          created_at: string
-          friend_id: string
-          id: string
-          user_id: string
-        }
-        Insert: {
-          created_at?: string
-          friend_id: string
-          id?: string
-          user_id: string
-        }
-        Update: {
-          created_at?: string
-          friend_id?: string
-          id?: string
           user_id?: string
         }
         Relationships: []
@@ -576,7 +522,6 @@ export type Database = {
           id: string
           is_active: boolean
           opted_in_at: string
-          show_avatar: boolean
           user_id: string
         }
         Insert: {
@@ -584,7 +529,6 @@ export type Database = {
           id?: string
           is_active?: boolean
           opted_in_at?: string
-          show_avatar?: boolean
           user_id: string
         }
         Update: {
@@ -592,7 +536,6 @@ export type Database = {
           id?: string
           is_active?: boolean
           opted_in_at?: string
-          show_avatar?: boolean
           user_id?: string
         }
         Relationships: []
@@ -721,7 +664,6 @@ export type Database = {
           field_of_interest: string | null
           financial_constraints: boolean | null
           id: string
-          invite_code: string | null
           name: string | null
           occupation_or_status: string | null
           onboarding_completed: boolean | null
@@ -742,7 +684,6 @@ export type Database = {
           field_of_interest?: string | null
           financial_constraints?: boolean | null
           id: string
-          invite_code?: string | null
           name?: string | null
           occupation_or_status?: string | null
           onboarding_completed?: boolean | null
@@ -763,7 +704,6 @@ export type Database = {
           field_of_interest?: string | null
           financial_constraints?: boolean | null
           id?: string
-          invite_code?: string | null
           name?: string | null
           occupation_or_status?: string | null
           onboarding_completed?: boolean | null
@@ -844,50 +784,6 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
-      }
-      study_selfies: {
-        Row: {
-          caption: string | null
-          created_at: string
-          duration_minutes: number | null
-          id: string
-          photo_path: string
-          subject_name: string | null
-          task_id: string | null
-          topic: string | null
-          user_id: string
-        }
-        Insert: {
-          caption?: string | null
-          created_at?: string
-          duration_minutes?: number | null
-          id?: string
-          photo_path: string
-          subject_name?: string | null
-          task_id?: string | null
-          topic?: string | null
-          user_id: string
-        }
-        Update: {
-          caption?: string | null
-          created_at?: string
-          duration_minutes?: number | null
-          id?: string
-          photo_path?: string
-          subject_name?: string | null
-          task_id?: string | null
-          topic?: string | null
-          user_id?: string
-        }
-        Relationships: [
-          {
-            foreignKeyName: "study_selfies_task_id_fkey"
-            columns: ["task_id"]
-            isOneToOne: false
-            referencedRelation: "study_tasks"
-            referencedColumns: ["id"]
-          },
-        ]
       }
       study_sessions: {
         Row: {
@@ -1101,21 +997,6 @@ export type Database = {
           last_mentioned_at?: string | null
           updated_at?: string | null
           user_id?: string
-        }
-        Relationships: []
-      }
-      users: {
-        Row: {
-          id: string
-          name: string | null
-        }
-        Insert: {
-          id: string
-          name?: string | null
-        }
-        Update: {
-          id?: string
-          name?: string | null
         }
         Relationships: []
       }
