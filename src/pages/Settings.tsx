@@ -7,8 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, Moon, Sun, Bell, User, LogOut, Info, 
-  Shield, Trash2, MessageSquare, Download
+  Shield, Trash2, MessageSquare, Download, Sparkles
 } from "lucide-react";
+import { AboutSection } from "@/components/settings/AboutSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/components/ThemeProvider";
