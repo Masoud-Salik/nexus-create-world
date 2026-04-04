@@ -1,195 +1,169 @@
 
 
-# Full Development Plan: Nexus Life Coach -- Lighter, Smarter, Offline-First
+# Production-Level Upgrade Plan: Green Theme, UX, UI, Functionality
+
+## Overview
+
+Transform StudyTime from its current purple-themed prototype into a polished, production-grade green-themed study app. This covers a complete color system overhaul, UI polish, functional improvements, and performance hardening -- all done incrementally to conserve credits.
 
 ---
 
-## Current State Summary
+## Phase 1: Green Design System Overhaul
 
-The app is an AI-powered student success platform with four main screens accessible via a bottom navigation bar:
+### Step 1: Green Color Palette
 
-1. **Study Coach** (home) -- AI-generated study plans, Pomodoro timer, task management
-2. **AI Chat** -- Conversational AI life coach with memory
-3. **The Future** -- AI scenario predictions (1Y/3Y/5Y), skill scores, daily coaching
-4. **Settings** -- Account, theme, notifications, privacy
+Replace all purple/violet HSL values in `src/index.css` with a production-grade emerald green system.
 
-Additional pages exist (Activities, Biography, AI Memory, Friends, Skills, Interests) but are only accessible via the desktop sidebar -- they are hidden from mobile users.
+**Light mode:**
+- Primary: `152 76% 36%` (rich emerald green)
+- Primary foreground: `0 0% 100%`
+- Accent: `152 76% 96%` (soft green tint)
+- Accent foreground: `152 76% 30%`
+- Ring: `152 76% 36%`
+- Gradients: green-to-teal instead of purple-to-violet
+- Charts: green spectrum (emerald, teal, cyan, lime, sage)
 
-**What works well:** PWA setup, service worker caching, offline queue system, local study plan caching, error boundary, install prompt, guest/demo mode for Study Coach.
+**Dark mode:**
+- Primary: `152 60% 52%` (brighter emerald for dark backgrounds)
+- Primary foreground: `152 76% 10%`
+- Accent: `152 50% 15%`
+- Accent foreground: `152 60% 52%`
 
-**What needs improvement:** Several pages are desktop-only orphans, offline support is partial (only Study Coach truly works offline), the app ships large charting libraries, and many features lack the "light and fast" feel.
+Update sidebar variables, gradient CSS custom properties, and `.particle-bg` / `.glow` / `.glow-sm` utilities to use the new green values.
 
----
+### Step 2: Consolidate Font Imports
 
-## Development Plan (14 Steps)
-
-Each step is designed to be a single, focused change. Steps are ordered by impact and dependency.
-
----
-
-### Phase 1: Make It Lighter
-
-#### Step 1: Remove Unused Pages and Dead Code
-Remove pages that are inaccessible on mobile and add unnecessary weight:
-- Remove `Activities.tsx` (780 lines with recharts dependency -- heaviest page)
-- Remove `Biography.tsx` (duplicate of CompactProfileCard in Settings)
-- Remove `CommonScenario.tsx`, `SuccessScenario.tsx`, `Future.tsx`, `Lifecast.tsx` (unused legacy pages)
-- Remove unused components: `LifecastDashboard.tsx`, `DailyCheckin.tsx`, `FocusTimer.tsx`, `DocumentsManager.tsx`, `IdeaVault.tsx`, `SituationPhotosManager.tsx`, `ShareToUpgradeDialog.tsx`, `AboutMeEditor.tsx`, `MemoryManager.tsx`
-- Remove unused edge functions: `lifecast-predict`, `predict-scenario`, `generate-success-image`, `extract-user-data`
-
-**Impact:** Removes ~2000+ lines of code and drops the recharts/charting bundle from the critical path.
-
-#### Step 2: Lazy-Load Heavy Dependencies
-- Move `recharts` imports behind `React.lazy()` boundaries so charts only load when actually viewed
-- Ensure `react-markdown` and `react-syntax-highlighter` are only loaded within the Chat page
-- Add dynamic imports for `date-fns` locale data
-
-**Impact:** Smaller initial JS bundle, faster first paint.
-
-#### Step 3: Deduplicate QueryClient
-Currently, `QueryClient` is created in both `main.tsx` and `App.tsx`. Remove the one in `main.tsx` since `App.tsx` already wraps everything in its own `QueryClientProvider`.
-
-**Impact:** Cleaner architecture, avoids potential context conflicts.
+Remove 9 unused Google Fonts imports (Lora, Space Mono, Source Sans/Serif/Code, DM Sans, Crimson Pro, Inter). Keep only Montserrat, Cormorant Garamond, and IBM Plex Mono (the three actually referenced in `--font-sans/serif/mono`). This alone eliminates ~600KB of blocking font requests.
 
 ---
 
-### Phase 2: Strengthen Offline Support
+## Phase 2: UI Production Polish
 
-#### Step 4: Offline-Ready Study Coach (Complete the Loop)
-The Study Coach already caches tasks locally via `useLocalStudyPlan`. Extend this:
-- Use `offlineQueue` to queue task completions, starts, and skips when offline
-- Register an `ActionProcessor` that syncs queued study actions to the database when back online
-- Show a subtle "saved locally" indicator instead of errors when offline
+### Step 3: Skeleton Loading States
 
-**Impact:** Study Coach becomes fully functional offline -- the core feature works without internet.
+Replace the generic `<PageLoader />` spinner with page-specific skeleton layouts using the existing `skeleton.tsx` component:
+- Study Coach: skeleton cards for timer ring, task list, stats bar
+- AI Chat: skeleton message bubbles
+- Settings: skeleton profile card and toggle rows
 
-#### Step 5: Offline-Ready Settings Page
-- Cache profile data using `useOfflineData` hook (already exists but unused in Settings)
-- Queue profile updates through `offlineQueue` when offline
-- Disable features that require network (like feedback, export) with a visual "requires internet" badge
+Create `src/components/SkeletonLoaders.tsx` with named exports for each page skeleton.
 
-**Impact:** Users can view and edit their profile offline.
+### Step 4: Smooth Page Transitions
 
-#### Step 6: Offline Fallback for AI Chat
-- When offline, show a clear message: "Chat requires internet. Your study tasks are available offline."
-- Cache the last 20 messages of the current conversation locally for reading
-- Provide a "Quick note" input that saves to local storage and syncs as a message when online
+Wrap the `<Routes>` in `App.tsx` with a CSS-based fade transition on route change (no library needed). Add a `page-enter` keyframe animation to the `<Suspense>` fallback boundary so pages slide in smoothly rather than popping.
 
-**Impact:** Graceful degradation instead of broken errors.
+### Step 5: Enhanced Bottom Navigation
 
-#### Step 7: Offline Fallback for The Future
-- Cache the most recent scenarios, skill scores, and daily coach message using `useOfflineData`
-- Display cached data with a "Last updated X ago" indicator
-- Disable refresh/generate buttons when offline
+Upgrade `MobileBottomNav.tsx`:
+- Add a pill-shaped active indicator behind the active icon (green background)
+- Add `navigator.vibrate(10)` on tap for Android haptic feedback
+- Use a subtle scale + color transition on active state change
+- Add a frosted glass effect with stronger `backdrop-blur-xl`
 
-**Impact:** Users can review their predictions and scores without internet.
+### Step 6: Cards and Components Refinement
 
----
-
-### Phase 3: Improve Core UX
-
-#### Step 8: Unified Navigation Cleanup
-- Add Activities tracking directly into the Study Coach page as a lightweight "Daily Check-in" card (mood + quick note, no charts)
-- Move AI Memory and Biography sub-pages (Skills, Interests, Friends) into the Settings "More" tab as links
-- Update the desktop sidebar to match the 4-tab mobile navigation exactly
-
-**Impact:** One consistent navigation model across all devices. No orphan pages.
-
-#### Step 9: Smart Pomodoro Timer Improvements
-- Use the existing `timer-worker.js` Web Worker in the Pomodoro timer (currently it uses `setInterval` which throttles in background tabs)
-- Add notification sound using Web Audio API (no external files needed)
-- Add browser Notification API permission request and fire notification when timer completes
-- Persist running timer state to localStorage so it survives page refresh
-
-**Impact:** Timer actually works reliably in background tabs -- critical for a study app.
-
-#### Step 10: Haptic Feedback and Micro-Interactions
-- Add `navigator.vibrate()` calls on task completion, timer finish, and button presses (Android only, graceful fallback)
-- Add subtle CSS transitions for task status changes (pending -> in_progress -> completed)
-- Add a confetti-like particle effect on study session completion (CSS-only, no library)
-
-**Impact:** The app feels more native and rewarding without adding weight.
-
-#### Step 11: Skeleton Loading States
-- Replace the generic spinner (`<Loader2>`) on Study Coach, The Future, and Settings with skeleton placeholders that match the layout
-- Use the existing `skeleton.tsx` UI component
-
-**Impact:** Perceived performance improvement -- pages feel faster.
+- Add subtle green gradient borders to active/focused cards
+- Upgrade task status transitions with CSS animations (pending -> in_progress -> completed with scale + opacity)
+- Add a green confetti burst (CSS-only, 6 particles) on task completion
+- Ensure all interactive elements have 44x44px minimum touch targets
 
 ---
 
-### Phase 4: Scientific and Advanced Features
+## Phase 3: Functional Upgrades
 
-#### Step 12: Study Analytics Mini-Dashboard
-- Add a collapsible "This Week" stats section to the Study Coach page
-- Show: total minutes studied, tasks completed vs. skipped ratio, streak count, daily breakdown as a simple CSS bar chart (no recharts needed)
-- Data comes from local cache + `study_sessions` table
-- Cache analytics data for offline viewing
+### Step 7: Web Worker Pomodoro Timer
 
-**Impact:** Scientific progress tracking without heavy charting libraries.
+The existing `public/timer-worker.js` is unused. Wire it into `PomodoroTimer.tsx`:
+- Replace `setInterval` with Worker-based countdown (survives background tabs)
+- Add browser Notification API: request permission on first use, fire notification on timer complete
+- Add Web Audio API beep (no external sound files) as alarm
+- Persist timer state to localStorage to survive page refresh
 
-#### Step 13: Focus Score Algorithm
-- Calculate a real-time "Focus Score" (0-100) based on:
-  - Completion rate (completed / total tasks)
-  - Time accuracy (actual time vs. planned time)
-  - Consistency (streak days / 7)
-  - Skip penalty
-- Display as a circular progress indicator on the Study Coach header
-- Update locally as tasks are completed (instant feedback)
-- Sync to `skill_scores` table periodically
+### Step 8: Focus Score Ring
 
-**Impact:** Scientifically-grounded metric that gives users actionable insight into their study behavior.
+Create `src/components/study-coach/FocusScoreRing.tsx`:
+- SVG circular progress indicator (0-100)
+- Algorithm: `(completionRate * 0.4) + (timeAccuracy * 0.3) + (streakBonus * 0.2) + (skipPenalty * 0.1)`
+- Animated fill on mount, green gradient stroke
+- Display in Study Coach header next to stats bar
 
-#### Step 14: Spaced Repetition Hints
-- When generating study plans, pass previous session data to the AI with a prompt instruction to apply spaced repetition principles
-- Add a "Review" tag to tasks that revisit previously-studied topics
-- Show a small "science tip" tooltip explaining why a topic is being revisited
+### Step 9: Weekly Mini-Stats
 
-**Impact:** Integrates evidence-based learning science into the AI-generated plans.
+Create `src/components/study-coach/WeeklyMiniStats.tsx`:
+- Collapsible "This Week" section on Study Coach
+- Pure CSS bar chart (7 bars for each day, no recharts)
+- Show: total minutes, tasks completed/skipped ratio, streak
+- Data from localStorage cache + study_sessions table
+
+### Step 10: Offline Sync Completion
+
+Complete the offline loop for Study Coach:
+- Register processors in `offlineQueue` for task complete/skip/start actions
+- Show a subtle green "Saved locally" toast instead of errors when offline
+- Auto-sync queued actions when connection returns
+- Add offline fallback UI to AI Chat page ("Chat requires internet" with cached last 20 messages for reading)
+
+---
+
+## Phase 4: Production Hardening
+
+### Step 11: Error Handling and Edge Cases
+
+- Add retry logic with exponential backoff to all Supabase calls in Study Coach
+- Add empty states with illustrations for: no tasks, no subjects, no study plan
+- Handle auth token expiry gracefully (auto-refresh or redirect to login)
+- Add rate limiting awareness to AI Chat (show "Please wait" on 429)
+
+### Step 12: Performance Optimizations
+
+- Lazy-load `react-markdown` and `react-syntax-highlighter` (only needed in Chat)
+- Memoize expensive computations in StudyCoach (task filtering, stats calculation)
+- Add `will-change: transform` to animated elements for GPU acceleration
+- Debounce search/filter inputs
+
+### Step 13: Auth Flow Polish
+
+- Add a green-themed branded login/signup screen with app logo
+- Add loading states to all auth buttons
+- Add "Remember me" option
+- Improve password strength indicator with real-time visual feedback (green progress bar)
 
 ---
 
 ## Technical Details
 
 ### Files to Create
-- `src/components/study-coach/OfflineSync.tsx` -- Offline queue processor for study actions
-- `src/components/study-coach/WeeklyMiniStats.tsx` -- Lightweight weekly stats (CSS bars)
-- `src/components/study-coach/FocusScoreRing.tsx` -- Circular focus score display
-- `src/components/SkeletonLoaders.tsx` -- Page-specific skeleton layouts
+- `src/components/SkeletonLoaders.tsx` -- page-specific skeleton layouts
+- `src/components/study-coach/FocusScoreRing.tsx` -- circular SVG score display
+- `src/components/study-coach/WeeklyMiniStats.tsx` -- CSS-only weekly chart
+- `src/components/study-coach/OfflineSync.tsx` -- offline queue processor
 
 ### Files to Modify
-- `src/pages/StudyCoach.tsx` -- Add offline sync, focus score, mini stats, worker-based timer
-- `src/pages/TheFuture.tsx` -- Add `useOfflineData` caching
-- `src/pages/Index.tsx` -- Add offline fallback UI, message caching
-- `src/pages/Settings.tsx` -- Add offline profile caching, integrate AI Memory link
-- `src/components/MobileBottomNav.tsx` -- No changes needed (already clean)
-- `src/components/AppSidebar.tsx` -- Align with mobile nav items
-- `src/components/study-coach/PomodoroTimer.tsx` -- Switch to Web Worker, add notifications
-- `src/App.tsx` -- Remove routes for deleted pages
-- `src/main.tsx` -- Remove duplicate QueryClient
-- `vite.config.ts` -- Potentially expand workbox caching patterns
+- `src/index.css` -- green color system, remove unused fonts
+- `src/App.tsx` -- page transitions, skeleton loaders
+- `src/components/MobileBottomNav.tsx` -- enhanced nav with haptics
+- `src/components/study-coach/PomodoroTimer.tsx` -- Web Worker, notifications
+- `src/pages/StudyCoach.tsx` -- focus score, mini stats, offline sync
+- `src/pages/Index.tsx` -- offline fallback, lazy imports
+- `src/components/Auth.tsx` -- branded green auth UI
+- `src/components/AppSidebar.tsx` -- green active states
 
-### Files to Delete
-- `src/pages/Activities.tsx`, `CommonScenario.tsx`, `SuccessScenario.tsx`, `Future.tsx`, `Lifecast.tsx`
-- `src/components/LifecastDashboard.tsx`, `DailyCheckin.tsx`, `FocusTimer.tsx`, `DocumentsManager.tsx`, `IdeaVault.tsx`, `SituationPhotosManager.tsx`, `ShareToUpgradeDialog.tsx`, `AboutMeEditor.tsx`, `MemoryManager.tsx`
-- `src/components/InsightsPanel.tsx` (only used in Chat, can be inlined or removed)
+### No New Dependencies
+Everything uses existing libraries + native browser APIs (Web Workers, Notifications, Web Audio, CSS animations).
 
-### Dependencies
-- No new dependencies needed
-- `recharts` can potentially be removed entirely if Activities page is deleted and mini-stats use CSS
-
-### Database
-- No schema changes required -- all existing tables support these features
+### No Database Changes
+All existing tables support these features. Focus score syncs to existing `skill_scores` table.
 
 ---
 
-## Priority Order for Implementation
+## Priority Order
 
-| Priority | Steps | Theme |
-|----------|-------|-------|
-| High | 1, 3, 4, 9 | Remove bloat, fix core offline, fix timer |
-| Medium | 5, 6, 7, 8, 11 | Complete offline coverage, unify navigation |
-| Lower | 2, 10, 12, 13, 14 | Polish, analytics, scientific features |
+| Priority | Steps | Impact |
+|----------|-------|--------|
+| Immediate | 1, 2 | Green identity, faster load (remove 600KB fonts) |
+| High | 3, 5, 7 | Production feel: skeletons, nav polish, reliable timer |
+| Medium | 4, 6, 8, 9 | Delight: transitions, confetti, focus score, stats |
+| Polish | 10, 11, 12, 13 | Reliability: offline, errors, performance, auth |
 
-Each step is independent enough to be implemented one at a time to stay within credit limits.
+Each step is independent and can be implemented one at a time.
 
