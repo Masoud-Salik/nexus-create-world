@@ -20,9 +20,9 @@ const PRESETS = [
 ];
 
 const FOCUS_TYPES = [
-  { id: "study", label: "📚 Learn", icon: BookOpen, primary: true },
-  { id: "creative", label: "🛠 Build", icon: Palette, primary: false },
-  { id: "work", label: "💼 Execute", icon: Briefcase, primary: false },
+  { id: "study", label: "📚", icon: BookOpen, primary: true },
+  { id: "creative", label: "🛠", icon: Palette, primary: false },
+  { id: "work", label: "💼", icon: Briefcase, primary: false },
 ];
 
 export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
