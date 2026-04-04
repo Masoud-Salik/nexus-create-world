@@ -62,7 +62,6 @@ const AppLayout = () => {
   return (
     <SidebarProvider>
       <OfflineIndicator />
-      <FloatingSettingsButton />
       <div className="flex min-h-screen w-full">
         {!isMobile && <AppSidebar />}
         

@@ -325,8 +325,13 @@ const Settings = () => {
 
             {/* App Version */}
             <p className="text-center text-xs text-muted-foreground pt-4">
-              Version 1.0.0 • Built with ❤️
+              Version 1.0.0
             </p>
+          </TabsContent>
+
+          {/* ABOUT TAB */}
+          <TabsContent value="about">
+            <AboutSection />
           </TabsContent>
         </Tabs>
       </div>
