@@ -34,20 +34,6 @@ const queryClient = new QueryClient({
   },
 });
 
-const FloatingSettingsButton = () => {
-  const navigate = useNavigate();
-  const isMobile = useIsMobile();
-  if (isMobile) return null;
-  return (
-    <button
-      onClick={() => navigate("/settings")}
-      className="fixed z-50 rounded-full bg-primary/90 backdrop-blur-sm shadow-lg hover:bg-primary transition-all active:scale-95 bottom-6 right-6 p-3"
-      aria-label="Settings"
-    >
-      <SettingsIcon className="h-5 w-5 text-primary-foreground" />
-    </button>
-  );
-};
 
 const PageFallback = () => {
   const location = useLocation();
