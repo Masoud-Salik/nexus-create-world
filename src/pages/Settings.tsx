@@ -136,7 +136,7 @@ const Settings = () => {
         <h1 className="mb-4 text-2xl font-bold">Settings</h1>
         
         <Tabs defaultValue="account" className="w-full overflow-hidden">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="account" className="gap-1.5">
               <User className="h-4 w-4" />
               Account
@@ -144,6 +144,10 @@ const Settings = () => {
             <TabsTrigger value="more" className="gap-1.5">
               <Info className="h-4 w-4" />
               More
+            </TabsTrigger>
+            <TabsTrigger value="about" className="gap-1.5">
+              <Sparkles className="h-4 w-4" />
+              About
             </TabsTrigger>
           </TabsList>
           
