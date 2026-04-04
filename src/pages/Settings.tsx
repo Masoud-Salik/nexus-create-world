@@ -7,8 +7,9 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useNavigate } from "react-router-dom";
 import { 
   ArrowLeft, Moon, Sun, Bell, User, LogOut, Info, 
-  Shield, Trash2, MessageSquare, Download
+  Shield, Trash2, MessageSquare, Download, Sparkles
 } from "lucide-react";
+import { AboutSection } from "@/components/settings/AboutSection";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/components/ThemeProvider";
@@ -135,7 +136,7 @@ const Settings = () => {
         <h1 className="mb-4 text-2xl font-bold">Settings</h1>
         
         <Tabs defaultValue="account" className="w-full overflow-hidden">
-          <TabsList className="grid w-full grid-cols-2 mb-4">
+          <TabsList className="grid w-full grid-cols-3 mb-4">
             <TabsTrigger value="account" className="gap-1.5">
               <User className="h-4 w-4" />
               Account
@@ -143,6 +144,10 @@ const Settings = () => {
             <TabsTrigger value="more" className="gap-1.5">
               <Info className="h-4 w-4" />
               More
+            </TabsTrigger>
+            <TabsTrigger value="about" className="gap-1.5">
+              <Sparkles className="h-4 w-4" />
+              About
             </TabsTrigger>
           </TabsList>
           
@@ -320,8 +325,13 @@ const Settings = () => {
 
             {/* App Version */}
             <p className="text-center text-xs text-muted-foreground pt-4">
-              Version 1.0.0 • Built with ❤️
+              Version 1.0.0
             </p>
+          </TabsContent>
+
+          {/* ABOUT TAB */}
+          <TabsContent value="about">
+            <AboutSection />
           </TabsContent>
         </Tabs>
       </div>
