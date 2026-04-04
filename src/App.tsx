@@ -14,8 +14,6 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { GlobalTimerProvider } from "@/contexts/GlobalTimerContext";
-import { Settings as SettingsIcon } from "lucide-react";
-import { useNavigate } from "react-router-dom";
 
 // Lazy load pages
 const Index = lazy(() => import("./pages/Index"));
