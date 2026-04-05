@@ -617,7 +617,16 @@ const Index = () => {
 
   const handleSend = async (messageText?: string, includeContext: boolean = false, isRegenerate: boolean = false) => {
     const textToSend = messageText || input;
-    if (!textToSend.trim() || isLoading || !user) return;
+    if (!textToSend.trim() || isLoading) return;
+    
+    // Guest users need to sign in to chat
+    if (!user) {
+      toast({
+        title: "Sign in to chat",
+        description: "Create an account to use the AI chat feature",
+      });
+      return;
+    }
     
     // Only add user message if not regenerating
     if (!isRegenerate) {
