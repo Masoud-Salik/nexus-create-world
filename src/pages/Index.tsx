@@ -34,6 +34,7 @@ const Index = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [showChatList, setShowChatList] = useState(false);
   const [userName, setUserName] = useState<string | undefined>();
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
@@ -455,6 +456,10 @@ const Index = () => {
   };
 
   const handleGetStarted = async () => {
+    if (!user) {
+      toast({ title: "Sign in to chat", description: "Create an account to use the AI chat feature" });
+      return;
+    }
     const userContext = await getUserContext();
     const displayMessage = "Get Started";
     
@@ -617,7 +622,16 @@ const Index = () => {
 
   const handleSend = async (messageText?: string, includeContext: boolean = false, isRegenerate: boolean = false) => {
     const textToSend = messageText || input;
-    if (!textToSend.trim() || isLoading || !user) return;
+    if (!textToSend.trim() || isLoading) return;
+    
+    // Guest users need to sign in to chat
+    if (!user) {
+      toast({
+        title: "Sign in to chat",
+        description: "Create an account to use the AI chat feature",
+      });
+      return;
+    }
     
     // Only add user message if not regenerating
     if (!isRegenerate) {
@@ -776,11 +790,10 @@ const Index = () => {
     }
   };
 
-  if (!user) {
-    return <Auth />;
-  }
+  // Guest mode: allow full access without auth
+  const isGuest = !user;
 
-  if (checkingOnboarding) {
+  if (user && checkingOnboarding) {
     return (
       <div className="flex h-screen items-center justify-center particle-bg">
         <div className="flex flex-col items-center gap-4 animate-fade-in">
@@ -796,14 +809,34 @@ const Index = () => {
     );
   }
 
-  if (needsOnboarding) {
+  if (user && needsOnboarding) {
     return <Onboarding userId={user.id} onComplete={handleOnboardingComplete} />;
   }
 
+
   return (
     <div className="flex h-screen bg-background particle-bg">
+      {/* Guest Sign-in Dialog */}
+      {isGuest && showAuthDialog && (
+        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowAuthDialog(false)}>
+          <div onClick={(e) => e.stopPropagation()}>
+            <Auth />
+          </div>
+        </div>
+      )}
+
       {/* Main Chat Area */}
       <div className="flex-1 flex flex-col min-w-0">
+        {/* Guest Banner */}
+        {isGuest && (
+          <div className="px-4 py-2 bg-primary/10 border-b border-primary/20 flex items-center justify-between">
+            <span className="text-sm text-foreground">👋 Guest mode — sign in to save chats</span>
+            <div className="flex gap-2">
+              <Button size="sm" variant="ghost" onClick={() => setShowAuthDialog(true)}>Sign In</Button>
+              <Button size="sm" onClick={() => setShowAuthDialog(true)}>Sign Up</Button>
+            </div>
+          </div>
+        )}
         {/* Header */}
         <div className="border-b p-4 flex justify-between items-center glass sticky top-0 z-20">
           <div className="flex items-center gap-3">

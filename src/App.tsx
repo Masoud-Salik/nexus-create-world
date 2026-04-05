@@ -21,6 +21,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const StudyCoach = lazy(() => import("./pages/StudyCoach"));
 const AIMemory = lazy(() => import("./pages/AIMemory"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const About = lazy(() => import("./pages/About"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -49,6 +50,7 @@ const AnimatedRoutes = () => {
           <Route path="/chat" element={<Index />} />
           <Route path="/ai-memory" element={<AIMemory />} />
           <Route path="/settings" element={<Settings />} />
+          <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
         </Routes>
       </Suspense>

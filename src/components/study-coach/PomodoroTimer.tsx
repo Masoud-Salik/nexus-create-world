@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Pause, Play, RotateCcw, Coffee, BookOpen, Palette, Briefcase, Bell, VolumeX } from "lucide-react";
+import { Pause, Play, RotateCcw, Coffee, Bell, VolumeX } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useGlobalTimer } from "@/contexts/GlobalTimerContext";
 import { cn } from "@/lib/utils";
@@ -19,15 +19,12 @@ const PRESETS = [
   { label: "90m", value: 90 },
 ];
 
-const FOCUS_TYPES = [
-  { id: "study", label: "📚", icon: BookOpen, primary: true },
-  { id: "creative", label: "🛠", icon: Palette, primary: false },
-  { id: "work", label: "💼", icon: Briefcase, primary: false },
-];
+// Single focus type - no selector needed
+const DEFAULT_FOCUS_TYPE = "study";
 
 export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   const [duration, setDuration] = useState(25);
-  const [focusType, setFocusType] = useState("study");
+  const [focusType, setFocusType] = useState(DEFAULT_FOCUS_TYPE);
   const [sessionsToday, setSessionsToday] = useState(0);
   const { state, startPomodoro, startBreak, pause, resume, stop, stopAlarm } = useGlobalTimer();
 
@@ -155,37 +152,8 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   return (
     <TooltipProvider>
       <div className="flex flex-col items-center justify-center flex-1 w-full select-none">
-        {/* Focus Type Selector */}
-        {showControls && (
-          <div className="flex items-center gap-3 mb-5 animate-fade-in">
-            {FOCUS_TYPES.map((type) => {
-              const isActiveType = focusType === type.id;
-              return (
-                <Tooltip key={type.id}>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => setFocusType(type.id)}
-                      className={`
-                        flex items-center justify-center w-11 h-11 rounded-full text-lg transition-all tap-effect
-                        ${isActiveType && type.primary
-                          ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-110"
-                          : isActiveType
-                          ? "bg-accent text-accent-foreground shadow-md scale-110"
-                          : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                        }
-                      `}
-                    >
-                      {type.label}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">
-                    {type.id === "study" ? "Study" : type.id === "creative" ? "Create" : "Work"}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
-        )}
+
+
 
         {/* Main Timer Ring */}
         <div className="relative flex items-center justify-center mb-4" style={{ width: RING_SIZE, height: RING_SIZE }}>

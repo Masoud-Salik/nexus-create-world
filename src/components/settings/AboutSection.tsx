@@ -1,5 +1,7 @@
 import { Sparkles, Target, Heart, Rocket, Brain, Globe, Lightbulb } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
+import teamPhoto from "@/assets/team-photo.jpeg";
+import appLogo from "@/assets/app-logo.png";
 
 const values = [
   {
@@ -22,10 +24,20 @@ const values = [
 export function AboutSection() {
   return (
     <div className="space-y-6 py-2">
+      {/* Team Photo */}
+      <div className="rounded-2xl overflow-hidden shadow-lg">
+        <img
+          src={teamPhoto}
+          alt="Meet the StudyTime team — Masoud Salik and Fatima Salik"
+          className="w-full h-auto object-cover"
+          loading="lazy"
+        />
+      </div>
+
       {/* Hero */}
       <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mx-auto mb-2">
-          <Sparkles className="h-8 w-8 text-primary" />
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mx-auto mb-2 overflow-hidden">
+          <img src={appLogo} alt="StudyTime logo" className="w-12 h-12 object-contain" />
         </div>
         <h2 className="text-2xl font-bold text-foreground">StudyTime</h2>
         <p className="text-sm text-muted-foreground max-w-xs mx-auto">

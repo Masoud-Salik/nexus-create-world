@@ -1,18 +1,13 @@
 {
-  "name": "Nexus Life Coach",
-  "short_name": "Nexus",
-  "description": "AI-powered life coaching platform for personal growth, study planning, and future prediction",
+  "name": "StudyTime",
+  "short_name": "StudyTime",
+  "description": "AI-powered study companion for focused learning and progress tracking",
   "start_url": "/",
   "display": "standalone",
   "background_color": "#0a0a0a",
-  "theme_color": "#6366f1",
+  "theme_color": "#16a34a",
   "orientation": "portrait-primary",
   "icons": [
-    {
-      "src": "/favicon.ico",
-      "sizes": "48x48",
-      "type": "image/x-icon"
-    },
     {
       "src": "/icon-192.png",
       "sizes": "192x192",
@@ -24,9 +19,15 @@
       "sizes": "512x512",
       "type": "image/png",
       "purpose": "any maskable"
+    },
+    {
+      "src": "/icon-1024.png",
+      "sizes": "1024x1024",
+      "type": "image/png",
+      "purpose": "any"
     }
   ],
-  "categories": ["productivity", "education", "lifestyle"],
+  "categories": ["productivity", "education"],
   "screenshots": [],
   "prefer_related_applications": false
 }
