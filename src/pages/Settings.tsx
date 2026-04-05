@@ -147,37 +147,59 @@ const Settings = () => {
           
           {/* ACCOUNT TAB */}
           <TabsContent value="account" className="space-y-3">
-            {/* Compact Profile Card */}
-            <CompactProfileCard
-              userId={user.id}
-              name={name}
-              motto={motto}
-              avatarUrl={avatarUrl}
-              age={age}
-              occupation={occupation}
-              onProfileUpdate={(data) => {
-                setName(data.name);
-                setMotto(data.motto);
-                setAge(data.age);
-                setOccupation(data.occupation);
-                setAvatarUrl(data.avatarUrl);
-              }}
-            />
+            {isGuest ? (
+              <Card>
+                <CardContent className="p-6 text-center space-y-4">
+                  <div className="w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center mx-auto">
+                    <User className="h-7 w-7 text-primary" />
+                  </div>
+                  <div>
+                    <p className="font-semibold text-foreground">Guest Mode</p>
+                    <p className="text-sm text-muted-foreground mt-1">
+                      Sign in to save your progress and sync across devices
+                    </p>
+                  </div>
+                  <div className="flex gap-2 justify-center">
+                    <Button onClick={() => navigate("/chat")} variant="outline" size="sm">Sign In</Button>
+                    <Button onClick={() => navigate("/chat")} size="sm">Sign Up</Button>
+                  </div>
+                </CardContent>
+              </Card>
+            ) : (
+              <>
+                {/* Compact Profile Card */}
+                <CompactProfileCard
+                  userId={user.id}
+                  name={name}
+                  motto={motto}
+                  avatarUrl={avatarUrl}
+                  age={age}
+                  occupation={occupation}
+                  onProfileUpdate={(data) => {
+                    setName(data.name);
+                    setMotto(data.motto);
+                    setAge(data.age);
+                    setOccupation(data.occupation);
+                    setAvatarUrl(data.avatarUrl);
+                  }}
+                />
 
-            {/* Email */}
-            <Card>
-              <CardContent className="p-4 flex items-center justify-between overflow-hidden">
-                <div className="flex items-center gap-3 min-w-0 overflow-hidden">
-                  <div className="p-2 rounded-lg bg-muted shrink-0">
-                    <User className="h-4 w-4 text-muted-foreground" />
-                  </div>
-                  <div className="min-w-0 overflow-hidden">
-                    <p className="text-sm font-medium">Email</p>
-                    <p className="text-xs text-muted-foreground truncate">{email}</p>
-                  </div>
-                </div>
-              </CardContent>
-            </Card>
+                {/* Email */}
+                <Card>
+                  <CardContent className="p-4 flex items-center justify-between overflow-hidden">
+                    <div className="flex items-center gap-3 min-w-0 overflow-hidden">
+                      <div className="p-2 rounded-lg bg-muted shrink-0">
+                        <User className="h-4 w-4 text-muted-foreground" />
+                      </div>
+                      <div className="min-w-0 overflow-hidden">
+                        <p className="text-sm font-medium">Email</p>
+                        <p className="text-xs text-muted-foreground truncate">{email}</p>
+                      </div>
+                    </div>
+                  </CardContent>
+                </Card>
+              </>
+            )}
 
             {/* Theme Toggle */}
             <Card>
@@ -200,49 +222,53 @@ const Settings = () => {
             {/* Ringtone Selector */}
             <RingtoneSelector />
 
-            {/* Notifications */}
-            <Card>
-              <CardHeader className="py-3 px-4">
-                <CardTitle className="flex items-center gap-2 text-sm">
-                  <Bell className="h-4 w-4" />
-                  Notifications
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="px-4 pb-4 pt-0 space-y-3">
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="push" className="text-sm">Push Notifications</Label>
-                  <Switch 
-                    id="push"
-                    checked={pushNotifications}
-                    onCheckedChange={(checked) => {
-                      setPushNotifications(checked);
-                      updateNotificationPreferences(checked, emailUpdates);
-                    }}
-                  />
-                </div>
-                <div className="flex items-center justify-between">
-                  <Label htmlFor="email" className="text-sm">Email Updates</Label>
-                  <Switch 
-                    id="email"
-                    checked={emailUpdates}
-                    onCheckedChange={(checked) => {
-                      setEmailUpdates(checked);
-                      updateNotificationPreferences(pushNotifications, checked);
-                    }}
-                  />
-                </div>
-              </CardContent>
-            </Card>
+            {/* Notifications - only for authenticated users */}
+            {!isGuest && (
+              <Card>
+                <CardHeader className="py-3 px-4">
+                  <CardTitle className="flex items-center gap-2 text-sm">
+                    <Bell className="h-4 w-4" />
+                    Notifications
+                  </CardTitle>
+                </CardHeader>
+                <CardContent className="px-4 pb-4 pt-0 space-y-3">
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="push" className="text-sm">Push Notifications</Label>
+                    <Switch 
+                      id="push"
+                      checked={pushNotifications}
+                      onCheckedChange={(checked) => {
+                        setPushNotifications(checked);
+                        updateNotificationPreferences(checked, emailUpdates);
+                      }}
+                    />
+                  </div>
+                  <div className="flex items-center justify-between">
+                    <Label htmlFor="email" className="text-sm">Email Updates</Label>
+                    <Switch 
+                      id="email"
+                      checked={emailUpdates}
+                      onCheckedChange={(checked) => {
+                        setEmailUpdates(checked);
+                        updateNotificationPreferences(pushNotifications, checked);
+                      }}
+                    />
+                  </div>
+                </CardContent>
+              </Card>
+            )}
 
-            {/* Sign Out */}
-            <Button 
-              variant="outline" 
-              onClick={() => setSignOutDialogOpen(true)}
-              className="w-full gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
-            >
-              <LogOut className="h-4 w-4" />
-              Sign Out
-            </Button>
+            {/* Sign Out - only for authenticated users */}
+            {!isGuest && (
+              <Button 
+                variant="outline" 
+                onClick={() => setSignOutDialogOpen(true)}
+                className="w-full gap-2 text-destructive hover:text-destructive hover:bg-destructive/10"
+              >
+                <LogOut className="h-4 w-4" />
+                Sign Out
+              </Button>
+            )}
           </TabsContent>
 
           {/* MORE TAB */}
