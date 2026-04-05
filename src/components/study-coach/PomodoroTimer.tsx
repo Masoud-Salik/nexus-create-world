@@ -19,11 +19,8 @@ const PRESETS = [
   { label: "90m", value: 90 },
 ];
 
-const FOCUS_TYPES = [
-  { id: "study", label: "📚", icon: BookOpen, primary: true },
-  { id: "creative", label: "🛠", icon: Palette, primary: false },
-  { id: "work", label: "💼", icon: Briefcase, primary: false },
-];
+// Single focus type - no selector needed
+const DEFAULT_FOCUS_TYPE = "study";
 
 export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   const [duration, setDuration] = useState(25);

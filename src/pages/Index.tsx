@@ -776,9 +776,8 @@ const Index = () => {
     }
   };
 
-  if (!user) {
-    return <Auth />;
-  }
+  // Guest mode: allow full access without auth
+  const isGuest = !user;
 
   if (checkingOnboarding) {
     return (
