@@ -455,6 +455,10 @@ const Index = () => {
   };
 
   const handleGetStarted = async () => {
+    if (!user) {
+      toast({ title: "Sign in to chat", description: "Create an account to use the AI chat feature" });
+      return;
+    }
     const userContext = await getUserContext();
     const displayMessage = "Get Started";
     
