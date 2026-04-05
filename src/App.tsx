@@ -21,6 +21,7 @@ const Settings = lazy(() => import("./pages/Settings"));
 const StudyCoach = lazy(() => import("./pages/StudyCoach"));
 const AIMemory = lazy(() => import("./pages/AIMemory"));
 const NotFound = lazy(() => import("./pages/NotFound"));
+const About = lazy(() => import("./pages/About"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
