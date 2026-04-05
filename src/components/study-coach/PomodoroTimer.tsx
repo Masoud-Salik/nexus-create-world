@@ -152,37 +152,8 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   return (
     <TooltipProvider>
       <div className="flex flex-col items-center justify-center flex-1 w-full select-none">
-        {/* Focus Type Selector */}
-        {showControls && (
-          <div className="flex items-center gap-3 mb-5 animate-fade-in">
-            {FOCUS_TYPES.map((type) => {
-              const isActiveType = focusType === type.id;
-              return (
-                <Tooltip key={type.id}>
-                  <TooltipTrigger asChild>
-                    <button
-                      onClick={() => setFocusType(type.id)}
-                      className={`
-                        flex items-center justify-center w-11 h-11 rounded-full text-lg transition-all tap-effect
-                        ${isActiveType && type.primary
-                          ? "bg-primary text-primary-foreground shadow-lg shadow-primary/30 scale-110"
-                          : isActiveType
-                          ? "bg-accent text-accent-foreground shadow-md scale-110"
-                          : "bg-muted/60 text-muted-foreground hover:bg-muted"
-                        }
-                      `}
-                    >
-                      {type.label}
-                    </button>
-                  </TooltipTrigger>
-                  <TooltipContent side="bottom" className="text-xs">
-                    {type.id === "study" ? "Study" : type.id === "creative" ? "Create" : "Work"}
-                  </TooltipContent>
-                </Tooltip>
-              );
-            })}
-          </div>
-        )}
+
+
 
         {/* Main Timer Ring */}
         <div className="relative flex items-center justify-center mb-4" style={{ width: RING_SIZE, height: RING_SIZE }}>
