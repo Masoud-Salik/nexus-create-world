@@ -110,13 +110,7 @@ const Settings = () => {
     navigate("/");
   };
 
-  if (!user) {
-    return (
-      <div className="flex min-h-screen items-center justify-center p-6">
-        <p className="text-muted-foreground">Please log in to access settings.</p>
-      </div>
-    );
-  }
+  const isGuest = !user;
 
   return (
     <div className="flex min-h-screen flex-col bg-background px-3 py-4 sm:p-6 overflow-x-hidden w-full max-w-[100vw] box-border">
