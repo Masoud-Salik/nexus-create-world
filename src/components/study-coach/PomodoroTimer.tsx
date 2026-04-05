@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Pause, Play, RotateCcw, Coffee, BookOpen, Palette, Briefcase, Bell, VolumeX } from "lucide-react";
+import { Pause, Play, RotateCcw, Coffee, Bell, VolumeX } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useGlobalTimer } from "@/contexts/GlobalTimerContext";
 import { cn } from "@/lib/utils";
