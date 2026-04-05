@@ -1,4 +1,4 @@
-import { MessageSquare, GraduationCap, Settings } from "lucide-react";
+import { MessageSquare, GraduationCap, Settings, Info } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import {
   Sidebar,
@@ -14,7 +14,8 @@ import {
 const items = [
 { title: "AI Chat", url: "/chat", icon: MessageSquare },
 { title: "Focus Hub", url: "/", icon: GraduationCap },
-{ title: "Settings", url: "/settings", icon: Settings }];
+{ title: "Settings", url: "/settings", icon: Settings },
+{ title: "About", url: "/about", icon: Info }];
 
 
 export function AppSidebar() {
