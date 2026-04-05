@@ -813,8 +813,6 @@ const Index = () => {
     return <Onboarding userId={user.id} onComplete={handleOnboardingComplete} />;
   }
 
-  // Guest mode: show auth prompt with welcome
-  const [showAuthDialog, setShowAuthDialog] = useState(false);
 
   return (
     <div className="flex h-screen bg-background particle-bg">
