@@ -779,7 +779,7 @@ const Index = () => {
   // Guest mode: allow full access without auth
   const isGuest = !user;
 
-  if (checkingOnboarding) {
+  if (user && checkingOnboarding) {
     return (
       <div className="flex h-screen items-center justify-center particle-bg">
         <div className="flex flex-col items-center gap-4 animate-fade-in">
@@ -795,7 +795,7 @@ const Index = () => {
     );
   }
 
-  if (needsOnboarding) {
+  if (user && needsOnboarding) {
     return <Onboarding userId={user.id} onComplete={handleOnboardingComplete} />;
   }
 
