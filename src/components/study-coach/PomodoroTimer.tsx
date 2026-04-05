@@ -24,7 +24,7 @@ const DEFAULT_FOCUS_TYPE = "study";
 
 export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   const [duration, setDuration] = useState(25);
-  const [focusType, setFocusType] = useState("study");
+  const [focusType, setFocusType] = useState(DEFAULT_FOCUS_TYPE);
   const [sessionsToday, setSessionsToday] = useState(0);
   const { state, startPomodoro, startBreak, pause, resume, stop, stopAlarm } = useGlobalTimer();
 
