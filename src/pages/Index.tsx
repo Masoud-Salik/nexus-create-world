@@ -34,6 +34,7 @@ const Index = () => {
   const [editingIndex, setEditingIndex] = useState<number | null>(null);
   const [showChatList, setShowChatList] = useState(false);
   const [userName, setUserName] = useState<string | undefined>();
+  const [showAuthDialog, setShowAuthDialog] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const abortControllerRef = useRef<AbortController | null>(null);
