@@ -15,6 +15,7 @@ import { CompactStatsBar } from "@/components/study-coach/CompactStatsBar";
 import { PomodoroTimer } from "@/components/study-coach/PomodoroTimer";
 import { useLocalStudyPlan } from "@/hooks/useLocalStudyPlan";
 import { Leaderboard } from "@/components/study-coach/Leaderboard";
+import { BackgroundMusicPlayer } from "@/components/study-coach/BackgroundMusicPlayer";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import {
   Dialog,
