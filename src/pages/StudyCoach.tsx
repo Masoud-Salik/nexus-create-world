@@ -476,6 +476,8 @@ export default function StudyCoach() {
             <h1 className="text-2xl font-bold text-foreground">Study</h1>
           </div>
           <div className="flex items-center gap-1">
+            {/* Background Music */}
+            <BackgroundMusicPlayer compact />
             {/* Leaderboard button - prominent */}
             <Button
               variant="outline"
