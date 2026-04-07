@@ -37,7 +37,7 @@ export function MobileBottomNav() {
               <>
                 {/* Active pill indicator */}
                 {isActive && (
-                  <span className="absolute inset-1 rounded-2xl bg-primary/90 -z-10 animate-scale-in" />
+                  <span className="absolute inset-1 rounded-2xl bg-primary/90 -z-10 animate-spring-scale" />
                 )}
                 <item.icon className={cn(
                   "h-6 w-6 transition-all duration-200",

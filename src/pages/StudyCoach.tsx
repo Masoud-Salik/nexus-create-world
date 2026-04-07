@@ -1,4 +1,5 @@
 import { useState, useEffect, useCallback, useRef } from "react";
+import { cn } from "@/lib/utils";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -469,11 +470,16 @@ export default function StudyCoach() {
     <div className="min-h-screen bg-background pb-20 md:pb-6">
       <div className="max-w-lg mx-auto px-4 py-4 flex flex-col min-h-[calc(100vh-80px)]">
         
-        {/* Compact Header with Mode Toggle */}
+        {/* Header — "Study Hub" + date + streak + actions */}
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-sm text-muted-foreground font-medium">Welcome back 👋</p>
-            <h1 className="text-2xl font-bold text-foreground">Study</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-foreground">Study Hub</h1>
+            <span className="text-xs text-muted-foreground">{format(new Date(), "EEE, MMM d")}</span>
+            {streak > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-xs font-bold text-orange-500">
+                🔥 {streak}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             {/* Background Music */}
@@ -520,29 +526,39 @@ export default function StudyCoach() {
           </div>
         </div>
 
-        {/* Mode Toggle - Timer (default) vs Plan */}
-        {!activeTask &&
-        <div className="flex justify-center mb-4">
-            <div className="flex gap-1 p-1 bg-muted rounded-lg">
-              <Button
-              variant={studyMode === "timer" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setStudyMode("timer")}
-              className="gap-1.5 px-4">
-              
+        {/* Mode Toggle — iOS-style segmented control */}
+        {!activeTask && (
+          <div className="flex justify-center mb-4">
+            <div className="relative flex p-1 bg-muted rounded-xl">
+              {/* Sliding pill indicator */}
+              <div
+                className="absolute top-1 bottom-1 rounded-lg bg-primary shadow-md transition-all duration-300 ease-out"
+                style={{
+                  width: "calc(50% - 4px)",
+                  left: studyMode === "timer" ? "4px" : "calc(50% + 0px)",
+                }}
+              />
+              <button
+                onClick={() => { setStudyMode("timer"); navigator.vibrate?.(10); }}
+                className={cn(
+                  "relative z-10 flex items-center gap-1.5 px-5 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
+                  studyMode === "timer" ? "text-primary-foreground" : "text-muted-foreground"
+                )}
+              >
                 ⏱ Focus
-              </Button>
-              <Button
-              variant={studyMode === "plan" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setStudyMode("plan")}
-              className="gap-1.5 px-4">
-              
-                📅 Blueprint
-              </Button>
+              </button>
+              <button
+                onClick={() => { setStudyMode("plan"); navigator.vibrate?.(10); }}
+                className={cn(
+                  "relative z-10 flex items-center gap-1.5 px-5 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
+                  studyMode === "plan" ? "text-primary-foreground" : "text-muted-foreground"
+                )}
+              >
+                📋 Blueprint
+              </button>
             </div>
           </div>
-        }
+        )}
 
         {/* Guest Banner - Auto-hide after 3 seconds */}
         <GuestBanner isGuest={isGuest} />

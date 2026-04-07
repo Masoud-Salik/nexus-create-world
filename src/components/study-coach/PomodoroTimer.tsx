@@ -14,21 +14,29 @@ const MAX_DURATION = 90;
 const SNAP_STEP = 5;
 
 const PRESETS = [
-  { label: "25m", value: 25 },
-  { label: "50m", value: 50 },
-  { label: "90m", value: 90 },
+  { label: "☕ 25m", value: 25 },
+  { label: "📖 50m", value: 50 },
+  { label: "🔥 90m", value: 90 },
 ];
 
-// Single focus type - no selector needed
+const QUOTES = [
+  "Deep work builds deep skills.",
+  "Focus is the new superpower.",
+  "Small sessions, big results.",
+  "You're building momentum.",
+  "Consistency beats intensity.",
+];
+
 const DEFAULT_FOCUS_TYPE = "study";
+const SESSION_GOAL = 6;
 
 export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   const [duration, setDuration] = useState(25);
-  const [focusType, setFocusType] = useState(DEFAULT_FOCUS_TYPE);
+  const [focusType] = useState(DEFAULT_FOCUS_TYPE);
   const [sessionsToday, setSessionsToday] = useState(0);
+  const [quoteIndex] = useState(() => Math.floor(Math.random() * QUOTES.length));
   const { state, startPomodoro, startBreak, pause, resume, stop, stopAlarm } = useGlobalTimer();
 
-  // Derive timer state from global context
   const isActive = state.type === "pomodoro";
   const isRunning = isActive && state.isRunning;
   const isAlarmPlaying = isActive && state.isAlarmPlaying;
@@ -36,56 +44,39 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   const timeLeft = isActive ? Math.max(0, state.totalSeconds - state.elapsedSeconds) : duration * 60;
   const totalSeconds = isActive ? state.totalSeconds : duration * 60;
 
-  // Drag-to-set-time state
   const scrubRef = useRef<HTMLDivElement>(null);
   const isDragging = useRef(false);
 
-  // Load sessions from localStorage
   useEffect(() => {
     const today = new Date().toDateString();
     const stored = localStorage.getItem("pomodoro_sessions");
     if (stored) {
       const data = JSON.parse(stored);
-      if (data.date === today) {
-        setSessionsToday(data.count);
-      }
+      if (data.date === today) setSessionsToday(data.count);
     }
   }, []);
 
-  // Handle timer completion
   useEffect(() => {
     if (isActive && state.isAlarmPlaying && state.elapsedSeconds >= state.totalSeconds) {
       if (!isBreak) {
         const newCount = sessionsToday + 1;
         setSessionsToday(newCount);
-        localStorage.setItem("pomodoro_sessions", JSON.stringify({
-          date: new Date().toDateString(),
-          count: newCount,
-        }));
+        localStorage.setItem("pomodoro_sessions", JSON.stringify({ date: new Date().toDateString(), count: newCount }));
         onSessionComplete?.(state.pomodoroData?.duration || duration, state.pomodoroData?.focusType || focusType);
       }
     }
   }, [isActive, state.isAlarmPlaying]);
 
   const handleStartPause = () => {
-    if (!isActive) {
-      // Start fresh
-      startPomodoro(duration * 60, focusType);
-    } else if (isRunning) {
-      pause();
-    } else if (!state.isAlarmPlaying) {
-      resume();
-    }
+    if (!isActive) startPomodoro(duration * 60, focusType);
+    else if (isRunning) pause();
+    else if (!state.isAlarmPlaying) resume();
   };
 
   const handleStopAlarm = () => {
     stopAlarm();
-    // After alarm, transition to break or back to work
-    if (!isBreak) {
-      startBreak(5 * 60);
-    } else {
-      stop();
-    }
+    if (!isBreak) startBreak(5 * 60);
+    else stop();
   };
 
   const handleDurationChange = useCallback((mins: number) => {
@@ -95,9 +86,7 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
     if (isActive) stop();
   }, [isActive, stop]);
 
-  const handleReset = () => {
-    stop();
-  };
+  const handleReset = () => stop();
 
   const formatTime = (seconds: number) => {
     const hrs = Math.floor(seconds / 3600);
@@ -113,14 +102,13 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
 
   const progress = totalSeconds > 0 ? ((totalSeconds - timeLeft) / totalSeconds) * 100 : 0;
 
-  // SVG ring dimensions
+  // SVG ring — thicker stroke with gradient
   const RING_SIZE = 280;
-  const STROKE_WIDTH = 10;
+  const STROKE_WIDTH = 14;
   const RADIUS = (RING_SIZE - STROKE_WIDTH) / 2;
   const circumference = 2 * Math.PI * RADIUS;
   const strokeDashoffset = circumference - (progress / 100) * circumference;
 
-  // Scrub bar handler
   const handleScrub = useCallback((clientX: number) => {
     if (!scrubRef.current || isRunning || isBreak) return;
     const rect = scrubRef.current.getBoundingClientRect();
@@ -141,43 +129,49 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
     handleScrub(e.clientX);
   }, [handleScrub]);
 
-  const onPointerUp = useCallback(() => {
-    isDragging.current = false;
-  }, []);
+  const onPointerUp = useCallback(() => { isDragging.current = false; }, []);
 
   const scrubRatio = (duration - MIN_DURATION) / (MAX_DURATION - MIN_DURATION);
   const isPulsing = isRunning && timeLeft <= 10 && timeLeft > 0;
   const showControls = !isActive || (!isRunning && !isAlarmPlaying && !isBreak);
+  const showGlow = progress >= 70;
+
+  // Session history dots
+  const sessionDots = Array.from({ length: SESSION_GOAL }, (_, i) => i < sessionsToday);
 
   return (
     <TooltipProvider>
       <div className="flex flex-col items-center justify-center flex-1 w-full select-none">
 
-
-
         {/* Main Timer Ring */}
         <div className="relative flex items-center justify-center mb-4" style={{ width: RING_SIZE, height: RING_SIZE }}>
+          {/* Gradient definition */}
+          <svg width={0} height={0}>
+            <defs>
+              <linearGradient id="ring-gradient" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="hsl(var(--primary))" />
+                <stop offset="100%" stopColor="hsl(170 70% 40%)" />
+              </linearGradient>
+              <linearGradient id="ring-break" x1="0%" y1="0%" x2="100%" y2="100%">
+                <stop offset="0%" stopColor="hsl(var(--info))" />
+                <stop offset="100%" stopColor="hsl(199 89% 58%)" />
+              </linearGradient>
+            </defs>
+          </svg>
           <svg
             width={RING_SIZE}
             height={RING_SIZE}
             className="transform -rotate-90"
-            style={{ filter: progress >= 70 ? `drop-shadow(0 0 18px hsl(var(--primary) / 0.5))` : undefined }}
+            style={{ filter: showGlow ? `drop-shadow(0 0 24px hsl(var(--primary) / 0.45))` : undefined }}
           >
             <circle
-              cx={RING_SIZE / 2}
-              cy={RING_SIZE / 2}
-              r={RADIUS}
-              fill="none"
-              stroke="hsl(var(--muted))"
-              strokeWidth={STROKE_WIDTH}
-              opacity={0.5}
+              cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS}
+              fill="none" stroke="hsl(var(--muted))" strokeWidth={STROKE_WIDTH} opacity={0.35}
             />
             <circle
-              cx={RING_SIZE / 2}
-              cy={RING_SIZE / 2}
-              r={RADIUS}
+              cx={RING_SIZE / 2} cy={RING_SIZE / 2} r={RADIUS}
               fill="none"
-              stroke={isBreak ? "hsl(var(--info))" : "hsl(var(--primary))"}
+              stroke={isBreak ? "url(#ring-break)" : "url(#ring-gradient)"}
               strokeWidth={STROKE_WIDTH}
               strokeLinecap="round"
               strokeDasharray={circumference}
@@ -203,37 +197,32 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
             </div>
 
             {isAlarmPlaying ? (
-              <button
-                onClick={handleStopAlarm}
-                className="mt-2 h-16 w-16 rounded-full flex items-center justify-center shadow-xl transition-all tap-effect active:scale-95 bg-destructive text-destructive-foreground animate-pulse"
-                aria-label="Stop Alarm"
-              >
+              <button onClick={handleStopAlarm}
+                className="mt-2 h-16 w-16 rounded-full flex items-center justify-center shadow-xl transition-all tap-effect active:scale-95 bg-destructive text-destructive-foreground animate-pulse">
                 <VolumeX className="h-7 w-7" />
               </button>
             ) : (
-              <button
-                onClick={handleStartPause}
+              <button onClick={handleStartPause}
                 className={cn(
                   "mt-2 rounded-full flex items-center justify-center shadow-xl transition-all tap-effect active:scale-95",
                   isRunning ? "h-14 w-14" : "h-16 w-16",
-                  isBreak
-                    ? "bg-info text-info-foreground"
-                    : "bg-primary text-primary-foreground",
+                  isBreak ? "bg-info text-info-foreground" : "bg-primary text-primary-foreground",
                   !isRunning && "ring-4 ring-primary/20"
-                )}
-                aria-label={isRunning ? "Pause" : "Start"}
-              >
-                {isRunning ? (
-                  <Pause className="h-6 w-6" />
-                ) : (
-                  <Play className="h-7 w-7 ml-0.5" />
-                )}
+                )}>
+                {isRunning ? <Pause className="h-6 w-6" /> : <Play className="h-7 w-7 ml-0.5" />}
               </button>
             )}
           </div>
         </div>
 
-        {/* Scrub bar + Presets — only when idle */}
+        {/* Motivational quote during active session */}
+        {isRunning && (
+          <p className="text-xs text-muted-foreground italic mb-3 animate-fade-in max-w-[240px] text-center">
+            "{QUOTES[quoteIndex]}"
+          </p>
+        )}
+
+        {/* Scrub bar + Preset pills — only when idle */}
         {showControls && (
           <div className="w-full max-w-[300px] mb-4 animate-fade-in px-2">
             <div className="flex justify-center gap-2 mb-3">
@@ -242,10 +231,10 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
                   key={p.value}
                   onClick={() => handleDurationChange(p.value)}
                   className={cn(
-                    "px-4 py-1.5 rounded-full text-xs font-bold transition-all tap-effect",
+                    "px-4 py-2 rounded-full text-xs font-bold transition-all tap-effect border",
                     duration === p.value
-                      ? "bg-primary text-primary-foreground shadow-md"
-                      : "bg-muted text-muted-foreground hover:bg-muted/80"
+                      ? "bg-primary text-primary-foreground shadow-md border-primary"
+                      : "bg-card text-muted-foreground hover:bg-muted/80 border-border/60"
                   )}
                 >
                   {p.label}
@@ -253,39 +242,21 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
               ))}
             </div>
 
-            <div
-              ref={scrubRef}
-              className="relative h-10 flex items-center cursor-pointer touch-none"
-              onPointerDown={onPointerDown}
-              onPointerMove={onPointerMove}
-              onPointerUp={onPointerUp}
-            >
+            <div ref={scrubRef} className="relative h-10 flex items-center cursor-pointer touch-none"
+              onPointerDown={onPointerDown} onPointerMove={onPointerMove} onPointerUp={onPointerUp}>
               <div className="absolute inset-y-0 left-0 right-0 flex items-center">
                 <div className="w-full h-2.5 rounded-full bg-muted/60 overflow-hidden">
-                  <div
-                    className="h-full rounded-full bg-primary transition-all duration-75"
-                    style={{ width: `${scrubRatio * 100}%` }}
-                  />
+                  <div className="h-full rounded-full bg-primary transition-all duration-75" style={{ width: `${scrubRatio * 100}%` }} />
                 </div>
               </div>
-
               <div className="absolute inset-y-0 left-0 right-0 flex items-center pointer-events-none">
                 {[15, 25, 45, 60, 75, 90].map((m) => {
                   const pos = ((m - MIN_DURATION) / (MAX_DURATION - MIN_DURATION)) * 100;
-                  return (
-                    <div
-                      key={m}
-                      className="absolute w-px h-3.5 bg-muted-foreground/40"
-                      style={{ left: `${pos}%` }}
-                    />
-                  );
+                  return <div key={m} className="absolute w-px h-3.5 bg-muted-foreground/40" style={{ left: `${pos}%` }} />;
                 })}
               </div>
-
-              <div
-                className="absolute w-7 h-7 rounded-full bg-primary shadow-lg border-2 border-background transition-[left] duration-75 -translate-x-1/2"
-                style={{ left: `${scrubRatio * 100}%` }}
-              />
+              <div className="absolute w-7 h-7 rounded-full bg-primary shadow-lg border-2 border-background transition-[left] duration-75 -translate-x-1/2"
+                style={{ left: `${scrubRatio * 100}%` }} />
             </div>
 
             <div className="flex justify-between text-[10px] text-muted-foreground mt-0.5 px-0.5">
@@ -308,11 +279,8 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
         {isActive && (
           <Tooltip>
             <TooltipTrigger asChild>
-              <button
-                onClick={handleReset}
-                className="h-10 w-10 rounded-full flex items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80 transition-all tap-effect mb-4"
-                aria-label="Reset Timer"
-              >
+              <button onClick={handleReset}
+                className="h-10 w-10 rounded-full flex items-center justify-center bg-muted text-muted-foreground hover:bg-muted/80 transition-all tap-effect mb-4">
                 <RotateCcw className="h-4 w-4" />
               </button>
             </TooltipTrigger>
@@ -320,10 +288,19 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
           </Tooltip>
         )}
 
-        {/* Sessions Counter */}
+        {/* Session history dots */}
+        <div className="flex items-center gap-1.5 mb-2">
+          {sessionDots.map((done, i) => (
+            <div key={i} className={cn(
+              "w-3 h-3 rounded-full transition-all",
+              done ? "bg-primary shadow-sm shadow-primary/30" : "bg-muted border border-border/60"
+            )} />
+          ))}
+        </div>
+
         <Badge variant="secondary" className="gap-1.5 text-xs">
           <span className="font-bold">{sessionsToday}</span>
-          <span className="text-muted-foreground">sessions today</span>
+          <span className="text-muted-foreground">/ {SESSION_GOAL} sessions</span>
         </Badge>
       </div>
     </TooltipProvider>
