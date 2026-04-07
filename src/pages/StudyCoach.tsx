@@ -469,11 +469,16 @@ export default function StudyCoach() {
     <div className="min-h-screen bg-background pb-20 md:pb-6">
       <div className="max-w-lg mx-auto px-4 py-4 flex flex-col min-h-[calc(100vh-80px)]">
         
-        {/* Compact Header with Mode Toggle */}
+        {/* Header — "Study Hub" + date + streak + actions */}
         <div className="flex items-center justify-between mb-3">
-          <div>
-            <p className="text-sm text-muted-foreground font-medium">Welcome back 👋</p>
-            <h1 className="text-2xl font-bold text-foreground">Study</h1>
+          <div className="flex items-center gap-2">
+            <h1 className="text-xl font-bold text-foreground">Study Hub</h1>
+            <span className="text-xs text-muted-foreground">{format(new Date(), "EEE, MMM d")}</span>
+            {streak > 0 && (
+              <span className="inline-flex items-center gap-0.5 text-xs font-bold text-orange-500">
+                🔥 {streak}
+              </span>
+            )}
           </div>
           <div className="flex items-center gap-1">
             {/* Background Music */}
