@@ -525,29 +525,39 @@ export default function StudyCoach() {
           </div>
         </div>
 
-        {/* Mode Toggle - Timer (default) vs Plan */}
-        {!activeTask &&
-        <div className="flex justify-center mb-4">
-            <div className="flex gap-1 p-1 bg-muted rounded-lg">
-              <Button
-              variant={studyMode === "timer" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setStudyMode("timer")}
-              className="gap-1.5 px-4">
-              
+        {/* Mode Toggle — iOS-style segmented control */}
+        {!activeTask && (
+          <div className="flex justify-center mb-4">
+            <div className="relative flex p-1 bg-muted rounded-xl">
+              {/* Sliding pill indicator */}
+              <div
+                className="absolute top-1 bottom-1 rounded-lg bg-primary shadow-md transition-all duration-300 ease-out"
+                style={{
+                  width: "calc(50% - 4px)",
+                  left: studyMode === "timer" ? "4px" : "calc(50% + 0px)",
+                }}
+              />
+              <button
+                onClick={() => { setStudyMode("timer"); navigator.vibrate?.(10); }}
+                className={cn(
+                  "relative z-10 flex items-center gap-1.5 px-5 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
+                  studyMode === "timer" ? "text-primary-foreground" : "text-muted-foreground"
+                )}
+              >
                 ⏱ Focus
-              </Button>
-              <Button
-              variant={studyMode === "plan" ? "default" : "ghost"}
-              size="sm"
-              onClick={() => setStudyMode("plan")}
-              className="gap-1.5 px-4">
-              
-                📅 Blueprint
-              </Button>
+              </button>
+              <button
+                onClick={() => { setStudyMode("plan"); navigator.vibrate?.(10); }}
+                className={cn(
+                  "relative z-10 flex items-center gap-1.5 px-5 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
+                  studyMode === "plan" ? "text-primary-foreground" : "text-muted-foreground"
+                )}
+              >
+                📋 Blueprint
+              </button>
             </div>
           </div>
-        }
+        )}
 
         {/* Guest Banner - Auto-hide after 3 seconds */}
         <GuestBanner isGuest={isGuest} />
