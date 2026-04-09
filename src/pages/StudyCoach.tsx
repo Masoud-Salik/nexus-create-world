@@ -327,6 +327,8 @@ export default function StudyCoach() {
 
     updateTaskLocally(taskId, { status, actual_minutes: actualMinutes });
     setActiveTask(null);
+    // Clear is_studying indicator
+    if (userId) { supabase.from("leaderboard_opt_ins").update({ is_studying: false }).eq("user_id", userId).then(() => {}); }
 
     if (status === "completed") {
       toast({ title: "Task completed! 🎉" });
