@@ -3,7 +3,7 @@ import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
 Deno.serve(async (req) => {
@@ -62,26 +62,31 @@ Deno.serve(async (req) => {
       const userIds = leaderboard.map((e) => e.user_id);
       const { data: optIns } = await supabase
         .from("leaderboard_opt_ins")
-        .select("user_id, display_name")
+        .select("user_id, display_name, country, is_studying")
         .in("user_id", userIds)
         .eq("is_active", true);
 
-      const nameMap = new Map((optIns || []).map((o) => [o.user_id, o.display_name]));
+      const optInMap = new Map((optIns || []).map((o) => [o.user_id, o]));
 
       const visibleLeaderboard = leaderboard
-        .filter((e) => nameMap.has(e.user_id))
-        .map((e, i) => ({
-          rank: i + 1,
-          display_name: nameMap.get(e.user_id) || "Anonymous",
-          study_hours: Number(e.study_hours),
-          streak_days: e.streak_days,
-          days_studied: e.days_studied,
-          discipline_score: Number(e.discipline_score),
-          is_current_user: e.user_id === user.id,
-          tier: getTier(Number(e.discipline_score)),
-          xp: scoreToXP(Number(e.discipline_score), e.streak_days, Number(e.study_hours)),
-          level: xpToLevel(scoreToXP(Number(e.discipline_score), e.streak_days, Number(e.study_hours))),
-        }));
+        .filter((e) => optInMap.has(e.user_id))
+        .map((e, i) => {
+          const opt = optInMap.get(e.user_id)!;
+          return {
+            rank: i + 1,
+            display_name: opt.display_name || "Anonymous",
+            country: opt.country || null,
+            is_studying: opt.is_studying || false,
+            study_hours: Number(e.study_hours),
+            streak_days: e.streak_days,
+            days_studied: e.days_studied,
+            discipline_score: Number(e.discipline_score),
+            is_current_user: e.user_id === user.id,
+            tier: getTier(Number(e.discipline_score)),
+            xp: scoreToXP(Number(e.discipline_score), e.streak_days, Number(e.study_hours)),
+            level: xpToLevel(scoreToXP(Number(e.discipline_score), e.streak_days, Number(e.study_hours))),
+          };
+        });
 
       const userRank = visibleLeaderboard.find((e) => e.is_current_user)?.rank || null;
 
@@ -118,24 +123,24 @@ async function computeUserScore(supabase: any, userId: string) {
   const weekStart = formatDate(monday);
   const weekEnd = formatDate(sunday);
 
-  // 1. Study hours this week
+  // Study hours this week (with bonus multiplier)
   const { data: sessions } = await supabase
     .from("study_sessions")
-    .select("time_spent_minutes, session_date")
+    .select("time_spent_minutes, session_date, is_bonus")
     .eq("user_id", userId)
     .gte("session_date", weekStart)
     .lte("session_date", weekEnd);
 
-  const totalMinutes = (sessions || []).reduce(
-    (sum: number, s: any) => sum + (s.time_spent_minutes || 0), 0
-  );
+  let totalMinutes = 0;
+  for (const s of (sessions || [])) {
+    const mins = s.time_spent_minutes || 0;
+    totalMinutes += s.is_bonus ? Math.round(mins * 1.5) : mins;
+  }
   const studyHours = totalMinutes / 60;
 
-  // 2. Distinct days studied
   const uniqueDays = new Set((sessions || []).map((s: any) => s.session_date));
   const daysStudied = uniqueDays.size;
 
-  // 3. Streak
   const { data: habit } = await supabase
     .from("habits")
     .select("current_streak, longest_streak, total_completions")
@@ -145,7 +150,6 @@ async function computeUserScore(supabase: any, userId: string) {
 
   const streakDays = habit?.current_streak || 0;
 
-  // 4. Tasks completed this week
   const { data: tasks } = await supabase
     .from("study_tasks")
     .select("id, status, difficulty")
@@ -157,7 +161,6 @@ async function computeUserScore(supabase: any, userId: string) {
   const totalTasks = (tasks || []).length;
   const taskCompletionRate = totalTasks > 0 ? completedTasks.length / totalTasks : 0;
 
-  // Difficulty bonus: hard tasks worth more
   const difficultyBonus = completedTasks.reduce((sum: number, t: any) => {
     if (t.difficulty === "hard") return sum + 1.5;
     if (t.difficulty === "medium") return sum + 1.0;
@@ -166,24 +169,18 @@ async function computeUserScore(supabase: any, userId: string) {
   const maxDifficultyBonus = Math.max(completedTasks.length * 1.5, 1);
   const difficultyNormalized = Math.min(difficultyBonus / maxDifficultyBonus, 1.0);
 
-  // === Enhanced Discipline Score Formula ===
-  // Consistency (30%): days_studied / 7
   const consistencyRatio = Math.min(daysStudied / 7, 1.0);
-  // Streak (25%): log scale, capped at 30 days
   const streakNormalized = Math.min(Math.log(streakDays + 1) / Math.log(31), 1.0);
-  // Study volume (20%): hours normalized to 20h
   const MAX_WEEKLY_HOURS = 20;
   const volumeNormalized = Math.min(studyHours / MAX_WEEKLY_HOURS, 1.0);
-  // Task completion (15%): % of tasks completed
   const taskNormalized = taskCompletionRate;
-  // Difficulty (10%): harder tasks = more points
   const diffNormalized = difficultyNormalized;
 
   const disciplineScore = Math.round(
     (consistencyRatio * 30 + streakNormalized * 25 + volumeNormalized * 20 + taskNormalized * 15 + diffNormalized * 10) * 10
   ) / 10;
 
-  const { error } = await supabase
+  await supabase
     .from("weekly_leaderboard")
     .upsert(
       {
@@ -198,9 +195,6 @@ async function computeUserScore(supabase: any, userId: string) {
       { onConflict: "user_id,week_start" }
     );
 
-  if (error) console.error("Upsert error:", error);
-
-  // Compute badges
   const badges = computeBadges(streakDays, studyHours, completedTasks.length, daysStudied, habit?.longest_streak || 0);
 
   return {
@@ -219,13 +213,11 @@ async function computeUserScore(supabase: any, userId: string) {
 }
 
 async function getUserTrends(supabase: any, userId: string) {
-  // Get last 4 weeks of leaderboard data
-  const weeks: any[] = [];
+  const weeks: string[] = [];
   for (let i = 0; i < 4; i++) {
     const d = new Date();
     d.setDate(d.getDate() - i * 7);
-    const monday = getMonday(d);
-    weeks.push(formatDate(monday));
+    weeks.push(formatDate(getMonday(d)));
   }
 
   const { data } = await supabase
@@ -239,52 +231,42 @@ async function getUserTrends(supabase: any, userId: string) {
   const currentWeek = entries[entries.length - 1];
   const previousWeek = entries.length >= 2 ? entries[entries.length - 2] : null;
 
-  let scoreChange = 0;
-  let hoursChange = 0;
-  let consistencyChange = 0;
-
+  let scoreChange = 0, hoursChange = 0, consistencyChange = 0;
   if (currentWeek && previousWeek) {
     scoreChange = Math.round((Number(currentWeek.discipline_score) - Number(previousWeek.discipline_score)) * 10) / 10;
     hoursChange = Math.round((Number(currentWeek.study_hours) - Number(previousWeek.study_hours)) * 10) / 10;
     consistencyChange = currentWeek.days_studied - previousWeek.days_studied;
   }
 
-  // Generate insight
   let insight = "Start studying to see your trends!";
   if (currentWeek) {
     if (scoreChange > 0) insight = "📈 You're improving! Keep up the momentum.";
-    else if (scoreChange < 0) insight = "📉 Score dipped. Try studying more consistently across days.";
-    else if (currentWeek.days_studied >= 5) insight = "🔥 Excellent consistency! You're in the top tier.";
-    else if (currentWeek.days_studied <= 2) insight = "💡 Daily consistency beats binge study. Try small daily sessions.";
-    else insight = "⚡ Steady progress. Push for one more day this week!";
+    else if (scoreChange < 0) insight = "📉 Score dipped. Try studying more consistently.";
+    else if (currentWeek.days_studied >= 5) insight = "🔥 Excellent consistency!";
+    else if (currentWeek.days_studied <= 2) insight = "💡 Daily consistency beats binge study.";
+    else insight = "⚡ Steady progress. Push for one more day!";
   }
 
   return {
-    weeks: entries.map((e: any) => ({
-      week_start: e.week_start,
-      score: Number(e.discipline_score),
-      hours: Number(e.study_hours),
-      days: e.days_studied,
-    })),
+    weeks: entries.map((e: any) => ({ week_start: e.week_start, score: Number(e.discipline_score), hours: Number(e.study_hours), days: e.days_studied })),
     changes: { scoreChange, hoursChange, consistencyChange },
     insight,
   };
 }
 
 function computeBadges(streak: number, hours: number, tasksCompleted: number, daysStudied: number, longestStreak: number) {
-  const badges: { id: string; name: string; emoji: string; unlocked: boolean }[] = [
+  return [
     { id: "streak_3", name: "3-Day Streak", emoji: "🔥", unlocked: streak >= 3 },
     { id: "streak_7", name: "7-Day Streak", emoji: "⚡", unlocked: streak >= 7 },
     { id: "streak_14", name: "14-Day Streak", emoji: "💎", unlocked: streak >= 14 },
     { id: "streak_30", name: "30-Day Streak", emoji: "👑", unlocked: longestStreak >= 30 },
-    { id: "hours_5", name: "5h This Week", emoji: "📚", unlocked: hours >= 5 },
-    { id: "hours_10", name: "10h This Week", emoji: "🧠", unlocked: hours >= 10 },
+    { id: "hours_5", name: "5h Week", emoji: "📚", unlocked: hours >= 5 },
+    { id: "hours_10", name: "10h Week", emoji: "🧠", unlocked: hours >= 10 },
     { id: "hours_20", name: "20h Beast", emoji: "💪", unlocked: hours >= 20 },
-    { id: "tasks_5", name: "5 Tasks Done", emoji: "✅", unlocked: tasksCompleted >= 5 },
-    { id: "tasks_10", name: "10 Tasks Done", emoji: "🏆", unlocked: tasksCompleted >= 10 },
+    { id: "tasks_5", name: "5 Tasks", emoji: "✅", unlocked: tasksCompleted >= 5 },
+    { id: "tasks_10", name: "10 Tasks", emoji: "🏆", unlocked: tasksCompleted >= 10 },
     { id: "perfect_week", name: "Perfect Week", emoji: "⭐", unlocked: daysStudied >= 7 },
   ];
-  return badges;
 }
 
 function getTier(score: number): string {
@@ -300,8 +282,6 @@ function scoreToXP(score: number, streak: number, hours: number): number {
 }
 
 function xpToLevel(xp: number): number {
-  // Each level requires progressively more XP
-  // Level 1: 0, Level 2: 100, Level 3: 250, etc.
   let level = 1;
   let threshold = 0;
   while (threshold <= xp) {

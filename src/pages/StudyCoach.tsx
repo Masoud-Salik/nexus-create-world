@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/hooks/usePageMeta";
-import { Loader2, LogIn, Sparkles, BookOpen, Sliders, RefreshCw, Target, Timer, Trophy } from "lucide-react";
+import { Loader2, LogIn, Sparkles, BookOpen, Sliders, RefreshCw, Target, Timer, Trophy, Zap } from "lucide-react";
 import { StudyTaskData } from "@/components/study-coach/TaskCard";
 import { StudyTaskTimer, ActiveTask, CompletionStatus } from "@/components/study-coach/StudyTaskTimer";
 import { SubjectManager } from "@/components/study-coach/SubjectManager";
@@ -24,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle } from
 "@/components/ui/dialog";
-import { Clock, Battery, Zap } from "lucide-react";
+import { Clock, Battery } from "lucide-react";
 
 type StudyMode = "timer" | "plan";
 
@@ -63,9 +63,10 @@ interface Subject {
 
 // Adjust options for SmartAdjust dialog
 const adjustOptions = [
-{ mode: "less_time" as const, icon: Clock, title: "Less time", desc: "Shorter sessions" },
-{ mode: "tired" as const, icon: Battery, title: "I'm tired", desc: "Lower difficulty" },
-{ mode: "push_harder" as const, icon: Zap, title: "Push harder", desc: "More challenge" }];
+  { mode: "less_time" as const, emoji: "⏰", title: "Less time", desc: "Shorter sessions", bg: "bg-blue-500/10", border: "border-blue-500/30", text: "text-blue-600 dark:text-blue-400" },
+  { mode: "tired" as const, emoji: "😴", title: "I'm tired", desc: "Lower difficulty", bg: "bg-yellow-500/10", border: "border-yellow-500/30", text: "text-yellow-600 dark:text-yellow-400" },
+  { mode: "push_harder" as const, emoji: "🔥", title: "Push harder", desc: "More challenge", bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-600 dark:text-red-400" },
+];
 
 
 export default function StudyCoach() {
@@ -300,14 +301,19 @@ export default function StudyCoach() {
       difficulty: task.difficulty
     });
 
-    supabase.
-    from("study_tasks").
-    update({ status: "in_progress", started_at: new Date().toISOString() }).
-    eq("id", taskId).
-    then(({ error }) => {
-      if (error) console.error("Background sync error:", error);
-    });
-  }, [cachedTasks, updateTaskLocally]);
+    supabase
+      .from("study_tasks")
+      .update({ status: "in_progress", started_at: new Date().toISOString() })
+      .eq("id", taskId)
+      .then(({ error }) => {
+        if (error) console.error("Background sync error:", error);
+      });
+
+    // Set is_studying on leaderboard
+    if (userId) {
+      supabase.from("leaderboard_opt_ins").update({ is_studying: true }).eq("user_id", userId).then(() => {});
+    }
+  }, [cachedTasks, updateTaskLocally, userId]);
 
   const handleTaskComplete = useCallback(async (
   taskId: string,
@@ -321,6 +327,8 @@ export default function StudyCoach() {
 
     updateTaskLocally(taskId, { status, actual_minutes: actualMinutes });
     setActiveTask(null);
+    // Clear is_studying indicator
+    if (userId) { supabase.from("leaderboard_opt_ins").update({ is_studying: false }).eq("user_id", userId).then(() => {}); }
 
     if (status === "completed") {
       toast({ title: "Task completed! 🎉" });
@@ -671,15 +679,38 @@ export default function StudyCoach() {
               }
                 </div>) : (
 
-            /* All Tasks Completed */
-            <div className="text-center py-8">
-                  <div className="text-5xl mb-4">🎉</div>
-                  <h3 className="text-xl font-bold text-foreground mb-2">
+            /* All Tasks Completed — Bonus Round */
+            <div className="text-center py-6 space-y-4">
+                  <div className="text-5xl mb-2">🎉</div>
+                  <h3 className="text-xl font-bold text-foreground">
                     All done for today!
                   </h3>
-                  <p className="text-muted-foreground text-sm">
-                    Great work! Come back tomorrow.
-                  </p>
+                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 mx-auto max-w-xs">
+                    <div className="flex items-center justify-center gap-2 mb-2">
+                      <Zap className="h-5 w-5 text-primary" />
+                      <p className="font-bold text-foreground">Bonus Round</p>
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-3">Keep going for <span className="font-bold text-primary">1.5x XP!</span></p>
+                    <div className="flex gap-2 justify-center">
+                      {[15, 25, 45].map(mins => (
+                        <Button key={mins} size="sm" variant="outline" className="text-xs gap-1"
+                          onClick={() => {
+                            if (isGuest) { toast({ title: "Sign up for bonus rounds", variant: "destructive" }); return; }
+                            if (!userId) return;
+                            const subj = subjects[0];
+                            if (!subj) return;
+                            supabase.from("study_sessions").insert({
+                              user_id: userId, subject_id: subj.id, topic: "Bonus Session",
+                              time_spent_minutes: mins, session_date: format(new Date(), "yyyy-MM-dd"), is_bonus: true,
+                            }).then(() => {
+                              toast({ title: `Bonus +${mins}min logged! 🔥`, description: "1.5x XP earned" });
+                            });
+                          }}>
+                          ⚡ {mins}m
+                        </Button>
+                      ))}
+                    </div>
+                  </div>
                 </div>)
             }
             </div>
@@ -712,13 +743,11 @@ export default function StudyCoach() {
               <button
                 key={option.mode}
                 onClick={() => handleAdjustPlan(option.mode)}
-                className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:bg-muted/50 transition-colors text-left tap-effect">
+                className={cn("w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left tap-effect", option.bg, option.border, "hover:opacity-80")}>
                 
-                  <div className="p-2.5 rounded-xl bg-primary/10">
-                    <option.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">{option.title}</p>
+                  <span className="text-2xl">{option.emoji}</span>
+                  <div className="flex-1">
+                    <p className={cn("font-medium", option.text)}>{option.title}</p>
                     <p className="text-sm text-muted-foreground">{option.desc}</p>
                   </div>
                 </button>
