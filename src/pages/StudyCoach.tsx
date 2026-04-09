@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/hooks/usePageMeta";
-import { Loader2, LogIn, Sparkles, BookOpen, Sliders, RefreshCw, Target, Timer, Trophy } from "lucide-react";
+import { Loader2, LogIn, Sparkles, BookOpen, Sliders, RefreshCw, Target, Timer, Trophy, Zap } from "lucide-react";
 import { StudyTaskData } from "@/components/study-coach/TaskCard";
 import { StudyTaskTimer, ActiveTask, CompletionStatus } from "@/components/study-coach/StudyTaskTimer";
 import { SubjectManager } from "@/components/study-coach/SubjectManager";
