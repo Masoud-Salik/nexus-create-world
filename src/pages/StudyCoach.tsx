@@ -24,7 +24,7 @@ import {
   DialogHeader,
   DialogTitle } from
 "@/components/ui/dialog";
-import { Clock, Battery, Zap } from "lucide-react";
+import { Clock, Battery } from "lucide-react";
 
 type StudyMode = "timer" | "plan";
 
