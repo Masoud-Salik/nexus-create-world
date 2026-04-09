@@ -1,7 +1,7 @@
 project_id = "iyccgbrarlvsaojzydjq"
 
 [functions.chat]
-verify_jwt = true
+verify_jwt = false
 
 [functions.text-to-speech]
 verify_jwt = true
