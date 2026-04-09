@@ -572,25 +572,31 @@ export type Database = {
       }
       leaderboard_opt_ins: {
         Row: {
+          country: string | null
           display_name: string
           id: string
           is_active: boolean
+          is_studying: boolean
           opted_in_at: string
           show_avatar: boolean
           user_id: string
         }
         Insert: {
+          country?: string | null
           display_name?: string
           id?: string
           is_active?: boolean
+          is_studying?: boolean
           opted_in_at?: string
           show_avatar?: boolean
           user_id: string
         }
         Update: {
+          country?: string | null
           display_name?: string
           id?: string
           is_active?: boolean
+          is_studying?: boolean
           opted_in_at?: string
           show_avatar?: boolean
           user_id?: string
@@ -894,6 +900,7 @@ export type Database = {
           accuracy_score: number | null
           created_at: string
           id: string
+          is_bonus: boolean
           notes: string | null
           session_date: string
           subject_id: string | null
@@ -906,6 +913,7 @@ export type Database = {
           accuracy_score?: number | null
           created_at?: string
           id?: string
+          is_bonus?: boolean
           notes?: string | null
           session_date?: string
           subject_id?: string | null
@@ -918,6 +926,7 @@ export type Database = {
           accuracy_score?: number | null
           created_at?: string
           id?: string
+          is_bonus?: boolean
           notes?: string | null
           session_date?: string
           subject_id?: string | null
