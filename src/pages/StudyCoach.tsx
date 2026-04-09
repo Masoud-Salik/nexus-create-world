@@ -63,9 +63,10 @@ interface Subject {
 
 // Adjust options for SmartAdjust dialog
 const adjustOptions = [
-{ mode: "less_time" as const, icon: Clock, title: "Less time", desc: "Shorter sessions" },
-{ mode: "tired" as const, icon: Battery, title: "I'm tired", desc: "Lower difficulty" },
-{ mode: "push_harder" as const, icon: Zap, title: "Push harder", desc: "More challenge" }];
+  { mode: "less_time" as const, emoji: "⏰", title: "Less time", desc: "Shorter sessions", bg: "bg-blue-500/10", border: "border-blue-500/30", text: "text-blue-600 dark:text-blue-400" },
+  { mode: "tired" as const, emoji: "😴", title: "I'm tired", desc: "Lower difficulty", bg: "bg-yellow-500/10", border: "border-yellow-500/30", text: "text-yellow-600 dark:text-yellow-400" },
+  { mode: "push_harder" as const, emoji: "🔥", title: "Push harder", desc: "More challenge", bg: "bg-red-500/10", border: "border-red-500/30", text: "text-red-600 dark:text-red-400" },
+];
 
 
 export default function StudyCoach() {
