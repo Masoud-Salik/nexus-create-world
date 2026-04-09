@@ -718,13 +718,11 @@ export default function StudyCoach() {
               <button
                 key={option.mode}
                 onClick={() => handleAdjustPlan(option.mode)}
-                className="w-full flex items-center gap-4 p-4 rounded-xl border border-border hover:bg-muted/50 transition-colors text-left tap-effect">
+                className={cn("w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left tap-effect", option.bg, option.border, "hover:opacity-80")}>
                 
-                  <div className="p-2.5 rounded-xl bg-primary/10">
-                    <option.icon className="h-5 w-5 text-primary" />
-                  </div>
-                  <div>
-                    <p className="font-medium text-foreground">{option.title}</p>
+                  <span className="text-2xl">{option.emoji}</span>
+                  <div className="flex-1">
+                    <p className={cn("font-medium", option.text)}>{option.title}</p>
                     <p className="text-sm text-muted-foreground">{option.desc}</p>
                   </div>
                 </button>
