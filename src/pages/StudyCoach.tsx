@@ -301,14 +301,19 @@ export default function StudyCoach() {
       difficulty: task.difficulty
     });
 
-    supabase.
-    from("study_tasks").
-    update({ status: "in_progress", started_at: new Date().toISOString() }).
-    eq("id", taskId).
-    then(({ error }) => {
-      if (error) console.error("Background sync error:", error);
-    });
-  }, [cachedTasks, updateTaskLocally]);
+    supabase
+      .from("study_tasks")
+      .update({ status: "in_progress", started_at: new Date().toISOString() })
+      .eq("id", taskId)
+      .then(({ error }) => {
+        if (error) console.error("Background sync error:", error);
+      });
+
+    // Set is_studying on leaderboard
+    if (userId) {
+      supabase.from("leaderboard_opt_ins").update({ is_studying: true }).eq("user_id", userId).then(() => {});
+    }
+  }, [cachedTasks, updateTaskLocally, userId]);
 
   const handleTaskComplete = useCallback(async (
   taskId: string,
