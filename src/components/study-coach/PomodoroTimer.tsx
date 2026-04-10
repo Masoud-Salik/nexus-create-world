@@ -1,6 +1,6 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Pause, Play, RotateCcw, Coffee, Bell, VolumeX } from "lucide-react";
+import { Pause, Play, RotateCcw, Coffee, Bell, VolumeX, CheckCircle2, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useGlobalTimer } from "@/contexts/GlobalTimerContext";
 import { cn } from "@/lib/utils";
@@ -35,11 +35,12 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   const [focusType] = useState(DEFAULT_FOCUS_TYPE);
   const [sessionsToday, setSessionsToday] = useState(0);
   const [quoteIndex] = useState(() => Math.floor(Math.random() * QUOTES.length));
-  const { state, startPomodoro, startBreak, pause, resume, stop, stopAlarm } = useGlobalTimer();
+  const { state, startPomodoro, startBreak, pause, resume, stop, stopAlarm, dismissDoneCard } = useGlobalTimer();
 
   const isActive = state.type === "pomodoro";
   const isRunning = isActive && state.isRunning;
   const isAlarmPlaying = isActive && state.isAlarmPlaying;
+  const showDoneCard = isActive && state.showDoneCard;
   const isBreak = isActive && !!state.pomodoroData?.isBreak;
   const timeLeft = isActive ? Math.max(0, state.totalSeconds - state.elapsedSeconds) : duration * 60;
   const totalSeconds = isActive ? state.totalSeconds : duration * 60;
@@ -77,6 +78,15 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
     stopAlarm();
     if (!isBreak) startBreak(5 * 60);
     else stop();
+  };
+
+  const handleDismissDone = () => {
+    if (!isBreak) {
+      dismissDoneCard();
+      startBreak(5 * 60);
+    } else {
+      stop();
+    }
   };
 
   const handleDurationChange = useCallback((mins: number) => {
@@ -133,7 +143,7 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
 
   const scrubRatio = (duration - MIN_DURATION) / (MAX_DURATION - MIN_DURATION);
   const isPulsing = isRunning && timeLeft <= 10 && timeLeft > 0;
-  const showControls = !isActive || (!isRunning && !isAlarmPlaying && !isBreak);
+  const showControls = !isActive || (!isRunning && !isAlarmPlaying && !showDoneCard && !isBreak);
   const showGlow = progress >= 70;
 
   // Session history dots
@@ -196,13 +206,17 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
               <span className="text-xs font-medium">{finishTime}</span>
             </div>
 
-            {isAlarmPlaying ? (
+            {showDoneCard ? (
+              <div className="mt-2" /> /* placeholder - Done card rendered below */
+            ) : isAlarmPlaying ? (
               <button onClick={handleStopAlarm}
-                className="mt-2 h-16 w-16 rounded-full flex items-center justify-center shadow-xl transition-all tap-effect active:scale-95 bg-destructive text-destructive-foreground animate-pulse">
+                className="mt-2 h-16 w-16 rounded-full flex items-center justify-center shadow-xl transition-all tap-effect active:scale-95 bg-destructive text-destructive-foreground animate-pulse"
+                aria-label="Stop alarm">
                 <VolumeX className="h-7 w-7" />
               </button>
             ) : (
               <button onClick={handleStartPause}
+                aria-label={isRunning ? "Pause timer" : "Start timer"}
                 className={cn(
                   "mt-2 rounded-full flex items-center justify-center shadow-xl transition-all tap-effect active:scale-95",
                   isRunning ? "h-14 w-14" : "h-16 w-16",
@@ -214,6 +228,33 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
             )}
           </div>
         </div>
+
+        {/* Session Complete Card */}
+        {showDoneCard && (
+          <div className="w-full max-w-[300px] animate-slide-up-fade mb-4">
+            <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6 text-center space-y-3 shadow-lg">
+              <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <CheckCircle2 className="h-8 w-8 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">Session Complete!</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {isBreak ? "Break's over — ready for the next round?" : "Great focus! Time for a short break."}
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span>+{state.pomodoroData?.duration || duration} min logged</span>
+              </div>
+              <button
+                onClick={handleDismissDone}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm transition-all tap-effect active:scale-95 shadow-md hover:shadow-lg"
+              >
+                {isBreak ? "Done" : "Start Break"}
+              </button>
+            </div>
+          </div>
+        )}
 
         {/* Motivational quote during active session */}
         {isRunning && (

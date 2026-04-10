@@ -2,26 +2,28 @@
 <html lang="en">
   <head>
     <meta charset="UTF-8" />
-    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover" />
-    <title>StudyTime</title>
-    <meta name="description" content="StudyTime – AI-powered study companion. Track study time, measure progress, and build consistent focus.">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover" />
+    <title>StudyTime – AI Study Companion | Focus Timer & Smart Planner</title>
+    <meta name="description" content="StudyTime is your AI-powered study companion. Track study sessions, build focus with Pomodoro timers, get smart study plans, and climb the leaderboard.">
     <meta name="author" content="StudyTime Team" />
-    <meta name="keywords" content="study timer, AI study planner, focus, productivity, study app" />
+    <meta name="keywords" content="study timer, AI study planner, focus timer, pomodoro, productivity, study app, study tracker, exam prep" />
     <meta name="theme-color" content="#16a34a" />
-    
+    <meta name="robots" content="index, follow" />
+    <link rel="canonical" href="https://thestudytime.lovable.app/" />
+
     <!-- Open Graph -->
-    
-    
+    <meta property="og:title" content="StudyTime – AI Study Companion" />
+    <meta property="og:description" content="Track study sessions, build focus with smart timers, and get AI-powered study plans. Free for students." />
     <meta property="og:type" content="website" />
-    <meta property="og:image" content="/icon-512.png">
-    <meta property="og:url" content="https://thestudytime.lovable.app" />
+    <meta property="og:image" content="https://thestudytime.lovable.app/icon-512.png" />
+    <meta property="og:url" content="https://thestudytime.lovable.app/" />
     <meta property="og:site_name" content="StudyTime" />
 
     <!-- Twitter Card -->
     <meta name="twitter:card" content="summary_large_image" />
-    
-    
-    <meta name="twitter:image" content="/icon-512.png">
+    <meta name="twitter:title" content="StudyTime – AI Study Companion" />
+    <meta name="twitter:description" content="Track study sessions, build focus with smart timers, and get AI-powered study plans." />
+    <meta name="twitter:image" content="https://thestudytime.lovable.app/icon-512.png" />
 
     <!-- PWA -->
     <link rel="manifest" href="/manifest.json" />
@@ -30,15 +32,36 @@
     <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent" />
     <meta name="apple-mobile-web-app-title" content="StudyTime" />
 
-    <!-- Preconnect -->
-    <link rel="preconnect" href="https://iyccgbrarlvsaojzydjq.supabase.co" />
-    <link rel="dns-prefetch" href="https://iyccgbrarlvsaojzydjq.supabase.co" />
-    <meta property="og:title" content="StudyTime">
-  <meta name="twitter:title" content="StudyTime">
-  <meta property="og:description" content="StudyTime – AI-powered study companion. Track study time, measure progress, and build consistent focus.">
-  <meta name="twitter:description" content="StudyTime – AI-powered study companion. Track study time, measure progress, and build consistent focus.">
-  <link rel="icon" type="image/png" href="/icon-192.png">
-</head>
+    <!-- Favicon -->
+    <link rel="icon" type="image/png" sizes="192x192" href="/icon-192.png" />
+    <link rel="icon" type="image/png" sizes="512x512" href="/icon-512.png" />
+
+    <!-- Preconnect to fonts -->
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+
+    <!-- JSON-LD Structured Data -->
+    <script type="application/ld+json">
+    {
+      "@context": "https://schema.org",
+      "@type": "WebApplication",
+      "name": "StudyTime",
+      "url": "https://thestudytime.lovable.app",
+      "description": "AI-powered study companion for focused learning, progress tracking, and smart study planning.",
+      "applicationCategory": "EducationalApplication",
+      "operatingSystem": "Web",
+      "offers": {
+        "@type": "Offer",
+        "price": "0",
+        "priceCurrency": "USD"
+      },
+      "author": {
+        "@type": "Organization",
+        "name": "StudyTime Team"
+      }
+    }
+    </script>
+  </head>
 
   <body>
     <div id="root"></div>

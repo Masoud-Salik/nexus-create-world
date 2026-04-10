@@ -4,11 +4,24 @@ import path from "path";
 import { componentTagger } from "lovable-tagger";
 import { VitePWA } from "vite-plugin-pwa";
 
-// https://vitejs.dev/config/
 export default defineConfig(({ mode }) => ({
   server: {
     host: "::",
     port: 8080,
+  },
+  build: {
+    rollupOptions: {
+      output: {
+        manualChunks: {
+          vendor: ["react", "react-dom"],
+          router: ["react-router-dom"],
+          supabase: ["@supabase/supabase-js"],
+          ui: ["@radix-ui/react-dialog", "@radix-ui/react-tabs", "@radix-ui/react-tooltip"],
+        },
+      },
+    },
+    target: "es2020",
+    cssCodeSplit: true,
   },
   plugins: [
     react(),
@@ -17,10 +30,10 @@ export default defineConfig(({ mode }) => ({
       registerType: "autoUpdate",
       includeAssets: ["favicon.ico", "icon-192.png", "icon-512.png"],
       manifest: {
-        name: "Nexus Life Coach",
-        short_name: "Nexus",
-        description: "AI-powered life coaching platform for personal growth, study planning, and future prediction",
-        theme_color: "#6366f1",
+        name: "StudyTime",
+        short_name: "StudyTime",
+        description: "AI-powered study companion for focused learning and progress tracking",
+        theme_color: "#16a34a",
         background_color: "#0a0a0a",
         display: "standalone",
         orientation: "portrait-primary",
@@ -50,7 +63,7 @@ export default defineConfig(({ mode }) => ({
               cacheName: "supabase-api-cache",
               expiration: {
                 maxEntries: 50,
-                maxAgeSeconds: 60 * 60, // 1 hour
+                maxAgeSeconds: 60 * 60,
               },
               cacheableResponse: {
                 statuses: [0, 200],
@@ -64,7 +77,18 @@ export default defineConfig(({ mode }) => ({
               cacheName: "google-fonts-cache",
               expiration: {
                 maxEntries: 10,
-                maxAgeSeconds: 60 * 60 * 24 * 365, // 1 year
+                maxAgeSeconds: 60 * 60 * 24 * 365,
+              },
+            },
+          },
+          {
+            urlPattern: /^https:\/\/fonts\.gstatic\.com\/.*/i,
+            handler: "CacheFirst",
+            options: {
+              cacheName: "google-fonts-webfonts",
+              expiration: {
+                maxEntries: 20,
+                maxAgeSeconds: 60 * 60 * 24 * 365,
               },
             },
           },

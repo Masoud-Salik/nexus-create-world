@@ -10,6 +10,7 @@ interface TimerState {
   elapsedSeconds: number;
   totalSeconds: number;
   isAlarmPlaying: boolean;
+  showDoneCard: boolean;
   // Task-specific
   taskData: ActiveTask | null;
   // Pomodoro-specific
@@ -22,17 +23,14 @@ interface TimerState {
 
 interface GlobalTimerContextValue {
   state: TimerState;
-  // Pomodoro controls
   startPomodoro: (totalSeconds: number, focusType: string) => void;
-  // Task controls
   startTask: (task: ActiveTask) => void;
-  // Shared controls
   pause: () => void;
   resume: () => void;
   stop: () => void;
   stopAlarm: () => void;
-  // For pomodoro break
   startBreak: (breakSeconds: number) => void;
+  dismissDoneCard: () => void;
 }
 
 const initialState: TimerState = {
@@ -41,6 +39,7 @@ const initialState: TimerState = {
   elapsedSeconds: 0,
   totalSeconds: 0,
   isAlarmPlaying: false,
+  showDoneCard: false,
   taskData: null,
   pomodoroData: null,
 };
@@ -61,7 +60,6 @@ export function GlobalTimerProvider({ children }: { children: ReactNode }) {
   const rafRef = useRef<number>(0);
   const { playRingtone, stopPreview } = useTimerSound();
 
-  // Initialize worker once
   useEffect(() => {
     workerRef.current = new Worker("/timer-worker.js");
 
@@ -81,20 +79,22 @@ export function GlobalTimerProvider({ children }: { children: ReactNode }) {
           isRunning: false,
           isAlarmPlaying: true,
         }));
-        // Play ringtone INSTANTLY — no vibration pre-delay
-        playRingtone();
+        // Play ringtone with fade, 3x replay, then show Done card
+        playRingtone(() => {
+          setState((prev) => ({
+            ...prev,
+            isAlarmPlaying: false,
+            showDoneCard: true,
+          }));
+        });
       }
     };
 
     return () => {
-      if (workerRef.current) {
-        workerRef.current.terminate();
-      }
+      if (workerRef.current) workerRef.current.terminate();
     };
   }, []);
 
-  // System-clock based RAF fallback for accuracy
-  // This syncs displayed time with actual wall clock, not just worker ticks
   useEffect(() => {
     if (!state.isRunning) {
       if (rafRef.current) cancelAnimationFrame(rafRef.current);
@@ -109,7 +109,7 @@ export function GlobalTimerProvider({ children }: { children: ReactNode }) {
       setState((prev) => {
         if (!prev.isRunning) return prev;
         const clamped = Math.min(totalElapsed, prev.totalSeconds);
-        if (clamped === prev.elapsedSeconds) return prev; // no change
+        if (clamped === prev.elapsedSeconds) return prev;
         return { ...prev, elapsedSeconds: clamped };
       });
 
@@ -138,29 +138,25 @@ export function GlobalTimerProvider({ children }: { children: ReactNode }) {
   }, []);
 
   const stopWorker = useCallback(() => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ command: "stop" });
-    }
+    if (workerRef.current) workerRef.current.postMessage({ command: "stop" });
   }, []);
 
   const pauseWorker = useCallback(() => {
-    if (workerRef.current) {
-      workerRef.current.postMessage({ command: "pause" });
-    }
+    if (workerRef.current) workerRef.current.postMessage({ command: "pause" });
   }, []);
 
   const startPomodoro = useCallback((totalSeconds: number, focusType: string) => {
     stopWorker();
-    const newState: TimerState = {
+    setState({
       type: "pomodoro",
       isRunning: true,
       elapsedSeconds: 0,
       totalSeconds,
       isAlarmPlaying: false,
+      showDoneCard: false,
       taskData: null,
       pomodoroData: { duration: totalSeconds / 60, focusType, isBreak: false },
-    };
-    setState(newState);
+    });
     startWorker(totalSeconds);
   }, [startWorker, stopWorker]);
 
@@ -172,6 +168,7 @@ export function GlobalTimerProvider({ children }: { children: ReactNode }) {
       elapsedSeconds: 0,
       totalSeconds: breakSeconds,
       isAlarmPlaying: false,
+      showDoneCard: false,
       pomodoroData: prev.pomodoroData ? { ...prev.pomodoroData, isBreak: true } : null,
     }));
     startWorker(breakSeconds);
@@ -180,21 +177,20 @@ export function GlobalTimerProvider({ children }: { children: ReactNode }) {
   const startTask = useCallback((task: ActiveTask) => {
     stopWorker();
     const totalSeconds = task.duration_minutes * 60;
-    const newState: TimerState = {
+    setState({
       type: "task",
       isRunning: true,
       elapsedSeconds: 0,
       totalSeconds,
       isAlarmPlaying: false,
+      showDoneCard: false,
       taskData: task,
       pomodoroData: null,
-    };
-    setState(newState);
+    });
     startWorker(totalSeconds);
   }, [startWorker, stopWorker]);
 
   const pause = useCallback(() => {
-    // Save how much time has elapsed so far
     pausedElapsedRef.current += Math.floor((Date.now() - startTimestampRef.current) / 1000);
     pauseWorker();
     setState((prev) => ({ ...prev, isRunning: false }));
@@ -220,9 +216,20 @@ export function GlobalTimerProvider({ children }: { children: ReactNode }) {
     setState((prev) => ({ ...prev, isAlarmPlaying: false }));
   }, [stopPreview]);
 
+  const dismissDoneCard = useCallback(() => {
+    setState((prev) => {
+      // If it was a focus session (not break), transition to break
+      if (prev.pomodoroData && !prev.pomodoroData.isBreak) {
+        return { ...prev, showDoneCard: false };
+      }
+      // Otherwise reset
+      return initialState;
+    });
+  }, []);
+
   return (
     <GlobalTimerContext.Provider
-      value={{ state, startPomodoro, startTask, pause, resume, stop, stopAlarm, startBreak }}
+      value={{ state, startPomodoro, startTask, pause, resume, stop, stopAlarm, startBreak, dismissDoneCard }}
     >
       {children}
     </GlobalTimerContext.Provider>
