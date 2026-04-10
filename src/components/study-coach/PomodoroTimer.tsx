@@ -229,6 +229,33 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
           </div>
         </div>
 
+        {/* Session Complete Card */}
+        {showDoneCard && (
+          <div className="w-full max-w-[300px] animate-slide-up-fade mb-4">
+            <div className="rounded-2xl border border-primary/30 bg-primary/5 p-6 text-center space-y-3 shadow-lg">
+              <div className="mx-auto w-14 h-14 rounded-full bg-primary/10 flex items-center justify-center">
+                <CheckCircle2 className="h-8 w-8 text-primary" />
+              </div>
+              <div>
+                <h3 className="text-lg font-bold text-foreground">Session Complete!</h3>
+                <p className="text-sm text-muted-foreground mt-1">
+                  {isBreak ? "Break's over — ready for the next round?" : "Great focus! Time for a short break."}
+                </p>
+              </div>
+              <div className="flex items-center justify-center gap-2 text-xs text-muted-foreground">
+                <Sparkles className="h-3.5 w-3.5 text-primary" />
+                <span>+{state.pomodoroData?.duration || duration} min logged</span>
+              </div>
+              <button
+                onClick={handleDismissDone}
+                className="w-full py-3 rounded-xl bg-primary text-primary-foreground font-semibold text-sm transition-all tap-effect active:scale-95 shadow-md hover:shadow-lg"
+              >
+                {isBreak ? "Done" : "Start Break"}
+              </button>
+            </div>
+          </div>
+        )}
+
         {/* Motivational quote during active session */}
         {isRunning && (
           <p className="text-xs text-muted-foreground italic mb-3 animate-fade-in max-w-[240px] text-center">
