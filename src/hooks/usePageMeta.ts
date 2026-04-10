@@ -5,7 +5,7 @@ interface PageMetaOptions {
   description?: string;
 }
 
-const BASE_TITLE = "Nexus Life Coach";
+const BASE_TITLE = "StudyTime";
 
 export function usePageMeta({ title, description }: PageMetaOptions) {
   useEffect(() => {
