@@ -35,11 +35,12 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
   const [focusType] = useState(DEFAULT_FOCUS_TYPE);
   const [sessionsToday, setSessionsToday] = useState(0);
   const [quoteIndex] = useState(() => Math.floor(Math.random() * QUOTES.length));
-  const { state, startPomodoro, startBreak, pause, resume, stop, stopAlarm } = useGlobalTimer();
+  const { state, startPomodoro, startBreak, pause, resume, stop, stopAlarm, dismissDoneCard } = useGlobalTimer();
 
   const isActive = state.type === "pomodoro";
   const isRunning = isActive && state.isRunning;
   const isAlarmPlaying = isActive && state.isAlarmPlaying;
+  const showDoneCard = isActive && state.showDoneCard;
   const isBreak = isActive && !!state.pomodoroData?.isBreak;
   const timeLeft = isActive ? Math.max(0, state.totalSeconds - state.elapsedSeconds) : duration * 60;
   const totalSeconds = isActive ? state.totalSeconds : duration * 60;
@@ -77,6 +78,15 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
     stopAlarm();
     if (!isBreak) startBreak(5 * 60);
     else stop();
+  };
+
+  const handleDismissDone = () => {
+    if (!isBreak) {
+      dismissDoneCard();
+      startBreak(5 * 60);
+    } else {
+      stop();
+    }
   };
 
   const handleDurationChange = useCallback((mins: number) => {
