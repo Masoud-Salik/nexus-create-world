@@ -143,8 +143,7 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
 
   const scrubRatio = (duration - MIN_DURATION) / (MAX_DURATION - MIN_DURATION);
   const isPulsing = isRunning && timeLeft <= 10 && timeLeft > 0;
-  const showControls = !isActive || (!isRunning && !isAlarmPlaying && !isBreak);
-  const showGlow = progress >= 70;
+  const showControls = !isActive || (!isRunning && !isAlarmPlaying && !showDoneCard && !isBreak);
 
   // Session history dots
   const sessionDots = Array.from({ length: SESSION_GOAL }, (_, i) => i < sessionsToday);
