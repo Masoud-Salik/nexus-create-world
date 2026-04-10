@@ -16,4 +16,4 @@ Allow: /
 Disallow: /api/
 Disallow: /functions/
 
-Sitemap: https://nexus-coach.lovable.app/sitemap.xml
+Sitemap: https://thestudytime.lovable.app/sitemap.xml
