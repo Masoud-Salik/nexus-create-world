@@ -1,7 +1,9 @@
 import { useState, useEffect, useRef, useMemo, useCallback } from "react";
 import { Badge } from "@/components/ui/badge";
-import { Pause, Play, RotateCcw, Coffee, Bell, VolumeX } from "lucide-react";
+import { Pause, Play, RotateCcw, Coffee, Bell, VolumeX, CheckCircle2, Sparkles } from "lucide-react";
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
+import { useGlobalTimer } from "@/contexts/GlobalTimerContext";
+import { cn } from "@/lib/utils";
 import { useGlobalTimer } from "@/contexts/GlobalTimerContext";
 import { cn } from "@/lib/utils";
 
@@ -206,13 +208,17 @@ export function PomodoroTimer({ onSessionComplete }: PomodoroTimerProps) {
               <span className="text-xs font-medium">{finishTime}</span>
             </div>
 
-            {isAlarmPlaying ? (
+            {showDoneCard ? (
+              <div className="mt-2" /> /* placeholder - Done card rendered below */
+            ) : isAlarmPlaying ? (
               <button onClick={handleStopAlarm}
-                className="mt-2 h-16 w-16 rounded-full flex items-center justify-center shadow-xl transition-all tap-effect active:scale-95 bg-destructive text-destructive-foreground animate-pulse">
+                className="mt-2 h-16 w-16 rounded-full flex items-center justify-center shadow-xl transition-all tap-effect active:scale-95 bg-destructive text-destructive-foreground animate-pulse"
+                aria-label="Stop alarm">
                 <VolumeX className="h-7 w-7" />
               </button>
             ) : (
               <button onClick={handleStartPause}
+                aria-label={isRunning ? "Pause timer" : "Start timer"}
                 className={cn(
                   "mt-2 rounded-full flex items-center justify-center shadow-xl transition-all tap-effect active:scale-95",
                   isRunning ? "h-14 w-14" : "h-16 w-16",
