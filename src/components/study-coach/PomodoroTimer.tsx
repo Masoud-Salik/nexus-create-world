@@ -4,8 +4,6 @@ import { Pause, Play, RotateCcw, Coffee, Bell, VolumeX, CheckCircle2, Sparkles }
 import { Tooltip, TooltipContent, TooltipTrigger, TooltipProvider } from "@/components/ui/tooltip";
 import { useGlobalTimer } from "@/contexts/GlobalTimerContext";
 import { cn } from "@/lib/utils";
-import { useGlobalTimer } from "@/contexts/GlobalTimerContext";
-import { cn } from "@/lib/utils";
 
 interface PomodoroTimerProps {
   onSessionComplete?: (minutes: number, focusType: string) => void;
