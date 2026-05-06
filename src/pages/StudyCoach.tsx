@@ -718,6 +718,14 @@ export default function StudyCoach() {
         }
 
         {/* Subjects Dialog */}
+        {/* Stats Mode */}
+        {!activeTask && studyMode === "stats" && (
+          <div className="flex-1 overflow-y-auto">
+            <StudyAnalytics userId={userId} isGuest={isGuest} />
+          </div>
+        )}
+
+        {/* Subjects Dialog */}
         <Dialog open={subjectsOpen} onOpenChange={setSubjectsOpen}>
           <DialogContent className="max-h-[80vh] overflow-y-auto">
             <DialogHeader>
