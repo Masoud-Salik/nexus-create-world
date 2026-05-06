@@ -1,7 +1,7 @@
 import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Plus, MessageSquare, Sparkles, StopCircle, Menu, Edit3 } from "lucide-react";
+import { Send, Plus, MessageSquare, Sparkles, StopCircle, Menu, Edit3, Search } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { supabase } from "@/integrations/supabase/client";
@@ -61,6 +61,7 @@ const Index = () => {
   const [showChatList, setShowChatList] = useState(false);
   const [userName, setUserName] = useState<string | undefined>();
   const [showAuthDialog, setShowAuthDialog] = useState(false);
+  const [chatSearch, setChatSearch] = useState("");
   const scrollRef = useRef<HTMLDivElement>(null);
   const messagesEndRef = useRef<HTMLDivElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
@@ -343,7 +344,10 @@ const Index = () => {
 
   if (user && needsOnboarding) return <Onboarding userId={user.id} onComplete={handleOnboardingComplete} />;
 
-  const conversationGroups = groupConversations(conversations);
+  const filteredConversations = chatSearch.trim()
+    ? conversations.filter(c => (c.title || "").toLowerCase().includes(chatSearch.toLowerCase()))
+    : conversations;
+  const conversationGroups = groupConversations(filteredConversations);
 
   return (
     <div className="flex h-screen bg-background">
@@ -376,10 +380,19 @@ const Index = () => {
                 </Button>
               </SheetTrigger>
               <SheetContent side="left" className="w-80 p-0">
-                <div className="p-4 border-b">
+                <div className="p-4 border-b space-y-2">
                   <Button onClick={createNewChat} className="w-full gap-2" variant="outline">
                     <Plus className="h-4 w-4" /> New Chat
                   </Button>
+                  <div className="relative">
+                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                    <input
+                      value={chatSearch}
+                      onChange={e => setChatSearch(e.target.value)}
+                      placeholder="Search chats..."
+                      className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-muted/50 border border-border/50 focus:outline-none focus:border-primary/50 transition-colors"
+                    />
+                  </div>
                 </div>
                 <ScrollArea className="h-[calc(100vh-80px)]">
                   <div className="p-2 space-y-4">

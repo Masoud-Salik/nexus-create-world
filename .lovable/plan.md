@@ -1,140 +1,121 @@
 
+# StudyTime Production Upgrade Plan
 
-# Full Upgrade Plan: Leaderboard, Blueprint, and AI Intelligence
-
-## Overview
-
-Three major upgrades: (1) Rich leaderboard with country flags, live studying indicators, XP visualization, and professional "My Progress" tab; (2) Blueprint with smart AI plan adjuster, motivational bonus rounds with 1.5x XP, and polished subject manager; (3) A truly intelligent AI with tool-calling, personality, full app access, auto-naming, and multi-model fallback.
+## Goal
+Transform StudyTime from a solid prototype into a portfolio-quality product that demonstrates CS competence to a scholarship committee. Focus on what impresses reviewers: professional polish, intelligent features, and technical depth.
 
 ---
 
-## Step 1: Create the `chat` Edge Function
+## 1. Remove the About Hero Card (Quick Fix)
 
-The app references `functions/v1/chat` but the function doesn't exist. Create `supabase/functions/chat/index.ts` with:
+Remove the small "StudyTime / Your AI-powered companion..." card from `AboutSection.tsx` (lines 38-46) as requested. Keep the team photo, mission, values, and footer.
 
-- **System prompt**: NEXUS personality — helpful tutor, friendly professional motivator. Knows app features (Focus Hub, Blueprint, Leaderboard, Subjects). Uses user profile context (name, country, goals, subjects, streak, study stats).
-- **Tool-calling**: Define tools the AI can invoke:
-  - `get_study_plan` — fetch today's tasks
-  - `get_weekly_overview` — weekly stats summary
-  - `manage_subjects` — add/delete/list subjects
-  - `generate_plan` — trigger AI plan generation (daily/weekly/monthly)
-  - `adjust_plan` — adjust today's plan (less_time/tired/push_harder)
-  - `get_user_profile` — fetch user info
-  - `update_task_status` — mark tasks complete/skip
-- **Multi-round tool loop**: Up to 5 rounds of tool calling before final response
-- **Multi-model fallback**: Try `google/gemini-3-flash-preview` first. On 429/error, fallback to `google/gemini-2.5-flash`, then `google/gemini-2.5-flash-lite`. Never stop responding.
-- **Streaming SSE** response back to client
-- **Auto-title**: Already handled by `generate-chat-title` function — no changes needed
+---
 
-## Step 2: Database Migration — Add `country` flag support to leaderboard
+## 2. Add a Public Landing Page (High Impact)
 
-- Add `country` column to `leaderboard_opt_ins` table (text, nullable)
-- Add `is_studying` column to `leaderboard_opt_ins` table (boolean, default false, updated when user starts a study session)
-- Create a trigger or rely on client-side updates to set `is_studying = true` when a task starts, `false` when it ends
+Create a new `/landing` route that unauthenticated users see first (redirect `/` for guests). This is critical for scholarship reviewers who will visit the URL cold.
 
-## Step 3: Upgrade Leaderboard Edge Function
+**Content:**
+- Hero section: App name, tagline ("AI-Powered Study Companion"), animated mockup/screenshot, and "Get Started" CTA
+- Feature highlights: Focus Timer, AI Tutor, Smart Planner, Leaderboard -- each with icon, title, one-liner
+- Social proof section: "Built with React, TypeScript, Supabase, and AI" tech stack badges
+- Footer with links
 
-Update `supabase/functions/leaderboard/index.ts`:
-- Include `country` and `is_studying` in leaderboard queries
-- Add "Global" (all-time) and "Friends" tab data alongside "This Week"
-- Return top-3 highlight cards: Top Streak, Most Hours, Best Consistency (matching screenshots)
-- Return XP progress bar data: current XP, XP for next level, level number
+**Design:** Full-width sections, smooth scroll animations via framer-motion, emerald gradient accents, dark/light support.
 
-## Step 4: Redesign Leaderboard Component
+---
 
-Rewrite `src/components/study-coach/Leaderboard.tsx` to match screenshots:
+## 3. Study Analytics Dashboard (Technical Depth)
 
-**Header card**: Tier badge icon + "Unranked Tier / Level 1" + PTS score + XP progress bar + 4-stat row (Hours, Streak, Days, Tasks%)
+Add a "My Stats" tab or section in Focus Hub showing:
 
-**Rankings tab**:
-- Sub-tabs: "This Week" / "Global" / "Friends" (pill buttons)
-- Top-3 highlight cards: TOP STREAK (flag + name + days), MOST HOURS (flag + name + hours), CONSISTENCY (flag + name + days)
-- Player rows: avatar placeholder + flag emoji + name + streak/hours + tier badge + score. Green dot if `is_studying`.
-- Current user highlighted
+- **Weekly heatmap**: 7-day grid showing study intensity per day (color-coded)
+- **Subject breakdown**: Donut/bar chart of time per subject using recharts
+- **Streak calendar**: Visual streak tracker (GitHub-contribution-style)
+- **Personal bests**: Longest streak, most productive day, total hours
 
-**My Progress tab**:
-- Achievements card: "0/10 unlocked" with progress
-- Badges card: "0/10 unlocked" with badge grid
-- Weekly trend chart (CSS-only bars for last 4 weeks)
-- Insight text from backend
+This demonstrates data visualization and analytical thinking -- key for CS.
 
-**Leaderboard name** linked to `profiles.name` — read from profile, editing only in Settings.
+---
 
-## Step 5: Upgrade Subject Manager UI
+## 4. AI Chat Polish (Intelligence)
 
-Rewrite `src/components/study-coach/SubjectManager.tsx` to match screenshot (image-10):
-- Visual icon picker: 8 icon circles (book, calculator, pen, globe, flask, language, music, atom) with selected highlight ring
-- Color picker: 8 color circles (blue, green, orange, red, purple, pink, cyan, orange) with selected ring
-- Weekly target: 3 pill buttons (2h, 5h, 10h) + custom minutes input
-- Full-width green "Add Subject" button
-- Cleaner card layout
+- **Conversation search**: Add a search input in the chat sidebar to filter conversations by title
+- **Markdown rendering**: Ensure code blocks, tables, and lists render properly with syntax highlighting (add `react-markdown` + `rehype-highlight`)
+- **Empty state improvement**: Add subtle typing animation to the greeting
+- **Error recovery**: If streaming fails mid-message, show a "Retry" button instead of losing the partial response
 
-## Step 6: Upgrade Smart Adjust Dialog UI
+---
 
-Update the adjust dialog in `StudyCoach.tsx` to match screenshot (image-11):
-- Each option gets a colored background tint: blue for "Less time", yellow for "I'm tired", red for "Push harder"
-- Emoji icons instead of lucide icons: ⏰, 😴, 🔥
-- Right-side icon indicator
-- Rounded card style with colored borders
+## 5. Onboarding Flow Polish
 
-## Step 7: Blueprint Bonus Round System
+- Add step indicators (1/3, 2/3, 3/3) with a progress bar
+- Add subtle slide transitions between steps
+- Pre-fill "Student" as default occupation
+- Add a "Skip for now" option that still creates the profile with defaults
 
-When all daily tasks are completed:
-- Replace "All done for today!" with a motivational "Bonus Round" card
-- "Keep going for 1.5x XP!" messaging
-- Quick-start buttons for extra sessions (15m, 25m, 45m)
-- Bonus sessions logged to `study_sessions` with a `is_bonus` flag (add column via migration)
-- XP multiplied by 1.5x in leaderboard score computation for bonus sessions
+---
 
-**Migration**: Add `is_bonus` boolean column (default false) to `study_sessions` table.
+## 6. Accessibility and Performance
 
-## Step 8: Update Leaderboard Score for Bonus XP
+- Add `aria-label` attributes to icon-only buttons (timer controls, nav items)
+- Ensure all interactive elements have visible focus rings
+- Add `<noscript>` fallback message in `index.html` body
+- Lazy-load the Leaderboard and Analytics components
+- Add `loading="lazy"` to non-critical images
 
-Update `supabase/functions/leaderboard/index.ts`:
-- When computing weekly score, check `is_bonus` on sessions
-- Bonus session minutes count as `minutes * 1.5` toward study_hours
-- This naturally rewards users who exceed their daily plan
+---
 
-## Step 9: Wire AI Chat to New Edge Function
+## 7. Global UX Micro-Fixes
 
-Update `src/pages/Index.tsx`:
-- When AI returns tool calls, execute them by calling the appropriate Supabase functions/queries
-- Display tool results inline (e.g., "Here's your study plan for today:" with formatted task list)
-- On rate limit (429), show toast "Switching to faster model..." and retry with fallback — handled server-side transparently
+- Fix the Blueprint mode covering the entire screen on mobile with no way back except the close button -- add a swipe-down gesture or make the bottom nav visible
+- Add a toast confirmation when copying study plan data
+- Add keyboard shortcut hints on desktop (Space to pause/resume timer)
+- Ensure the timer keeps running when navigating between pages (already via GlobalTimerContext -- verify)
 
-## Step 10: Client-Side `is_studying` Updates
+---
 
-In `StudyCoach.tsx`:
-- When `handleStartTask` is called, update `leaderboard_opt_ins` set `is_studying = true`
-- When task completes/cancels, set `is_studying = false`
-- This enables real-time "currently studying" indicators on the leaderboard
+## 8. Professional README and Meta
+
+- Update `index.html` structured data to include "creator" with your name
+- Add a proper `README.md` with: project overview, screenshots placeholder, tech stack, architecture summary, and "Built by [Your Name]" attribution
+- Update the About section to mention your name and the scholarship context if desired
 
 ---
 
 ## Files to Create
 | File | Purpose |
 |------|---------|
-| `supabase/functions/chat/index.ts` | AI chat with tools, personality, multi-model fallback |
+| `src/pages/Landing.tsx` | Public landing page |
+| `src/components/landing/*` | Landing page sections (Hero, Features, TechStack, Footer) |
+| `src/components/study-coach/StudyAnalytics.tsx` | Analytics dashboard component |
 
 ## Files to Modify
-| File | Changes |
-|------|---------|
-| `src/components/study-coach/Leaderboard.tsx` | Full redesign with flags, XP, tabs, highlights |
-| `src/components/study-coach/SubjectManager.tsx` | Visual icon/color picker matching screenshot |
-| `src/pages/StudyCoach.tsx` | Bonus round UI, is_studying updates, adjust dialog styling |
-| `src/pages/Index.tsx` | Wire to new chat function, handle tool-call results |
-| `supabase/functions/leaderboard/index.ts` | Country, is_studying, bonus XP, global/friends tabs |
+| File | Change |
+|------|--------|
+| `src/components/settings/AboutSection.tsx` | Remove hero card |
+| `src/App.tsx` | Add landing route, guest redirect logic |
+| `src/pages/Index.tsx` | Add markdown rendering, search, retry |
+| `src/pages/StudyCoach.tsx` | Add analytics tab/section |
+| `src/components/Onboarding.tsx` | Add progress bar, skip option |
+| `src/components/MobileBottomNav.tsx` | Keep visible in Blueprint mode |
+| `index.html` | Add noscript, update structured data |
 
-## Database Migrations
-1. `leaderboard_opt_ins`: add `country` (text, nullable), `is_studying` (boolean, default false)
-2. `study_sessions`: add `is_bonus` (boolean, default false)
+## Dependencies to Add
+- `react-markdown` -- markdown rendering in chat
+- `recharts` (already present via shadcn charts) -- analytics charts
+- `framer-motion` -- landing page animations
+
+## No Database Changes Required
+All new features use existing tables (study_sessions, study_tasks, habits, profiles).
 
 ## Priority Order
-| Priority | Steps | Impact |
-|----------|-------|--------|
-| Critical | 1 | Chat function doesn't exist — AI chat is broken without it |
-| High | 2, 3, 4 | Leaderboard with flags, XP, live indicators |
-| High | 7, 8 | Bonus round motivation system |
-| Medium | 5, 6 | Subject manager and adjust dialog UI polish |
-| Medium | 9, 10 | AI tool integration and studying indicators |
-
+| Priority | Item | Why |
+|----------|------|-----|
+| Critical | 1 | User-requested fix |
+| High | 2 | First impression for reviewers |
+| High | 3 | Demonstrates CS/data skills |
+| High | 4 | Shows AI integration depth |
+| Medium | 5, 6 | Professional polish |
+| Medium | 7, 8 | Production readiness signals |

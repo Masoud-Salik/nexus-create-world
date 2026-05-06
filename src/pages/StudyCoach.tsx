@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { Loader2, LogIn, Sparkles, BookOpen, Sliders, RefreshCw, Target, Timer, Trophy, Zap } from "lucide-react";
+import { StudyAnalytics } from "@/components/study-coach/StudyAnalytics";
 import { StudyTaskData } from "@/components/study-coach/TaskCard";
 import { StudyTaskTimer, ActiveTask, CompletionStatus } from "@/components/study-coach/StudyTaskTimer";
 import { SubjectManager } from "@/components/study-coach/SubjectManager";
@@ -26,7 +27,7 @@ import {
 "@/components/ui/dialog";
 import { Clock, Battery } from "lucide-react";
 
-type StudyMode = "timer" | "plan";
+type StudyMode = "timer" | "plan" | "stats";
 
 // Auto-hiding guest banner component
 function GuestBanner({ isGuest }: {isGuest: boolean;}) {
@@ -542,28 +543,26 @@ export default function StudyCoach() {
               <div
                 className="absolute top-1 bottom-1 rounded-lg bg-primary shadow-md transition-all duration-300 ease-out"
                 style={{
-                  width: "calc(50% - 4px)",
-                  left: studyMode === "timer" ? "4px" : "calc(50% + 0px)",
+                  width: "calc(33.33% - 4px)",
+                  left: studyMode === "timer" ? "4px" : studyMode === "plan" ? "calc(33.33%)" : "calc(66.66%)",
                 }}
               />
-              <button
-                onClick={() => { setStudyMode("timer"); navigator.vibrate?.(10); }}
-                className={cn(
-                  "relative z-10 flex items-center gap-1.5 px-5 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
-                  studyMode === "timer" ? "text-primary-foreground" : "text-muted-foreground"
-                )}
-              >
-                ⏱ Focus
-              </button>
-              <button
-                onClick={() => { setStudyMode("plan"); navigator.vibrate?.(10); }}
-                className={cn(
-                  "relative z-10 flex items-center gap-1.5 px-5 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
-                  studyMode === "plan" ? "text-primary-foreground" : "text-muted-foreground"
-                )}
-              >
-                📋 Blueprint
-              </button>
+              {([
+                { mode: "timer" as const, label: "⏱ Focus" },
+                { mode: "plan" as const, label: "📋 Blueprint" },
+                { mode: "stats" as const, label: "📊 Stats" },
+              ]).map(tab => (
+                <button
+                  key={tab.mode}
+                  onClick={() => { setStudyMode(tab.mode); navigator.vibrate?.(10); }}
+                  className={cn(
+                    "relative z-10 flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
+                    studyMode === tab.mode ? "text-primary-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
@@ -598,7 +597,7 @@ export default function StudyCoach() {
 
         {/* Plan Mode Content — Full-screen overlay on mobile */}
         {!activeTask && studyMode === "plan" &&
-        <div className="fixed inset-0 z-40 bg-background md:relative md:inset-auto md:z-auto md:flex-1 flex flex-col overflow-y-auto">
+        <div className="fixed inset-0 bottom-[68px] z-40 bg-background md:relative md:inset-auto md:bottom-auto md:z-auto md:flex-1 flex flex-col overflow-y-auto">
             {/* Mobile header with back button */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border md:hidden">
               <h2 className="text-lg font-bold text-foreground">📅 Blueprint</h2>
@@ -717,6 +716,14 @@ export default function StudyCoach() {
             </div>
           </div>
         }
+
+        {/* Subjects Dialog */}
+        {/* Stats Mode */}
+        {!activeTask && studyMode === "stats" && (
+          <div className="flex-1 overflow-y-auto">
+            <StudyAnalytics userId={userId} isGuest={isGuest} />
+          </div>
+        )}
 
         {/* Subjects Dialog */}
         <Dialog open={subjectsOpen} onOpenChange={setSubjectsOpen}>
