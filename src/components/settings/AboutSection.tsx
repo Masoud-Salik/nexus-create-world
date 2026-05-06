@@ -1,7 +1,6 @@
-import { Sparkles, Target, Heart, Rocket, Brain, Globe, Lightbulb } from "lucide-react";
+import { Heart, Rocket, Brain, Globe, Lightbulb } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import teamPhoto from "@/assets/team-photo.jpeg";
-import appLogo from "@/assets/app-logo.png";
 
 const values = [
   {
