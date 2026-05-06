@@ -1,4 +1,4 @@
-import { Heart, Rocket, Brain, Globe, Lightbulb } from "lucide-react";
+import { Heart, Rocket, Brain, Globe, Lightbulb, Target } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import teamPhoto from "@/assets/team-photo.jpeg";
 
