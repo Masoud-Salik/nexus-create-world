@@ -34,17 +34,6 @@ export function AboutSection() {
         />
       </div>
 
-      {/* Hero */}
-      <div className="text-center space-y-2">
-        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mx-auto mb-2 overflow-hidden">
-          <img src={appLogo} alt="StudyTime logo" className="w-12 h-12 object-contain" />
-        </div>
-        <h2 className="text-2xl font-bold text-foreground">StudyTime</h2>
-        <p className="text-sm text-muted-foreground max-w-xs mx-auto">
-          Your AI-powered companion for smarter, focused studying.
-        </p>
-      </div>
-
       {/* Mission */}
       <Card>
         <CardContent className="p-5 space-y-2">
