@@ -7,7 +7,7 @@ import { Switch } from "@/components/ui/switch";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Sparkles, Target, CheckCircle } from "lucide-react";
+import { Sparkles, Target, CheckCircle, SkipForward } from "lucide-react";
 
 type Goal = {
   goal_title: string;
@@ -116,19 +116,43 @@ export const Onboarding = ({ userId, onComplete }: OnboardingProps) => {
     }
   };
 
+  const totalSteps = 4;
+
+  const handleSkip = async () => {
+    setIsLoading(true);
+    try {
+      await supabase.from('profiles').update({
+        name: name.trim() || "Student",
+        occupation_or_status: "Student",
+        onboarding_completed: true,
+      }).eq('id', userId);
+      toast({ title: "Welcome!", description: "You can update your profile in Settings anytime." });
+      onComplete();
+    } catch {
+      toast({ title: "Error", description: "Please try again.", variant: "destructive" });
+    } finally {
+      setIsLoading(false);
+    }
+  };
+
   const screens = [
     // Welcome Screen
     <div key="welcome" className="flex flex-col items-center justify-center min-h-[400px] text-center space-y-6">
       <Sparkles className="h-16 w-16 text-primary" />
       <div className="space-y-2">
-        <h1 className="text-4xl font-bold">Welcome to Future App!</h1>
+        <h1 className="text-4xl font-bold">Welcome to StudyTime!</h1>
         <p className="text-muted-foreground text-lg">
           Let's set up your profile and goals to get started on your journey
         </p>
       </div>
-      <Button size="lg" onClick={() => setStep(1)}>
-        Get Started
-      </Button>
+      <div className="flex flex-col gap-3">
+        <Button size="lg" onClick={() => setStep(1)}>
+          Get Started
+        </Button>
+        <Button variant="ghost" size="sm" onClick={handleSkip} className="text-muted-foreground gap-1">
+          <SkipForward className="h-3.5 w-3.5" /> Skip for now
+        </Button>
+      </div>
     </div>,
 
     // Identity Screen
@@ -312,6 +336,22 @@ export const Onboarding = ({ userId, onComplete }: OnboardingProps) => {
 
   return (
     <div className="min-h-screen flex items-center justify-center p-4 bg-background">
+      {/* Progress bar */}
+      {step > 0 && (
+        <div className="fixed top-0 left-0 right-0 z-50">
+          <div className="h-1 bg-muted">
+            <div
+              className="h-full bg-primary transition-all duration-500 ease-out rounded-r-full"
+              style={{ width: `${((step) / (totalSteps - 1)) * 100}%` }}
+            />
+          </div>
+          <div className="flex justify-center py-2">
+            <span className="text-xs text-muted-foreground font-medium">
+              Step {step} of {totalSteps - 1}
+            </span>
+          </div>
+        </div>
+      )}
       <div className="w-full max-w-2xl">
         {screens[step]}
       </div>
