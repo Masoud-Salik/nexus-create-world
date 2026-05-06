@@ -6,6 +6,7 @@ import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import { Loader2, LogIn, Sparkles, BookOpen, Sliders, RefreshCw, Target, Timer, Trophy, Zap } from "lucide-react";
+import { StudyAnalytics } from "@/components/study-coach/StudyAnalytics";
 import { StudyTaskData } from "@/components/study-coach/TaskCard";
 import { StudyTaskTimer, ActiveTask, CompletionStatus } from "@/components/study-coach/StudyTaskTimer";
 import { SubjectManager } from "@/components/study-coach/SubjectManager";
@@ -26,7 +27,7 @@ import {
 "@/components/ui/dialog";
 import { Clock, Battery } from "lucide-react";
 
-type StudyMode = "timer" | "plan";
+type StudyMode = "timer" | "plan" | "stats";
 
 // Auto-hiding guest banner component
 function GuestBanner({ isGuest }: {isGuest: boolean;}) {
