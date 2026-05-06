@@ -543,28 +543,26 @@ export default function StudyCoach() {
               <div
                 className="absolute top-1 bottom-1 rounded-lg bg-primary shadow-md transition-all duration-300 ease-out"
                 style={{
-                  width: "calc(50% - 4px)",
-                  left: studyMode === "timer" ? "4px" : "calc(50% + 0px)",
+                  width: "calc(33.33% - 4px)",
+                  left: studyMode === "timer" ? "4px" : studyMode === "plan" ? "calc(33.33%)" : "calc(66.66%)",
                 }}
               />
-              <button
-                onClick={() => { setStudyMode("timer"); navigator.vibrate?.(10); }}
-                className={cn(
-                  "relative z-10 flex items-center gap-1.5 px-5 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
-                  studyMode === "timer" ? "text-primary-foreground" : "text-muted-foreground"
-                )}
-              >
-                ⏱ Focus
-              </button>
-              <button
-                onClick={() => { setStudyMode("plan"); navigator.vibrate?.(10); }}
-                className={cn(
-                  "relative z-10 flex items-center gap-1.5 px-5 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
-                  studyMode === "plan" ? "text-primary-foreground" : "text-muted-foreground"
-                )}
-              >
-                📋 Blueprint
-              </button>
+              {([
+                { mode: "timer" as const, label: "⏱ Focus" },
+                { mode: "plan" as const, label: "📋 Blueprint" },
+                { mode: "stats" as const, label: "📊 Stats" },
+              ]).map(tab => (
+                <button
+                  key={tab.mode}
+                  onClick={() => { setStudyMode(tab.mode); navigator.vibrate?.(10); }}
+                  className={cn(
+                    "relative z-10 flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
+                    studyMode === tab.mode ? "text-primary-foreground" : "text-muted-foreground"
+                  )}
+                >
+                  {tab.label}
+                </button>
+              ))}
             </div>
           </div>
         )}
