@@ -24,6 +24,7 @@ export function MobileBottomNav() {
             to={item.url}
             end={item.url === "/"}
             onClick={handleTap}
+            aria-label={item.title}
             className={({ isActive }) =>
               cn(
                 "flex flex-col items-center justify-center gap-1 py-2 rounded-2xl transition-all duration-200 min-w-[72px] min-h-[56px] tap-effect relative",
