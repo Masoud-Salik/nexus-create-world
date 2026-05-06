@@ -29,9 +29,7 @@ export const Onboarding = ({ userId, onComplete }: OnboardingProps) => {
   // Identity data
   const [name, setName] = useState("");
   const [age, setAge] = useState("");
-  const [occupation, setOccupation] = useState("");
-  // Pre-fill occupation
-  useState(() => { setOccupation("Student"); });
+  const [occupation, setOccupation] = useState("Student");
   const [motto, setMotto] = useState("");
 
   // Goals data
