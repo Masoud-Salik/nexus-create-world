@@ -34,7 +34,9 @@ serve(async (req) => {
             content: `You are a memory extraction assistant. Analyze user messages to identify stable personal information worth remembering for future conversations.
 
 CATEGORIES to look for:
-- "preference" - likes, dislikes, favorites (food, music, activities)
+- "like" - things the user enjoys, loves, or is enthusiastic about
+- "dislike" - things the user dislikes, hates, or wants to avoid
+- "preference" - general preferences and favorites (study style, tools, methods)
 - "habit" - daily routines, recurring behaviors
 - "goal" - aspirations, plans, targets
 - "personal_fact" - biographical info (job, location, relationships)
@@ -47,15 +49,18 @@ RULES:
 2. Summarize into 1-2 short sentences
 3. Be specific and actionable for future personalization
 4. Skip greetings, questions, or transient chat
+5. Pay special attention to likes and dislikes — these are highly valuable for personalization
+6. Assess sentiment intensity: "strong" (loves/hates), "moderate" (likes/prefers), "mild" (sometimes/doesn't mind)
 
 Respond with JSON only:
 {
   "should_save": boolean,
-  "category": "preference" | "habit" | "goal" | "personal_fact" | "belief" | "health" | "skill",
-  "content": "extracted memory summary"
+  "category": "like" | "dislike" | "preference" | "habit" | "goal" | "personal_fact" | "belief" | "health" | "skill",
+  "content": "extracted memory summary",
+  "sentiment": "strong" | "moderate" | "mild"
 }
 
-If nothing worth saving, respond: {"should_save": false, "category": null, "content": null}`
+If nothing worth saving, respond: {"should_save": false, "category": null, "content": null, "sentiment": null}`
           },
           {
             role: "user",
@@ -77,12 +82,17 @@ If nothing worth saving, respond: {"should_save": false, "category": null, "cont
                   },
                   category: {
                     type: "string",
-                    enum: ["preference", "habit", "goal", "personal_fact", "belief", "health", "skill"],
+                    enum: ["like", "dislike", "preference", "habit", "goal", "personal_fact", "belief", "health", "skill"],
                     description: "Category of the memory"
                   },
                   content: {
                     type: "string",
                     description: "The extracted memory content in 1-2 sentences"
+                  },
+                  sentiment: {
+                    type: "string",
+                    enum: ["strong", "moderate", "mild"],
+                    description: "How strongly the user feels about this"
                   }
                 },
                 required: ["should_save"]
@@ -120,7 +130,8 @@ If nothing worth saving, respond: {"should_save": false, "category": null, "cont
         should_save: result.should_save || false,
         category: result.category || null,
         content: result.content || null,
-        messageId
+      messageId,
+      sentiment: result.sentiment || "moderate"
       }),
       { headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
