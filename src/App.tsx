@@ -48,7 +48,6 @@ const AnimatedRoutes = () => {
       <Suspense fallback={<PageFallback />}>
         <Routes>
           <Route path="/" element={<StudyCoach />} />
-          <Route path="/landing" element={<Landing />} />
           <Route path="/chat" element={<Index />} />
           <Route path="/ai-memory" element={<AIMemory />} />
           <Route path="/settings" element={<Settings />} />
@@ -97,7 +96,10 @@ const App = () => (
             <Toaster />
             <Sonner />
             <BrowserRouter>
-              <AppLayout />
+              <Routes>
+                <Route path="/landing" element={<Suspense fallback={null}><Landing /></Suspense>} />
+                <Route path="*" element={<AppLayout />} />
+              </Routes>
             </BrowserRouter>
           </TooltipProvider>
         </GlobalTimerProvider>
