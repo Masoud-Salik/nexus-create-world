@@ -56,6 +56,7 @@ export type Database = {
           content: string
           created_at: string | null
           id: string
+          sentiment: string | null
           source_message_id: string | null
           updated_at: string | null
           user_id: string
@@ -65,6 +66,7 @@ export type Database = {
           content: string
           created_at?: string | null
           id?: string
+          sentiment?: string | null
           source_message_id?: string | null
           updated_at?: string | null
           user_id: string
@@ -74,6 +76,7 @@ export type Database = {
           content?: string
           created_at?: string | null
           id?: string
+          sentiment?: string | null
           source_message_id?: string | null
           updated_at?: string | null
           user_id?: string

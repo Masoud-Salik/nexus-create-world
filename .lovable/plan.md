@@ -1,121 +1,62 @@
 
-# StudyTime Production Upgrade Plan
+# AI Personalization & Focus Hub Mini-Chat Upgrade
 
-## Goal
-Transform StudyTime from a solid prototype into a portfolio-quality product that demonstrates CS competence to a scholarship committee. Focus on what impresses reviewers: professional polish, intelligent features, and technical depth.
+## 1. Smarter, Playful AI Personality (Edge Function)
 
----
+Update `supabase/functions/chat/index.ts` system prompt:
+- Make NEXUS warmer, wittier, and more playful -- inspired by conversational AI like GPT-5.5. Add humor, light banter, and celebratory reactions.
+- Inject user's **likes/dislikes** from `ai_memory` and `user_insights` tables into the system prompt dynamically. The AI will reference these naturally ("I know you love lo-fi music -- try studying with some on!").
+- Add a new tool `get_user_preferences` that fetches all `ai_memory` entries + `interests` + `abilities_skills` so the AI can proactively reference them.
+- Add a new tool `save_user_preference` so the AI can actively save likes/dislikes it discovers mid-conversation (e.g., user says "I hate math" -> AI saves it).
 
-## 1. Remove the About Hero Card (Quick Fix)
+## 2. Enhanced Memory Extraction (Edge Function)
 
-Remove the small "StudyTime / Your AI-powered companion..." card from `AboutSection.tsx` (lines 38-46) as requested. Keep the team photo, mission, values, and footer.
+Update `supabase/functions/extract-memory/index.ts`:
+- Expand categories to include `"like"` and `"dislike"` explicitly.
+- Extract emotional sentiment and intensity (e.g., "loves classical music" vs. "sometimes listens to jazz").
+- Run extraction on **both** user and assistant messages (currently only user messages).
 
----
+## 3. AI Gets Smarter Over Time (System Prompt Context)
 
-## 2. Add a Public Landing Page (High Impact)
+In `src/pages/Index.tsx`, enhance `getUserContext()`:
+- Fetch and inject all `ai_memory` entries (grouped by category) into the context sent to the AI.
+- Include conversation count and total messages as "relationship depth" signal.
+- Add a "personality adaptation" section: if user prefers short answers, the AI adapts; if they like detailed explanations, it expands.
 
-Create a new `/landing` route that unauthenticated users see first (redirect `/` for guests). This is critical for scholarship reviewers who will visit the URL cold.
+## 4. Focus Hub Floating AI Mini-Chat Button
 
-**Content:**
-- Hero section: App name, tagline ("AI-Powered Study Companion"), animated mockup/screenshot, and "Get Started" CTA
-- Feature highlights: Focus Timer, AI Tutor, Smart Planner, Leaderboard -- each with icon, title, one-liner
-- Social proof section: "Built with React, TypeScript, Supabase, and AI" tech stack badges
-- Footer with links
+Create `src/components/study-coach/FloatingAIChat.tsx`:
+- A small circular button (44px) with an AI/sparkle icon, positioned on the right edge of the screen.
+- **3 snap positions**: bottom (above bottom nav ~100px), middle (~50% viewport), top (~15% from top). No in-between positions.
+- **Drag-to-snap**: User can drag the button vertically. On release, it snaps to the nearest of the 3 positions with a spring animation (CSS `transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)`).
+- **Tap to expand**: Opens a compact chat overlay (300px tall, full width minus padding) anchored to the button's position. The overlay has:
+  - A small input field + send button
+  - Last 3 messages displayed in a mini scroll area
+  - Semi-transparent backdrop-blur background (glassmorphism)
+  - Tap outside or tap button again to collapse
+- **Non-disturbing**: The overlay does NOT cover the timer. It slides in/out with a scale+fade animation.
+- Messages sent here go to the same conversation system (reuse existing chat logic).
+- Integrate into `StudyCoach.tsx` Focus tab only (not Blueprint/Stats).
 
-**Design:** Full-width sections, smooth scroll animations via framer-motion, emerald gradient accents, dark/light support.
+## 5. Smooth Transitions & Mobile Polish
 
----
+- All animations use GPU-accelerated transforms (`translate3d`, `scale3d`).
+- Button has a subtle pulse glow when idle (CSS keyframe, emerald green).
+- Drag uses `touch-action: none` and `pointer-events` for smooth mobile interaction.
+- Haptic feedback (10ms vibration) on snap and on send.
 
-## 3. Study Analytics Dashboard (Technical Depth)
+## Technical Details
 
-Add a "My Stats" tab or section in Focus Hub showing:
+**Files to create:**
+- `src/components/study-coach/FloatingAIChat.tsx` -- floating button + mini-chat overlay
 
-- **Weekly heatmap**: 7-day grid showing study intensity per day (color-coded)
-- **Subject breakdown**: Donut/bar chart of time per subject using recharts
-- **Streak calendar**: Visual streak tracker (GitHub-contribution-style)
-- **Personal bests**: Longest streak, most productive day, total hours
+**Files to modify:**
+- `supabase/functions/chat/index.ts` -- new tools, enhanced personality prompt, memory injection
+- `supabase/functions/extract-memory/index.ts` -- expanded categories, like/dislike extraction
+- `src/pages/Index.tsx` -- enhanced `getUserContext()` with memory injection
+- `src/pages/StudyCoach.tsx` -- mount `FloatingAIChat` in Focus tab
 
-This demonstrates data visualization and analytical thinking -- key for CS.
+**Database migration:**
+- Add `sentiment` column (text, nullable) to `ai_memory` table for emotional intensity tracking.
 
----
-
-## 4. AI Chat Polish (Intelligence)
-
-- **Conversation search**: Add a search input in the chat sidebar to filter conversations by title
-- **Markdown rendering**: Ensure code blocks, tables, and lists render properly with syntax highlighting (add `react-markdown` + `rehype-highlight`)
-- **Empty state improvement**: Add subtle typing animation to the greeting
-- **Error recovery**: If streaming fails mid-message, show a "Retry" button instead of losing the partial response
-
----
-
-## 5. Onboarding Flow Polish
-
-- Add step indicators (1/3, 2/3, 3/3) with a progress bar
-- Add subtle slide transitions between steps
-- Pre-fill "Student" as default occupation
-- Add a "Skip for now" option that still creates the profile with defaults
-
----
-
-## 6. Accessibility and Performance
-
-- Add `aria-label` attributes to icon-only buttons (timer controls, nav items)
-- Ensure all interactive elements have visible focus rings
-- Add `<noscript>` fallback message in `index.html` body
-- Lazy-load the Leaderboard and Analytics components
-- Add `loading="lazy"` to non-critical images
-
----
-
-## 7. Global UX Micro-Fixes
-
-- Fix the Blueprint mode covering the entire screen on mobile with no way back except the close button -- add a swipe-down gesture or make the bottom nav visible
-- Add a toast confirmation when copying study plan data
-- Add keyboard shortcut hints on desktop (Space to pause/resume timer)
-- Ensure the timer keeps running when navigating between pages (already via GlobalTimerContext -- verify)
-
----
-
-## 8. Professional README and Meta
-
-- Update `index.html` structured data to include "creator" with your name
-- Add a proper `README.md` with: project overview, screenshots placeholder, tech stack, architecture summary, and "Built by [Your Name]" attribution
-- Update the About section to mention your name and the scholarship context if desired
-
----
-
-## Files to Create
-| File | Purpose |
-|------|---------|
-| `src/pages/Landing.tsx` | Public landing page |
-| `src/components/landing/*` | Landing page sections (Hero, Features, TechStack, Footer) |
-| `src/components/study-coach/StudyAnalytics.tsx` | Analytics dashboard component |
-
-## Files to Modify
-| File | Change |
-|------|--------|
-| `src/components/settings/AboutSection.tsx` | Remove hero card |
-| `src/App.tsx` | Add landing route, guest redirect logic |
-| `src/pages/Index.tsx` | Add markdown rendering, search, retry |
-| `src/pages/StudyCoach.tsx` | Add analytics tab/section |
-| `src/components/Onboarding.tsx` | Add progress bar, skip option |
-| `src/components/MobileBottomNav.tsx` | Keep visible in Blueprint mode |
-| `index.html` | Add noscript, update structured data |
-
-## Dependencies to Add
-- `react-markdown` -- markdown rendering in chat
-- `recharts` (already present via shadcn charts) -- analytics charts
-- `framer-motion` -- landing page animations
-
-## No Database Changes Required
-All new features use existing tables (study_sessions, study_tasks, habits, profiles).
-
-## Priority Order
-| Priority | Item | Why |
-|----------|------|-----|
-| Critical | 1 | User-requested fix |
-| High | 2 | First impression for reviewers |
-| High | 3 | Demonstrates CS/data skills |
-| High | 4 | Shows AI integration depth |
-| Medium | 5, 6 | Professional polish |
-| Medium | 7, 8 | Production readiness signals |
+**No new dependencies required.** Drag logic uses native touch events + CSS transitions.

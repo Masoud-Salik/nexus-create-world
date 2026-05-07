@@ -18,6 +18,7 @@ import { PomodoroTimer } from "@/components/study-coach/PomodoroTimer";
 import { useLocalStudyPlan } from "@/hooks/useLocalStudyPlan";
 import { Leaderboard } from "@/components/study-coach/Leaderboard";
 import { BackgroundMusicPlayer } from "@/components/study-coach/BackgroundMusicPlayer";
+import { FloatingAIChat } from "@/components/study-coach/FloatingAIChat";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import {
   Dialog,
@@ -594,6 +595,9 @@ export default function StudyCoach() {
           
           </div>
         }
+
+        {/* Floating AI Chat — Focus mode only */}
+        {!activeTask && studyMode === "timer" && userId && !isGuest && <FloatingAIChat />}
 
         {/* Plan Mode Content — Full-screen overlay on mobile */}
         {!activeTask && studyMode === "plan" &&

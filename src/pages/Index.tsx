@@ -196,6 +196,9 @@ const Index = () => {
     const { data: abilities } = await supabase.from("abilities_skills").select("*").eq("user_id", user.id).maybeSingle();
     const { data: interests } = await supabase.from("interests").select("*").eq("user_id", user.id).maybeSingle();
     const { data: friends } = await supabase.from("friends_identities").select("*").eq("user_id", user.id);
+    const { data: memories } = await supabase.from("ai_memory").select("category, content, sentiment").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(40);
+    const { count: convCount } = await supabase.from("conversations").select("id", { count: "exact", head: true }).eq("user_id", user.id);
+    const { count: msgCount } = await supabase.from("messages").select("id", { count: "exact", head: true }).eq("user_id", user.id);
 
     let ctx = "";
     if (profile) ctx += `\n\nUser Profile:\n- Name: ${profile.name || "Not set"}\n- Age: ${profile.age || "Not set"}\n- Occupation: ${profile.occupation_or_status || "Not set"}\n- Personal Motto: ${profile.personal_motto || "Not set"}`;
@@ -215,6 +218,24 @@ const Index = () => {
     }
     if (friends?.length) { ctx += `\n\nFriends:`; friends.forEach((f: any) => { ctx += `\n- ${f.friend_name} (${f.relationship || "Friend"})`; }); }
     if (activities?.length) { ctx += `\n\nRecent Activities:`; activities.slice(0, 10).forEach((a: any) => { ctx += `\n- ${a.activity_date}: Mood: ${a.mood || "?"}`; }); }
+
+    // Inject AI memories (likes, dislikes, preferences learned over time)
+    if (memories?.length) {
+      const grouped: Record<string, string[]> = {};
+      for (const m of memories) {
+        const key = m.category || "other";
+        if (!grouped[key]) grouped[key] = [];
+        grouped[key].push(`${m.content}${m.sentiment === "strong" ? " (strongly)" : ""}`);
+      }
+      ctx += `\n\nAI Memories (things learned about this user):`;
+      for (const [cat, items] of Object.entries(grouped)) {
+        ctx += `\n${cat}: ${items.join("; ")}`;
+      }
+    }
+
+    // Relationship depth signal
+    ctx += `\n\nRelationship: ${convCount || 0} conversations, ${msgCount || 0} total messages exchanged.`;
+
     return ctx;
   };
 
@@ -225,7 +246,7 @@ const Index = () => {
       const { data, error } = await supabase.functions.invoke("extract-memory", { body: { message: messageContent, messageId } });
       if (error) return;
       if (data?.should_save && data.category && data.content) {
-        await supabase.from("ai_memory").insert({ user_id: user?.id, category: data.category, content: data.content, source_message_id: messageId || null });
+        await supabase.from("ai_memory").insert({ user_id: user?.id, category: data.category, content: data.content, sentiment: data.sentiment || "moderate", source_message_id: messageId || null });
       }
     } catch (e) { console.error("Memory extraction failed:", e); }
   };
