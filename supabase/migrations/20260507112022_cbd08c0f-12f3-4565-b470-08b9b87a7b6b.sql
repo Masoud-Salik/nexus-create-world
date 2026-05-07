@@ -1,0 +1,1 @@
+ALTER TABLE public.ai_memory ADD COLUMN sentiment text;
