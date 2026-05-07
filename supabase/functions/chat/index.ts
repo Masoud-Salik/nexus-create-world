@@ -12,13 +12,25 @@ const MODELS = [
   "google/gemini-2.5-flash-lite",
 ];
 
-const SYSTEM_PROMPT = `You are NEXUS — the StudyTime AI companion. You are a brilliant, friendly tutor and professional motivator.
+const SYSTEM_PROMPT = `You are NEXUS — the StudyTime AI companion. You're brilliant, witty, and genuinely fun to talk to. Think of yourself as the user's smartest friend who happens to be an expert tutor.
 
 PERSONALITY:
-- Helpful, concise, encouraging. Use 1-2 emojis max per message.
-- Give direct answers (1-3 sentences when possible). Avoid fluff.
-- When the user achieves something, celebrate briefly. When they struggle, be supportive but actionable.
+- Be playful and warm — crack smart jokes, use witty observations, and make studying feel less lonely.
+- Use 1-2 emojis per message. Vary them — don't always use the same ones.
+- Give direct answers (1-3 sentences when possible). Be concise but never cold.
+- When the user achieves something, celebrate with genuine enthusiasm ("That's a STREAK of 7 days — you're literally unstoppable 🔥").
+- When they struggle, be supportive AND actionable — never preachy. ("Rough day? Let's make the next 25 minutes count. One task. You pick.")
+- Be curious about the user. Ask follow-up questions sometimes. Remember what they tell you.
+- Adapt your tone: if they're serious, match it. If they're playful, be playful back.
+- Show personality — have opinions on study techniques, share fun facts, be a companion not just a tool.
 - Respond in the user's language.
+
+PERSONALIZATION:
+- You have access to the user's memories, preferences, likes, and dislikes. Use them naturally in conversation.
+- Reference their interests to make studying relatable ("Since you love music, think of this math pattern like a rhythm...").
+- Track their mood across conversations. If they seem tired, suggest breaks. If energized, push them.
+- When you learn something new about the user, save it using the save_user_preference tool.
+- The more you know about someone, the better your advice. Actively learn about them.
 
 APP KNOWLEDGE:
 - StudyTime has: Focus Hub (Pomodoro timer), Blueprint (AI study planner), Leaderboard (XP/discipline scores), AI Chat (you).
@@ -26,6 +38,7 @@ APP KNOWLEDGE:
 - Leaderboard ranks users by discipline score (consistency 30%, streak 25%, study hours 20%, task completion 15%, difficulty 10%).
 
 TOOLS: You have tools to interact with the app. Use them when the user asks about their plan, subjects, progress, or wants to make changes. Always use tools before answering questions about user-specific data.
+Also use get_user_preferences proactively when you want to personalize your response. Use save_user_preference when the user reveals something about themselves.
 
 FORMAT: Use markdown. Bold key numbers. Keep responses compact.`;
 
@@ -113,6 +126,30 @@ const tools = [
           status: { type: "string", enum: ["completed", "skipped"] },
         },
         required: ["task_id", "status"],
+      },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "get_user_preferences",
+      description: "Get the user's saved memories, likes, dislikes, interests, and abilities. Use to personalize responses and reference things the user has shared before.",
+      parameters: { type: "object", properties: {}, required: [] },
+    },
+  },
+  {
+    type: "function",
+    function: {
+      name: "save_user_preference",
+      description: "Save something you learned about the user — a like, dislike, preference, habit, goal, or personal fact. Use when the user reveals information worth remembering for future conversations.",
+      parameters: {
+        type: "object",
+        properties: {
+          category: { type: "string", enum: ["like", "dislike", "preference", "habit", "goal", "personal_fact", "belief", "health", "skill"], description: "Category of the memory" },
+          content: { type: "string", description: "Short summary of what to remember (1-2 sentences)" },
+          sentiment: { type: "string", enum: ["strong", "moderate", "mild"], description: "How strongly the user feels about this" },
+        },
+        required: ["category", "content"],
       },
     },
   },
@@ -232,6 +269,46 @@ async function executeTool(supabase: any, userId: string, name: string, args: an
         .update({ status: args.status, completed_at: args.status === "completed" ? new Date().toISOString() : null })
         .eq("id", args.task_id).eq("user_id", userId);
       return JSON.stringify(error ? { error: error.message } : { success: true, task_id: args.task_id, status: args.status });
+    }
+
+    case "get_user_preferences": {
+      const [memRes, intRes, abilRes, insRes] = await Promise.all([
+        supabase.from("ai_memory").select("category, content, sentiment").eq("user_id", userId).order("updated_at", { ascending: false }).limit(50),
+        supabase.from("interests").select("*").eq("user_id", userId).maybeSingle(),
+        supabase.from("abilities_skills").select("*").eq("user_id", userId).maybeSingle(),
+        supabase.from("user_insights").select("insight_type, insight_key, insight_value").eq("user_id", userId).limit(30),
+      ]);
+
+      const memories: Record<string, string[]> = {};
+      for (const m of memRes.data || []) {
+        const key = m.category || "other";
+        if (!memories[key]) memories[key] = [];
+        memories[key].push(`${m.content}${m.sentiment ? ` (${m.sentiment})` : ""}`);
+      }
+
+      return JSON.stringify({
+        memories,
+        interests: intRes.data ? {
+          hobbies: intRes.data.hobbies, music: intRes.data.music,
+          favorite_foods: intRes.data.favorite_foods, movies_books: intRes.data.movies_books,
+          clothing_style: intRes.data.clothing_style, sleep_habits: intRes.data.sleep_habits,
+        } : null,
+        abilities: abilRes.data ? {
+          strengths: abilRes.data.strengths, weaknesses: abilRes.data.weaknesses,
+          technical_skills: abilRes.data.technical_skills, soft_skills: abilRes.data.soft_skills,
+          languages: abilRes.data.languages,
+        } : null,
+        insights: (insRes.data || []).map((i: any) => `${i.insight_key}: ${i.insight_value}`),
+      });
+    }
+
+    case "save_user_preference": {
+      if (!args.content || !args.category) return JSON.stringify({ error: "content and category required" });
+      const { error } = await supabase.from("ai_memory").insert({
+        user_id: userId, category: args.category, content: args.content,
+        sentiment: args.sentiment || "moderate",
+      });
+      return JSON.stringify(error ? { error: error.message } : { success: true, saved: args.content });
     }
 
     default:
