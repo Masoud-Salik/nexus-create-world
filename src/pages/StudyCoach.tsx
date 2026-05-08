@@ -5,18 +5,14 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/hooks/usePageMeta";
-import { Loader2, LogIn, Sparkles, BookOpen, Sliders, RefreshCw, Target, Timer, Trophy, Zap } from "lucide-react";
+import { Loader2, LogIn, Sparkles, BookOpen, Sliders, RefreshCw, Target, Timer, Zap, Play, Clock as ClockIcon, CheckCircle2 } from "lucide-react";
 import { StudyAnalytics } from "@/components/study-coach/StudyAnalytics";
 import { StudyTaskData } from "@/components/study-coach/TaskCard";
 import { StudyTaskTimer, ActiveTask, CompletionStatus } from "@/components/study-coach/StudyTaskTimer";
 import { SubjectManager } from "@/components/study-coach/SubjectManager";
 import { PlanDurationSelector, PlanDuration } from "@/components/study-coach/PlanDurationSelector";
-import { NextTaskCard } from "@/components/study-coach/NextTaskCard";
-import { TaskPills } from "@/components/study-coach/TaskPills";
-import { CompactStatsBar } from "@/components/study-coach/CompactStatsBar";
 import { PomodoroTimer } from "@/components/study-coach/PomodoroTimer";
 import { useLocalStudyPlan } from "@/hooks/useLocalStudyPlan";
-import { Leaderboard } from "@/components/study-coach/Leaderboard";
 import { BackgroundMusicPlayer } from "@/components/study-coach/BackgroundMusicPlayer";
 import { FloatingAIChat } from "@/components/study-coach/FloatingAIChat";
 import { format, startOfWeek, endOfWeek } from "date-fns";
@@ -26,7 +22,17 @@ import {
   DialogHeader,
   DialogTitle } from
 "@/components/ui/dialog";
-import { Clock, Battery } from "lucide-react";
+import { Book, Calculator, Atom, Globe, Music as MusicIcon, Pen } from "lucide-react";
+
+const taskIconMap: Record<string, any> = {
+  book: Book, "book-open": Book, calculator: Calculator, atom: Atom, flask: Atom, globe: Globe, music: MusicIcon, pen: Pen,
+};
+
+const difficultyConfig: Record<string, { emoji: string; label: string; color: string }> = {
+  easy: { emoji: "⚡", label: "Easy", color: "bg-emerald-500/20 text-emerald-400" },
+  medium: { emoji: "💪", label: "Medium", color: "bg-yellow-500/20 text-yellow-400" },
+  hard: { emoji: "🔥", label: "Hard", color: "bg-red-500/20 text-red-400" },
+};
 
 type StudyMode = "timer" | "plan" | "stats";
 
@@ -87,8 +93,6 @@ export default function StudyCoach() {
   // Dialog states for icon buttons
   const [subjectsOpen, setSubjectsOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
-  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
-
   // Active timer state
   const [activeTask, setActiveTask] = useState<ActiveTask | null>(null);
 
@@ -480,11 +484,10 @@ export default function StudyCoach() {
     <div className="min-h-screen bg-background pb-20 md:pb-6">
       <div className="max-w-lg mx-auto px-4 py-4 flex flex-col min-h-[calc(100vh-80px)]">
         
-        {/* Header — "Study Hub" + date + streak + actions */}
+        {/* Header — date + streak + music */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-foreground">Study Hub</h1>
-            <span className="text-xs text-muted-foreground">{format(new Date(), "EEE, MMM d")}</span>
+            <span className="text-sm font-semibold text-foreground">{format(new Date(), "EEEE, MMMM d")}</span>
             {streak > 0 && (
               <span className="inline-flex items-center gap-0.5 text-xs font-bold text-orange-500">
                 🔥 {streak}
@@ -494,17 +497,6 @@ export default function StudyCoach() {
           <div className="flex items-center gap-1">
             {/* Background Music */}
             <BackgroundMusicPlayer compact />
-            {/* Leaderboard button - prominent */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 border-yellow-500/40 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-semibold"
-              onClick={() => setLeaderboardOpen(true)}>
-              
-              <Trophy className="h-5 w-5" />
-              <span className="text-xs"> Standing</span>
-            </Button>
-            
             {/* Only show management buttons in plan mode */}
             {studyMode === "plan" && <>
                 <Button
@@ -539,10 +531,10 @@ export default function StudyCoach() {
         {/* Mode Toggle — iOS-style segmented control */}
         {!activeTask && (
           <div className="flex justify-center mb-4">
-            <div className="relative flex p-1 bg-muted rounded-xl">
+            <div className="relative flex p-0.5 bg-muted rounded-lg">
               {/* Sliding pill indicator */}
               <div
-                className="absolute top-1 bottom-1 rounded-lg bg-primary shadow-md transition-all duration-300 ease-out"
+                className="absolute top-0.5 bottom-0.5 rounded-md bg-primary shadow-md transition-all duration-300 ease-out"
                 style={{
                   width: "calc(33.33% - 4px)",
                   left: studyMode === "timer" ? "4px" : studyMode === "plan" ? "calc(33.33%)" : "calc(66.66%)",
@@ -557,7 +549,7 @@ export default function StudyCoach() {
                   key={tab.mode}
                   onClick={() => { setStudyMode(tab.mode); navigator.vibrate?.(10); }}
                   className={cn(
-                    "relative z-10 flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
+                    "relative z-10 flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-md transition-colors duration-200",
                     studyMode === tab.mode ? "text-primary-foreground" : "text-muted-foreground"
                   )}
                 >
@@ -596,12 +588,12 @@ export default function StudyCoach() {
           </div>
         }
 
-        {/* Floating AI Chat — Focus mode only */}
-        {!activeTask && studyMode === "timer" && userId && !isGuest && <FloatingAIChat />}
+        {/* Floating AI Chat — Focus & Blueprint */}
+        {!activeTask && (studyMode === "timer" || studyMode === "plan") && userId && !isGuest && <FloatingAIChat />}
 
         {/* Plan Mode Content — Full-screen overlay on mobile */}
         {!activeTask && studyMode === "plan" &&
-        <div className="fixed inset-0 bottom-[68px] z-40 bg-background md:relative md:inset-auto md:bottom-auto md:z-auto md:flex-1 flex flex-col overflow-y-auto">
+       <div className="fixed inset-0 bottom-[56px] z-40 bg-background md:relative md:inset-auto md:bottom-auto md:z-auto md:flex-1 flex flex-col overflow-y-auto">
             {/* Mobile header with back button */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border md:hidden">
               <h2 className="text-lg font-bold text-foreground">📅 Blueprint</h2>
@@ -619,34 +611,69 @@ export default function StudyCoach() {
             
             {/* Compact Stats Bar */}
             {cachedTasks.length > 0 &&
-          <CompactStatsBar
-            streak={streak}
-            pendingMinutes={pendingMinutes}
-            completedCount={completedTasks.length}
-            totalCount={cachedTasks.length} />
+              <div className="mb-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-foreground">Today's Progress</span>
+                  <span className="text-sm font-bold text-foreground">{Math.round(completedTasks.length / cachedTasks.length * 100)}%</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${completedTasks.length / cachedTasks.length * 100}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-muted rounded-full text-xs text-muted-foreground">
+                    <ClockIcon className="h-3 w-3" /> {pendingMinutes}m left
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 rounded-full text-xs text-primary font-medium">
+                    <CheckCircle2 className="h-3 w-3" /> {completedTasks.length}/{cachedTasks.length}
+                  </span>
+                </div>
+              </div>
+            }
 
-          }
-
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col justify-center py-6 space-y-6">
+            {/* Task Cards */}
+            <div className="flex-1 flex flex-col py-2 space-y-3">
               
-              {/* Next Task Hero Card OR Empty State */}
               {nextTask ?
-            <>
-                  <NextTaskCard
-                task={nextTask}
-                onStart={handleStartTask}
-                disabled={!!activeTask} />
-              
-                  
-                  {/* Other Tasks as Pills */}
-                  {otherTasks.length > 0 &&
-              <TaskPills
-                tasks={otherTasks}
-                onSelect={handleStartTask} />
-
-              }
-                </> :
+              <>
+                {pendingTasks.map((task) => {
+                  const Icon = taskIconMap[task.icon_name] || Book;
+                  const diff = difficultyConfig[task.difficulty] || difficultyConfig.medium;
+                  return (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-border bg-card hover:border-primary/30 transition-colors"
+                    >
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${task.color}20` }}
+                      >
+                        <Icon className="h-5 w-5" style={{ color: task.color }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-foreground text-sm">{task.subject_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{task.topic}</p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                            <ClockIcon className="h-2.5 w-2.5" /> {task.duration_minutes}m
+                          </span>
+                          <span className={cn("inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium", diff.color)}>
+                            {diff.emoji} {diff.label}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleStartTask(task.id)}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90 active:scale-95 transition-all"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-current" /> Start
+                      </button>
+                    </div>
+                  );
+                })}
+              </> :
             cachedTasks.length === 0 ? (
             /* Empty State - No Tasks */
             <div className="text-center py-8">
@@ -682,21 +709,24 @@ export default function StudyCoach() {
               }
                 </div>) : (
 
-            /* All Tasks Completed — Bonus Round */
-            <div className="text-center py-6 space-y-4">
-                  <div className="text-5xl mb-2">🎉</div>
+            /* All Tasks Completed — Break The Rules */
+            <div className="text-center py-6 space-y-5">
+                  <div className="text-6xl mb-2">🏆</div>
                   <h3 className="text-xl font-bold text-foreground">
-                    All done for today!
+                    You crushed it!
                   </h3>
-                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 mx-auto max-w-xs">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <Zap className="h-5 w-5 text-primary" />
-                      <p className="font-bold text-foreground">Bonus Round</p>
+                  <p className="text-sm text-muted-foreground">All tasks done. But legends don't stop here.</p>
+                  <div className="rounded-2xl border-2 border-dashed border-primary/40 bg-gradient-to-br from-primary/5 to-primary/10 p-5 mx-auto max-w-xs">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <Zap className="h-6 w-6 text-primary" />
+                      <p className="font-bold text-lg text-foreground">Break The Rules</p>
+                      <Zap className="h-6 w-6 text-primary" />
                     </div>
-                    <p className="text-xs text-muted-foreground mb-3">Keep going for <span className="font-bold text-primary">1.5x XP!</span></p>
-                    <div className="flex gap-2 justify-center">
+                    <p className="text-xs text-muted-foreground mb-4">Go beyond your plan for <span className="font-bold text-primary text-sm">1.5x XP!</span></p>
+                    <div className="flex gap-2.5 justify-center">
                       {[15, 25, 45].map(mins => (
-                        <Button key={mins} size="sm" variant="outline" className="text-xs gap-1"
+                        <button key={mins}
+                          className="flex flex-col items-center gap-1 px-4 py-3 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all"
                           onClick={() => {
                             if (isGuest) { toast({ title: "Sign up for bonus rounds", variant: "destructive" }); return; }
                             if (!userId) return;
@@ -709,8 +739,9 @@ export default function StudyCoach() {
                               toast({ title: `Bonus +${mins}min logged! 🔥`, description: "1.5x XP earned" });
                             });
                           }}>
-                          ⚡ {mins}m
-                        </Button>
+                          <span className="text-lg">⚡</span>
+                          <span className="text-sm font-bold text-primary">{mins}m</span>
+                        </button>
                       ))}
                     </div>
                   </div>
@@ -767,12 +798,6 @@ export default function StudyCoach() {
           </DialogContent>
         </Dialog>
 
-        {/* Leaderboard Dialog */}
-        <Leaderboard
-          open={leaderboardOpen}
-          onOpenChange={setLeaderboardOpen}
-          userId={userId} />
-        
       </div>
     </div>);
 

@@ -2,8 +2,10 @@ import { useState, useEffect } from "react";
 import { Card, CardContent } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { format, subDays, startOfWeek, eachDayOfInterval } from "date-fns";
-import { Flame, Clock, Trophy, TrendingUp, BookOpen } from "lucide-react";
+import { Flame, Clock, Trophy, TrendingUp, BookOpen, Medal } from "lucide-react";
 import { BarChart, Bar, XAxis, YAxis, ResponsiveContainer, Cell, Tooltip } from "recharts";
+import { Leaderboard } from "@/components/study-coach/Leaderboard";
+import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface AnalyticsProps {
@@ -39,6 +41,7 @@ const COLORS_DARK = ["hsl(150 6% 20%)", "hsl(152 40% 25%)", "hsl(152 55% 35%)", 
 export function StudyAnalytics({ userId, isGuest }: AnalyticsProps) {
   const [heatmap, setHeatmap] = useState<DayData[]>([]);
   const [subjectData, setSubjectData] = useState<SubjectTime[]>([]);
+  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
   const [stats, setStats] = useState<Stats>({
     totalHours: 0, longestStreak: 0, bestDay: "—", bestDayMinutes: 0, sessionsCount: 0, avgSessionMinutes: 0,
   });
@@ -243,6 +246,24 @@ export function StudyAnalytics({ userId, isGuest }: AnalyticsProps) {
           </CardContent>
         </Card>
       )}
+
+      {/* Rankings / Standing */}
+      <Card>
+        <CardContent className="p-4">
+          <div className="flex items-center justify-between">
+            <h3 className="text-sm font-semibold text-foreground flex items-center gap-2">
+              <Medal className="h-4 w-4 text-yellow-500" />
+              Standing
+            </h3>
+            <Button variant="outline" size="sm" className="text-xs gap-1" onClick={() => setLeaderboardOpen(true)}>
+              <Trophy className="h-3.5 w-3.5 text-yellow-500" />
+              View Rankings
+            </Button>
+          </div>
+        </CardContent>
+      </Card>
+
+      <Leaderboard open={leaderboardOpen} onOpenChange={setLeaderboardOpen} userId={userId} />
     </div>
   );
 }

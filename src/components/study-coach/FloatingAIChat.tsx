@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { Sparkles, Send, X, Minus } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Sparkles, Send, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getTimeOfDay, getLocalTime } from "@/utils/getTimeOfDay";
 import { cn } from "@/lib/utils";
@@ -8,62 +8,13 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 type MiniMessage = { role: "user" | "assistant"; content: string };
 
-// 3 snap positions as % from top of the safe area
-const SNAP_POSITIONS = [12, 45, 72]; // top, middle, bottom
-
 export function FloatingAIChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<MiniMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [snapIndex, setSnapIndex] = useState(2); // start at bottom
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragY, setDragY] = useState<number | null>(null);
-  const buttonRef = useRef<HTMLDivElement>(null);
-  const startYRef = useRef(0);
-  const startTopRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const getSnapY = (index: number) => SNAP_POSITIONS[index];
-
-  // Touch handlers for drag
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    startYRef.current = touch.clientY;
-    startTopRef.current = getSnapY(snapIndex);
-    setIsDragging(true);
-  }, [snapIndex]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return;
-    const touch = e.touches[0];
-    const deltaPercent = ((touch.clientY - startYRef.current) / window.innerHeight) * 100;
-    const newY = Math.max(5, Math.min(80, startTopRef.current + deltaPercent));
-    setDragY(newY);
-  }, [isDragging]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    const currentY = dragY ?? getSnapY(snapIndex);
-    // Find nearest snap point
-    let nearest = 0;
-    let minDist = Infinity;
-    SNAP_POSITIONS.forEach((pos, i) => {
-      const dist = Math.abs(currentY - pos);
-      if (dist < minDist) { minDist = dist; nearest = i; }
-    });
-    setSnapIndex(nearest);
-    setDragY(null);
-    navigator.vibrate?.(10);
-  }, [isDragging, dragY, snapIndex]);
-
-  const handleButtonClick = () => {
-    if (isDragging) return;
-    setIsOpen(prev => !prev);
-    navigator.vibrate?.(10);
-  };
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
@@ -143,54 +94,31 @@ export function FloatingAIChat() {
     }
   };
 
-  const currentTop = isDragging && dragY !== null ? dragY : getSnapY(snapIndex);
   const displayMessages = messages.slice(-4);
-
-  // Determine if overlay should go above or below button
-  const overlayAbove = snapIndex >= 1; // middle or bottom -> show above
 
   return (
     <>
       {/* Floating Button */}
       <div
-        ref={buttonRef}
-        className={cn(
-          "fixed right-3 z-50 select-none",
-          !isDragging && "transition-all duration-400 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-        )}
-        style={{ top: `${currentTop}%` }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        className="fixed bottom-20 right-3 z-50"
       >
         <button
-          onClick={handleButtonClick}
+          onClick={() => { setIsOpen(prev => !prev); navigator.vibrate?.(10); }}
           className={cn(
             "relative w-11 h-11 rounded-full flex items-center justify-center shadow-lg",
             "bg-primary text-primary-foreground",
             "active:scale-95 transition-transform duration-150",
-            "touch-none",
             !isOpen && "animate-[pulse-glow_3s_ease-in-out_infinite]"
           )}
-          style={{ touchAction: "none" }}
         >
-          {isOpen ? <Minus className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+          {isOpen ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
         </button>
       </div>
 
       {/* Chat Overlay */}
       {isOpen && (
         <div
-          className={cn(
-            "fixed right-3 left-3 z-50 max-w-sm ml-auto",
-            "animate-in fade-in-0 zoom-in-95 duration-200",
-            !isDragging && "transition-all duration-400 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-          )}
-          style={{
-            ...(overlayAbove
-              ? { bottom: `${100 - currentTop + 2}%` }
-              : { top: `${currentTop + 6}%` }),
-          }}
+          className="fixed right-3 bottom-[136px] left-3 z-50 max-w-sm ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
         >
           <div className="rounded-2xl border border-border/50 bg-background/80 backdrop-blur-xl shadow-2xl overflow-hidden">
             {/* Mini header */}

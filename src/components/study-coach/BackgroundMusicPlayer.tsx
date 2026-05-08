@@ -60,15 +60,15 @@ export function BackgroundMusicPlayer({ compact = true }: { compact?: boolean })
     return (
       <Button
         variant="outline"
-        size="sm"
+        size="sm" 
         onClick={toggle}
         className={cn(
-          "gap-1.5 transition-colors",
+          "gap-1 transition-colors h-8 px-2 text-xs",
           playing && "border-primary/40 bg-primary/10 text-primary"
         )}
       >
-        <Music className="h-4 w-4" />
-        {playing ? <Pause className="h-3 w-3" /> : <Play className="h-3 w-3" />}
+        <Music className="h-3.5 w-3.5" />
+        {playing ? <Pause className="h-2.5 w-2.5" /> : <Play className="h-2.5 w-2.5" />}
       </Button>
     );
   }
