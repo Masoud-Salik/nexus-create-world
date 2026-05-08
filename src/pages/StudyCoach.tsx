@@ -593,7 +593,7 @@ export default function StudyCoach() {
 
         {/* Plan Mode Content — Full-screen overlay on mobile */}
         {!activeTask && studyMode === "plan" &&
-        <div className="fixed inset-0 bottom-[68px] z-40 bg-background md:relative md:inset-auto md:bottom-auto md:z-auto md:flex-1 flex flex-col overflow-y-auto">
+       <div className="fixed inset-0 bottom-[56px] z-40 bg-background md:relative md:inset-auto md:bottom-auto md:z-auto md:flex-1 flex flex-col overflow-y-auto">
             {/* Mobile header with back button */}
             <div className="flex items-center justify-between px-4 py-3 border-b border-border md:hidden">
               <h2 className="text-lg font-bold text-foreground">📅 Blueprint</h2>
