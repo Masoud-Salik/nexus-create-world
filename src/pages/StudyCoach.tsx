@@ -617,34 +617,69 @@ export default function StudyCoach() {
             
             {/* Compact Stats Bar */}
             {cachedTasks.length > 0 &&
-          <CompactStatsBar
-            streak={streak}
-            pendingMinutes={pendingMinutes}
-            completedCount={completedTasks.length}
-            totalCount={cachedTasks.length} />
+              <div className="mb-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-foreground">Today's Progress</span>
+                  <span className="text-sm font-bold text-foreground">{Math.round(completedTasks.length / cachedTasks.length * 100)}%</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${completedTasks.length / cachedTasks.length * 100}%` }}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-muted rounded-full text-xs text-muted-foreground">
+                    <ClockIcon className="h-3 w-3" /> {pendingMinutes}m left
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 rounded-full text-xs text-primary font-medium">
+                    <CheckCircle2 className="h-3 w-3" /> {completedTasks.length}/{cachedTasks.length}
+                  </span>
+                </div>
+              </div>
+            }
 
-          }
-
-            {/* Main Content Area */}
-            <div className="flex-1 flex flex-col justify-center py-6 space-y-6">
+            {/* Task Cards */}
+            <div className="flex-1 flex flex-col py-2 space-y-3">
               
-              {/* Next Task Hero Card OR Empty State */}
               {nextTask ?
-            <>
-                  <NextTaskCard
-                task={nextTask}
-                onStart={handleStartTask}
-                disabled={!!activeTask} />
-              
-                  
-                  {/* Other Tasks as Pills */}
-                  {otherTasks.length > 0 &&
-              <TaskPills
-                tasks={otherTasks}
-                onSelect={handleStartTask} />
-
-              }
-                </> :
+              <>
+                {pendingTasks.map((task) => {
+                  const Icon = taskIconMap[task.icon_name] || Book;
+                  const diff = difficultyConfig[task.difficulty] || difficultyConfig.medium;
+                  return (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-border bg-card hover:border-primary/30 transition-colors"
+                    >
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${task.color}20` }}
+                      >
+                        <Icon className="h-5 w-5" style={{ color: task.color }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-foreground text-sm">{task.subject_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{task.topic}</p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                            <ClockIcon className="h-2.5 w-2.5" /> {task.duration_minutes}m
+                          </span>
+                          <span className={cn("inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium", diff.color)}>
+                            {diff.emoji} {diff.label}
+                          </span>
+                        </div>
+                      </div>
+                      <button
+                        onClick={() => handleStartTask(task.id)}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90 active:scale-95 transition-all"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-current" /> Start
+                      </button>
+                    </div>
+                  );
+                })}
+              </> :
             cachedTasks.length === 0 ? (
             /* Empty State - No Tasks */
             <div className="text-center py-8">
