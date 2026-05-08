@@ -537,10 +537,10 @@ export default function StudyCoach() {
         {/* Mode Toggle — iOS-style segmented control */}
         {!activeTask && (
           <div className="flex justify-center mb-4">
-            <div className="relative flex p-1 bg-muted rounded-xl">
+            <div className="relative flex p-0.5 bg-muted rounded-lg">
               {/* Sliding pill indicator */}
               <div
-                className="absolute top-1 bottom-1 rounded-lg bg-primary shadow-md transition-all duration-300 ease-out"
+                className="absolute top-0.5 bottom-0.5 rounded-md bg-primary shadow-md transition-all duration-300 ease-out"
                 style={{
                   width: "calc(33.33% - 4px)",
                   left: studyMode === "timer" ? "4px" : studyMode === "plan" ? "calc(33.33%)" : "calc(66.66%)",
@@ -555,7 +555,7 @@ export default function StudyCoach() {
                   key={tab.mode}
                   onClick={() => { setStudyMode(tab.mode); navigator.vibrate?.(10); }}
                   className={cn(
-                    "relative z-10 flex items-center gap-1 px-4 py-2 text-xs font-bold rounded-lg transition-colors duration-200",
+                    "relative z-10 flex items-center gap-1 px-3 py-1.5 text-[11px] font-bold rounded-md transition-colors duration-200",
                     studyMode === tab.mode ? "text-primary-foreground" : "text-muted-foreground"
                   )}
                 >
