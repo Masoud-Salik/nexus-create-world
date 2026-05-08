@@ -1,5 +1,5 @@
-import { useState, useRef, useCallback, useEffect } from "react";
-import { Sparkles, Send, X, Minus } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { Sparkles, Send, X } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { getTimeOfDay, getLocalTime } from "@/utils/getTimeOfDay";
 import { cn } from "@/lib/utils";
@@ -94,54 +94,31 @@ export function FloatingAIChat() {
     }
   };
 
-  const currentTop = isDragging && dragY !== null ? dragY : getSnapY(snapIndex);
   const displayMessages = messages.slice(-4);
-
-  // Determine if overlay should go above or below button
-  const overlayAbove = snapIndex >= 1; // middle or bottom -> show above
 
   return (
     <>
       {/* Floating Button */}
       <div
-        ref={buttonRef}
-        className={cn(
-          "fixed right-3 z-50 select-none",
-          !isDragging && "transition-all duration-400 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-        )}
-        style={{ top: `${currentTop}%` }}
-        onTouchStart={handleTouchStart}
-        onTouchMove={handleTouchMove}
-        onTouchEnd={handleTouchEnd}
+        className="fixed bottom-20 right-3 z-50"
       >
         <button
-          onClick={handleButtonClick}
+          onClick={() => { setIsOpen(prev => !prev); navigator.vibrate?.(10); }}
           className={cn(
             "relative w-11 h-11 rounded-full flex items-center justify-center shadow-lg",
             "bg-primary text-primary-foreground",
             "active:scale-95 transition-transform duration-150",
-            "touch-none",
             !isOpen && "animate-[pulse-glow_3s_ease-in-out_infinite]"
           )}
-          style={{ touchAction: "none" }}
         >
-          {isOpen ? <Minus className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+          {isOpen ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
         </button>
       </div>
 
       {/* Chat Overlay */}
       {isOpen && (
         <div
-          className={cn(
-            "fixed right-3 left-3 z-50 max-w-sm ml-auto",
-            "animate-in fade-in-0 zoom-in-95 duration-200",
-            !isDragging && "transition-all duration-400 ease-[cubic-bezier(0.34,1.56,0.64,1)]"
-          )}
-          style={{
-            ...(overlayAbove
-              ? { bottom: `${100 - currentTop + 2}%` }
-              : { top: `${currentTop + 6}%` }),
-          }}
+          className="fixed right-3 bottom-[136px] left-3 z-50 max-w-sm ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
         >
           <div className="rounded-2xl border border-border/50 bg-background/80 backdrop-blur-xl shadow-2xl overflow-hidden">
             {/* Mini header */}
