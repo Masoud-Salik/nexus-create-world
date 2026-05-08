@@ -8,62 +8,13 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 type MiniMessage = { role: "user" | "assistant"; content: string };
 
-// 3 snap positions as % from top of the safe area
-const SNAP_POSITIONS = [12, 45, 72]; // top, middle, bottom
-
 export function FloatingAIChat() {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<MiniMessage[]>([]);
   const [input, setInput] = useState("");
   const [isLoading, setIsLoading] = useState(false);
-  const [snapIndex, setSnapIndex] = useState(2); // start at bottom
-  const [isDragging, setIsDragging] = useState(false);
-  const [dragY, setDragY] = useState<number | null>(null);
-  const buttonRef = useRef<HTMLDivElement>(null);
-  const startYRef = useRef(0);
-  const startTopRef = useRef(0);
   const inputRef = useRef<HTMLInputElement>(null);
   const scrollRef = useRef<HTMLDivElement>(null);
-
-  const getSnapY = (index: number) => SNAP_POSITIONS[index];
-
-  // Touch handlers for drag
-  const handleTouchStart = useCallback((e: React.TouchEvent) => {
-    const touch = e.touches[0];
-    startYRef.current = touch.clientY;
-    startTopRef.current = getSnapY(snapIndex);
-    setIsDragging(true);
-  }, [snapIndex]);
-
-  const handleTouchMove = useCallback((e: React.TouchEvent) => {
-    if (!isDragging) return;
-    const touch = e.touches[0];
-    const deltaPercent = ((touch.clientY - startYRef.current) / window.innerHeight) * 100;
-    const newY = Math.max(5, Math.min(80, startTopRef.current + deltaPercent));
-    setDragY(newY);
-  }, [isDragging]);
-
-  const handleTouchEnd = useCallback(() => {
-    if (!isDragging) return;
-    setIsDragging(false);
-    const currentY = dragY ?? getSnapY(snapIndex);
-    // Find nearest snap point
-    let nearest = 0;
-    let minDist = Infinity;
-    SNAP_POSITIONS.forEach((pos, i) => {
-      const dist = Math.abs(currentY - pos);
-      if (dist < minDist) { minDist = dist; nearest = i; }
-    });
-    setSnapIndex(nearest);
-    setDragY(null);
-    navigator.vibrate?.(10);
-  }, [isDragging, dragY, snapIndex]);
-
-  const handleButtonClick = () => {
-    if (isDragging) return;
-    setIsOpen(prev => !prev);
-    navigator.vibrate?.(10);
-  };
 
   useEffect(() => {
     if (isOpen && inputRef.current) {
