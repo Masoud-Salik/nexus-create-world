@@ -715,21 +715,24 @@ export default function StudyCoach() {
               }
                 </div>) : (
 
-            /* All Tasks Completed — Bonus Round */
-            <div className="text-center py-6 space-y-4">
-                  <div className="text-5xl mb-2">🎉</div>
+            /* All Tasks Completed — Break The Rules */
+            <div className="text-center py-6 space-y-5">
+                  <div className="text-6xl mb-2">🏆</div>
                   <h3 className="text-xl font-bold text-foreground">
-                    All done for today!
+                    You crushed it!
                   </h3>
-                  <div className="rounded-2xl border border-primary/30 bg-primary/5 p-4 mx-auto max-w-xs">
-                    <div className="flex items-center justify-center gap-2 mb-2">
-                      <Zap className="h-5 w-5 text-primary" />
-                      <p className="font-bold text-foreground">Bonus Round</p>
+                  <p className="text-sm text-muted-foreground">All tasks done. But legends don't stop here.</p>
+                  <div className="rounded-2xl border-2 border-dashed border-primary/40 bg-gradient-to-br from-primary/5 to-primary/10 p-5 mx-auto max-w-xs">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <Zap className="h-6 w-6 text-primary" />
+                      <p className="font-bold text-lg text-foreground">Break The Rules</p>
+                      <Zap className="h-6 w-6 text-primary" />
                     </div>
-                    <p className="text-xs text-muted-foreground mb-3">Keep going for <span className="font-bold text-primary">1.5x XP!</span></p>
-                    <div className="flex gap-2 justify-center">
+                    <p className="text-xs text-muted-foreground mb-4">Go beyond your plan for <span className="font-bold text-primary text-sm">1.5x XP!</span></p>
+                    <div className="flex gap-2.5 justify-center">
                       {[15, 25, 45].map(mins => (
-                        <Button key={mins} size="sm" variant="outline" className="text-xs gap-1"
+                        <button key={mins}
+                          className="flex flex-col items-center gap-1 px-4 py-3 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all"
                           onClick={() => {
                             if (isGuest) { toast({ title: "Sign up for bonus rounds", variant: "destructive" }); return; }
                             if (!userId) return;
@@ -742,8 +745,9 @@ export default function StudyCoach() {
                               toast({ title: `Bonus +${mins}min logged! 🔥`, description: "1.5x XP earned" });
                             });
                           }}>
-                          ⚡ {mins}m
-                        </Button>
+                          <span className="text-lg">⚡</span>
+                          <span className="text-sm font-bold text-primary">{mins}m</span>
+                        </button>
                       ))}
                     </div>
                   </div>
