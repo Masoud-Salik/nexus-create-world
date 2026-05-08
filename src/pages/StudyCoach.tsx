@@ -97,8 +97,6 @@ export default function StudyCoach() {
   // Dialog states for icon buttons
   const [subjectsOpen, setSubjectsOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
-  const [leaderboardOpen, setLeaderboardOpen] = useState(false);
-
   // Active timer state
   const [activeTask, setActiveTask] = useState<ActiveTask | null>(null);
 
