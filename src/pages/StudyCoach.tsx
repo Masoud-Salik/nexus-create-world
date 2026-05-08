@@ -490,11 +490,10 @@ export default function StudyCoach() {
     <div className="min-h-screen bg-background pb-20 md:pb-6">
       <div className="max-w-lg mx-auto px-4 py-4 flex flex-col min-h-[calc(100vh-80px)]">
         
-        {/* Header — "Study Hub" + date + streak + actions */}
+        {/* Header — date + streak + music */}
         <div className="flex items-center justify-between mb-3">
           <div className="flex items-center gap-2">
-            <h1 className="text-xl font-bold text-foreground">Study Hub</h1>
-            <span className="text-xs text-muted-foreground">{format(new Date(), "EEE, MMM d")}</span>
+            <span className="text-sm font-semibold text-foreground">{format(new Date(), "EEEE, MMMM d")}</span>
             {streak > 0 && (
               <span className="inline-flex items-center gap-0.5 text-xs font-bold text-orange-500">
                 🔥 {streak}
@@ -504,17 +503,6 @@ export default function StudyCoach() {
           <div className="flex items-center gap-1">
             {/* Background Music */}
             <BackgroundMusicPlayer compact />
-            {/* Leaderboard button - prominent */}
-            <Button
-              variant="outline"
-              size="sm"
-              className="gap-1.5 border-yellow-500/40 bg-yellow-500/10 hover:bg-yellow-500/20 text-yellow-600 dark:text-yellow-400 font-semibold"
-              onClick={() => setLeaderboardOpen(true)}>
-              
-              <Trophy className="h-5 w-5" />
-              <span className="text-xs"> Standing</span>
-            </Button>
-            
             {/* Only show management buttons in plan mode */}
             {studyMode === "plan" && <>
                 <Button
