@@ -594,8 +594,8 @@ export default function StudyCoach() {
           </div>
         }
 
-        {/* Floating AI Chat — Focus mode only */}
-        {!activeTask && studyMode === "timer" && userId && !isGuest && <FloatingAIChat />}
+        {/* Floating AI Chat — Focus & Blueprint */}
+        {!activeTask && (studyMode === "timer" || studyMode === "plan") && userId && !isGuest && <FloatingAIChat />}
 
         {/* Plan Mode Content — Full-screen overlay on mobile */}
         {!activeTask && studyMode === "plan" &&
