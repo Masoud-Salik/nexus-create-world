@@ -3,6 +3,12 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Prevent zoom on mobile */
+html {
+  touch-action: manipulation;
+  -webkit-text-size-adjust: 100%;
+}
+
 /* Advanced Design System - Emerald Green Scientific Theme */
 
 @layer base {
