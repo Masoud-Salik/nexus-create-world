@@ -1,62 +1,58 @@
+# StudyCoach UI Overhaul
 
-# AI Personalization & Focus Hub Mini-Chat Upgrade
+## 1. Blueprint Tab Redesign — Game-Like Experience
 
-## 1. Smarter, Playful AI Personality (Edge Function)
+Transform the Blueprint tab from a simple task list into an engaging, game-inspired study quest interface (inspired by the first screenshot):
 
-Update `supabase/functions/chat/index.ts` system prompt:
-- Make NEXUS warmer, wittier, and more playful -- inspired by conversational AI like GPT-5.5. Add humor, light banter, and celebratory reactions.
-- Inject user's **likes/dislikes** from `ai_memory` and `user_insights` tables into the system prompt dynamically. The AI will reference these naturally ("I know you love lo-fi music -- try studying with some on!").
-- Add a new tool `get_user_preferences` that fetches all `ai_memory` entries + `interests` + `abilities_skills` so the AI can proactively reference them.
-- Add a new tool `save_user_preference` so the AI can actively save likes/dislikes it discovers mid-conversation (e.g., user says "I hate math" -> AI saves it).
+**Layout changes:**
 
-## 2. Enhanced Memory Extraction (Edge Function)
+- Add a **"Today's Progress" bar** at the top with percentage and visual progress indicator
+- Show **time remaining** and **tasks completed** as pill badges below progress
+- Redesign task cards with a left-aligned **subject icon badge**, bold subject name, truncated topic, duration + difficulty badge, and a prominent green **"Start"** button — matching the screenshot style
+- Cards get a dashed border with subject color accent
+- When all tasks are completed, show a **"Break The Rules"** bonus section — gamified with language like "You crushed your plan. But legends don't stop here." with bonus session options (15m, 25m, 45m) styled as challenge cards with XP multiplier badges
 
-Update `supabase/functions/extract-memory/index.ts`:
-- Expand categories to include `"like"` and `"dislike"` explicitly.
-- Extract emotional sentiment and intensity (e.g., "loves classical music" vs. "sometimes listens to jazz").
-- Run extraction on **both** user and assistant messages (currently only user messages).
+**Files:** `StudyCoach.tsx`, `NextTaskCard.tsx`, `TaskPills.tsx`, `CompactStatsBar.tsx` (replace pills with full card list)
 
-## 3. AI Gets Smarter Over Time (System Prompt Context)
+## 2. Disable Mobile Zoom
 
-In `src/pages/Index.tsx`, enhance `getUserContext()`:
-- Fetch and inject all `ai_memory` entries (grouped by category) into the context sent to the AI.
-- Include conversation count and total messages as "relationship depth" signal.
-- Add a "personality adaptation" section: if user prefers short answers, the AI adapts; if they like detailed explanations, it expands.
+Currently, the AI chat & Blueprint are zoomed in by default. Fix the issue by making each page fit to the screen(mobile focused).
 
-## 4. Focus Hub Floating AI Mini-Chat Button
+## 3. Clean Up Focus Hub Header
 
-Create `src/components/study-coach/FloatingAIChat.tsx`:
-- A small circular button (44px) with an AI/sparkle icon, positioned on the right edge of the screen.
-- **3 snap positions**: bottom (above bottom nav ~100px), middle (~50% viewport), top (~15% from top). No in-between positions.
-- **Drag-to-snap**: User can drag the button vertically. On release, it snaps to the nearest of the 3 positions with a spring animation (CSS `transition: transform 0.4s cubic-bezier(0.34, 1.56, 0.64, 1)`).
-- **Tap to expand**: Opens a compact chat overlay (300px tall, full width minus padding) anchored to the button's position. The overlay has:
-  - A small input field + send button
-  - Last 3 messages displayed in a mini scroll area
-  - Semi-transparent backdrop-blur background (glassmorphism)
-  - Tap outside or tap button again to collapse
-- **Non-disturbing**: The overlay does NOT cover the timer. It slides in/out with a scale+fade animation.
-- Messages sent here go to the same conversation system (reuse existing chat logic).
-- Integrate into `StudyCoach.tsx` Focus tab only (not Blueprint/Stats).
+- **Remove** "Study Hub" text from top-left
+- Replace with a single-line date: e.g. "Friday, May 8" in clean typography
+- Streak badge stays inline next to date
+- **Remove** the Standing button from the header entirely (merged into Stats tab)
+- **Reduce** music player container size by 10%
+- Make the segmented control (Focus/Blueprint/Stats) slightly smaller — reduce padding and font size
 
-## 5. Smooth Transitions & Mobile Polish
+**Files:** `StudyCoach.tsx`, `BackgroundMusicPlayer.tsx`
 
-- All animations use GPU-accelerated transforms (`translate3d`, `scale3d`).
-- Button has a subtle pulse glow when idle (CSS keyframe, emerald green).
-- Drag uses `touch-action: none` and `pointer-events` for smooth mobile interaction.
-- Haptic feedback (10ms vibration) on snap and on send.
+## 4. Merge Standing (Leaderboard) into Stats Tab
 
-## Technical Details
+- Remove the Standing button from the header
+- Add a "Rankings" section at the bottom of the `StudyAnalytics` component that shows the user's rank, tier, and a button to open the full leaderboard dialog
+- The leaderboard dialog itself stays as-is
 
-**Files to create:**
-- `src/components/study-coach/FloatingAIChat.tsx` -- floating button + mini-chat overlay
+**Files:** `StudyCoach.tsx`, `StudyAnalytics.tsx`
 
-**Files to modify:**
-- `supabase/functions/chat/index.ts` -- new tools, enhanced personality prompt, memory injection
-- `supabase/functions/extract-memory/index.ts` -- expanded categories, like/dislike extraction
-- `src/pages/Index.tsx` -- enhanced `getUserContext()` with memory injection
-- `src/pages/StudyCoach.tsx` -- mount `FloatingAIChat` in Focus tab
+## 5. Floating AI Chat — Better Positioning + Blueprint Support
 
-**Database migration:**
-- Add `sentiment` column (text, nullable) to `ai_memory` table for emotional intensity tracking.
+- Show `FloatingAIChat` in **both** Focus and Blueprint modes (currently Focus only)
+- Change snap positions to avoid overlapping content:
+  - In Focus mode: 1. bottom-right, above the bottom nav but below the timer controls. 2, Under the "Stats" text, above the timer ring control. 3. Under the "Focus" text, above the timer ring control. No Ovarlap.
+  - In Blueprint mode: 1. bottom-right, above the bottom nav. 2. to clock 2 of the running time, above the timeline. 3. bottom left as there is much free space.
+- Use `bottom` + `right` fixed positioning instead of `top` percentage to anchor relative to bottom nav...
+- Single snap position: fixed at `bottom: 80px, right: 16px` — no dragging complexity, just a clean floating button that doesn't obstruct any content
 
-**No new dependencies required.** Drag logic uses native touch events + CSS transitions.
+**Files:** `FloatingAIChat.tsx`, `StudyCoach.tsx`
+
+---
+
+### Technical Notes
+
+- No new dependencies needed
+- All changes are CSS/layout focused except the Blueprint card redesign
+- The "Break The Rules" bonus section reuses existing bonus session logic but with more engaging copy and styling
+- Viewport zoom lock uses standard mobile web meta tags
