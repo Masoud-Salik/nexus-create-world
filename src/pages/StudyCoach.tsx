@@ -804,12 +804,6 @@ export default function StudyCoach() {
           </DialogContent>
         </Dialog>
 
-        {/* Leaderboard Dialog */}
-        <Leaderboard
-          open={leaderboardOpen}
-          onOpenChange={setLeaderboardOpen}
-          userId={userId} />
-        
       </div>
     </div>);
 
