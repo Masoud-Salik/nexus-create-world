@@ -5,7 +5,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Button } from "@/components/ui/button";
 import { useToast } from "@/hooks/use-toast";
 import { usePageMeta } from "@/hooks/usePageMeta";
-import { Loader2, LogIn, Sparkles, BookOpen, Sliders, RefreshCw, Target, Timer, Trophy, Zap } from "lucide-react";
+import { Loader2, LogIn, Sparkles, BookOpen, Sliders, RefreshCw, Target, Timer, Zap, Play, Clock as ClockIcon, CheckCircle2 } from "lucide-react";
 import { StudyAnalytics } from "@/components/study-coach/StudyAnalytics";
 import { StudyTaskData } from "@/components/study-coach/TaskCard";
 import { StudyTaskTimer, ActiveTask, CompletionStatus } from "@/components/study-coach/StudyTaskTimer";
@@ -26,7 +26,17 @@ import {
   DialogHeader,
   DialogTitle } from
 "@/components/ui/dialog";
-import { Clock, Battery } from "lucide-react";
+import { Book, Calculator, Atom, Globe, Music as MusicIcon, Pen } from "lucide-react";
+
+const taskIconMap: Record<string, any> = {
+  book: Book, "book-open": Book, calculator: Calculator, atom: Atom, flask: Atom, globe: Globe, music: MusicIcon, pen: Pen,
+};
+
+const difficultyConfig: Record<string, { emoji: string; label: string; color: string }> = {
+  easy: { emoji: "⚡", label: "Easy", color: "bg-emerald-500/20 text-emerald-400" },
+  medium: { emoji: "💪", label: "Medium", color: "bg-yellow-500/20 text-yellow-400" },
+  hard: { emoji: "🔥", label: "Hard", color: "bg-red-500/20 text-red-400" },
+};
 
 type StudyMode = "timer" | "plan" | "stats";
 
