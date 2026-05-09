@@ -11,6 +11,7 @@ import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/co
 import { ChatMessage } from "@/components/ChatMessage";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
+import { AIProviderBanner } from "@/components/chat/AIProviderBanner";
 import { getTimeOfDay, getLocalTime } from "@/utils/getTimeOfDay";
 import { getUserFriendlyError, logError } from "@/utils/errorUtils";
 import { isToday, isYesterday, subDays, isAfter } from "date-fns";
