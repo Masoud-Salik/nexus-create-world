@@ -1,58 +1,94 @@
-# StudyCoach UI Overhaul
+## Connect ChatGPT (OpenAI API key) to StudyTime
 
-## 1. Blueprint Tab Redesign — Game-Like Experience
+Let users bring their own OpenAI API key so NEXUS can route chat through their ChatGPT/OpenAI account. Default AI stays as-is; user's ChatGPT becomes an opt-in option.
 
-Transform the Blueprint tab from a simple task list into an engaging, game-inspired study quest interface (inspired by the first screenshot):
+### 1. Storage (Lovable Cloud)
 
-**Layout changes:**
+New table `user_ai_providers`:
+- `user_id` (PK, FK auth.users)
+- `provider` ('openai')
+- `encrypted_api_key` (text — encrypted via edge function using `SUPABASE_SECRET_KEYS`)
+- `key_last4` (text — for UI display, e.g. "sk-…a4F2")
+- `selected_model` ('gpt-5' | 'gpt-5-mini' | 'gpt-5-nano')
+- `is_default` (bool — when true, user's ChatGPT replaces NEXUS default)
+- `verified_at` (timestamp)
+- `created_at`, `updated_at`
 
-- Add a **"Today's Progress" bar** at the top with percentage and visual progress indicator
-- Show **time remaining** and **tasks completed** as pill badges below progress
-- Redesign task cards with a left-aligned **subject icon badge**, bold subject name, truncated topic, duration + difficulty badge, and a prominent green **"Start"** button — matching the screenshot style
-- Cards get a dashed border with subject color accent
-- When all tasks are completed, show a **"Break The Rules"** bonus section — gamified with language like "You crushed your plan. But legends don't stop here." with bonus session options (15m, 25m, 45m) styled as challenge cards with XP multiplier badges
+RLS: user can only read/write their own row. API key never returned to client — only `key_last4`, `selected_model`, `is_default`, `verified_at` exposed via a view or column-restricted policy.
 
-**Files:** `StudyCoach.tsx`, `NextTaskCard.tsx`, `TaskPills.tsx`, `CompactStatsBar.tsx` (replace pills with full card list)
+### 2. Edge functions
 
-## 2. Disable Mobile Zoom
+**`connect-openai`** (verify_jwt = true)
+- Input: `{ apiKey: string }` (validated: starts with `sk-`, length 20–200)
+- Calls `https://api.openai.com/v1/models` with the key to verify
+- On success: encrypts and upserts into `user_ai_providers`, returns `{ ok, last4, models: [...] }`
+- On failure: returns clear error ("Invalid key", "No access to gpt-5", rate-limited)
 
-Currently, the AI chat & Blueprint are zoomed in by default. Fix the issue by making each page fit to the screen(mobile focused).
+**`disconnect-openai`** — deletes the row.
 
-## 3. Clean Up Focus Hub Header
+**`update-ai-preferences`** — updates `selected_model` and `is_default`.
 
-- **Remove** "Study Hub" text from top-left
-- Replace with a single-line date: e.g. "Friday, May 8" in clean typography
-- Streak badge stays inline next to date
-- **Remove** the Standing button from the header entirely (merged into Stats tab)
-- **Reduce** music player container size by 10%
-- Make the segmented control (Focus/Blueprint/Stats) slightly smaller — reduce padding and font size
+**`chat`** (existing) — enhanced:
+- Reads user's `user_ai_providers` row at the start of each request
+- If `is_default = true` AND user did not override per-request → decrypt key and call OpenAI directly (`https://api.openai.com/v1/chat/completions`) with `selected_model`
+- Else → keep current Lovable AI Gateway path (NEXUS default)
+- Same SSE streaming shape, so frontend doesn't change
+- On 401 from OpenAI → mark provider unverified, surface friendly toast, fall back to default NEXUS for that request
 
-**Files:** `StudyCoach.tsx`, `BackgroundMusicPlayer.tsx`
+### 3. Settings UI — new "AI Providers" section
 
-## 4. Merge Standing (Leaderboard) into Stats Tab
+Location: `src/pages/Settings.tsx`, new card grouped under existing AI section.
 
-- Remove the Standing button from the header
-- Add a "Rankings" section at the bottom of the `StudyAnalytics` component that shows the user's rank, tier, and a button to open the full leaderboard dialog
-- The leaderboard dialog itself stays as-is
+States:
+- **Not connected**: card with OpenAI logo, "Connect your ChatGPT account" subtitle, "Connect" button → opens dialog
+- **Connect dialog**: input for API key (password type, paste-friendly), inline link "Get your key at platform.openai.com/api-keys", "Verify & Connect" button → calls `connect-openai`, shows spinner, success confetti
+- **Connected**: shows `sk-…a4F2 ✓ Verified`, model dropdown (gpt-5 / gpt-5-mini / gpt-5-nano — fetched list filtered to chat-capable), toggle "Use as my default AI", "Disconnect" link
 
-**Files:** `StudyCoach.tsx`, `StudyAnalytics.tsx`
+Validation with zod. 10ms haptic on actions.
 
-## 5. Floating AI Chat — Better Positioning + Blueprint Support
+### 4. Chat menu native banner
 
-- Show `FloatingAIChat` in **both** Focus and Blueprint modes (currently Focus only)
-- Change snap positions to avoid overlapping content:
-  - In Focus mode: 1. bottom-right, above the bottom nav but below the timer controls. 2, Under the "Stats" text, above the timer ring control. 3. Under the "Focus" text, above the timer ring control. No Ovarlap.
-  - In Blueprint mode: 1. bottom-right, above the bottom nav. 2. to clock 2 of the running time, above the timeline. 3. bottom left as there is much free space.
-- Use `bottom` + `right` fixed positioning instead of `top` percentage to anchor relative to bottom nav...
-- Single snap position: fixed at `bottom: 80px, right: 16px` — no dragging complexity, just a clean floating button that doesn't obstruct any content
+In `src/components/ChatTopBar.tsx` (or chat header), add a small dismissible glass card shown only when:
+- User is on the chat page
+- `user_ai_providers` row exists for the user
+- Banner not dismissed (localStorage flag `ai_provider_banner_dismissed_v1`)
 
-**Files:** `FloatingAIChat.tsx`, `StudyCoach.tsx`
+Two variants:
+- **Connected & default = NEXUS**: "✨ Your ChatGPT is connected. Make it default? [Switch] [Dismiss]"
+- **Connected & default = ChatGPT**: tiny pill below title "Powered by your ChatGPT (gpt-5) · [Manage]"
 
----
+Style: backdrop-blur, emerald accent border, slide-up-fade in, ≤56px tall, doesn't push other content (absolute or sticky-tucked).
 
-### Technical Notes
+If not connected, no banner at all (keeps it non-disruptive).
 
-- No new dependencies needed
-- All changes are CSS/layout focused except the Blueprint card redesign
-- The "Break The Rules" bonus section reuses existing bonus session logic but with more engaging copy and styling
-- Viewport zoom lock uses standard mobile web meta tags
+### 5. Security
+
+- API key stored encrypted at rest using a server-side AES key derived from `SUPABASE_SECRET_KEYS`
+- Key never sent to client after initial submit; only `key_last4` returned
+- Rate-limit `connect-openai` (5 attempts / hour / user) to block brute-force
+- All inputs zod-validated client + server
+- RLS strict — no shared reads
+
+### 6. Files to add / change
+
+```text
+supabase/migrations/<ts>_user_ai_providers.sql       (new)
+supabase/functions/connect-openai/index.ts           (new)
+supabase/functions/disconnect-openai/index.ts        (new)
+supabase/functions/update-ai-preferences/index.ts    (new)
+supabase/functions/chat/index.ts                     (edit — provider routing)
+supabase/config.toml                                 (register 3 new functions)
+src/pages/Settings.tsx                               (edit — add AI Providers section)
+src/components/settings/AIProvidersSection.tsx       (new)
+src/components/settings/ConnectOpenAIDialog.tsx      (new)
+src/components/chat/AIProviderBanner.tsx             (new)
+src/pages/Index.tsx                                  (edit — mount banner in chat)
+```
+
+### 7. UX flow summary
+
+1. User taps Settings → AI Providers → Connect
+2. Pastes `sk-…` key → Verify & Connect (~1s)
+3. Picks model from dropdown → optional "Use as default" toggle
+4. Returns to chat — small banner confirms status, can switch default in one tap
+5. NEXUS default stays unless user explicitly flips the toggle
