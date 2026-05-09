@@ -1044,6 +1044,42 @@ export type Database = {
           },
         ]
       }
+      user_ai_providers: {
+        Row: {
+          created_at: string
+          encrypted_api_key: string
+          is_default: boolean
+          key_last4: string
+          provider: string
+          selected_model: string
+          updated_at: string
+          user_id: string
+          verified_at: string | null
+        }
+        Insert: {
+          created_at?: string
+          encrypted_api_key: string
+          is_default?: boolean
+          key_last4: string
+          provider?: string
+          selected_model?: string
+          updated_at?: string
+          user_id: string
+          verified_at?: string | null
+        }
+        Update: {
+          created_at?: string
+          encrypted_api_key?: string
+          is_default?: boolean
+          key_last4?: string
+          provider?: string
+          selected_model?: string
+          updated_at?: string
+          user_id?: string
+          verified_at?: string | null
+        }
+        Relationships: []
+      }
       user_documents: {
         Row: {
           created_at: string | null
