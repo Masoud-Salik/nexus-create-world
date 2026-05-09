@@ -446,6 +446,9 @@ const Index = () => {
           </Button>
         </div>
 
+        {/* AI provider status banner */}
+        {!isGuest && <AIProviderBanner />}
+
         {/* Messages */}
         <ScrollArea className="flex-1">
           {messages.length === 0 ? (
