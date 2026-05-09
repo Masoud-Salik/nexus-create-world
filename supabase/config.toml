@@ -20,3 +20,12 @@ verify_jwt = true
 
 [functions.leaderboard]
 verify_jwt = true
+
+[functions.connect-openai]
+verify_jwt = false
+
+[functions.disconnect-openai]
+verify_jwt = false
+
+[functions.update-ai-preferences]
+verify_jwt = false
