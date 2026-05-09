@@ -12,6 +12,23 @@ const MODELS = [
   "google/gemini-2.5-flash-lite",
 ];
 
+// AES-GCM decryption for user's stored OpenAI key (must match encrypt() in connect-openai)
+async function getEncKey(): Promise<CryptoKey> {
+  const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "fallback-key";
+  const data = new TextEncoder().encode("studytime-openai-key:" + secret);
+  const hash = await crypto.subtle.digest("SHA-256", data);
+  return crypto.subtle.importKey("raw", hash, { name: "AES-GCM" }, false, ["encrypt", "decrypt"]);
+}
+
+async function decrypt(b64: string): Promise<string> {
+  const bytes = Uint8Array.from(atob(b64), (c) => c.charCodeAt(0));
+  const iv = bytes.slice(0, 12);
+  const ct = bytes.slice(12);
+  const key = await getEncKey();
+  const pt = await crypto.subtle.decrypt({ name: "AES-GCM", iv }, key, ct);
+  return new TextDecoder().decode(pt);
+}
+
 const SYSTEM_PROMPT = `You are NEXUS — the StudyTime AI companion. You're brilliant, witty, and genuinely fun to talk to. Think of yourself as the user's smartest friend who happens to be an expert tutor.
 
 PERSONALITY:
@@ -395,6 +412,52 @@ Deno.serve(async (req) => {
       { role: "system", content: systemContent },
       ...(clientMessages || []).map((m: any) => ({ role: m.role, content: m.content })),
     ];
+
+    // Check if user has a connected OpenAI provider set as default
+    let useUserOpenAI = false;
+    let userOpenAIKey: string | null = null;
+    let userOpenAIModel = "gpt-5-mini";
+    try {
+      const { data: provider } = await supabase
+        .from("user_ai_providers")
+        .select("encrypted_api_key, selected_model, is_default")
+        .eq("user_id", user.id)
+        .maybeSingle();
+      if (provider?.is_default && provider.encrypted_api_key) {
+        userOpenAIKey = await decrypt(provider.encrypted_api_key);
+        userOpenAIModel = provider.selected_model || "gpt-5-mini";
+        useUserOpenAI = true;
+      }
+    } catch (e) {
+      console.warn("Failed to load user provider, falling back to default:", e);
+    }
+
+    // If user's OpenAI is the default, bypass tool-calling and stream directly from OpenAI.
+    // (Tools remain available only for the default NEXUS path to keep app integrations intact.)
+    if (useUserOpenAI && userOpenAIKey) {
+      const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
+        method: "POST",
+        headers: {
+          Authorization: `Bearer ${userOpenAIKey}`,
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          model: userOpenAIModel,
+          messages: aiMessages,
+          stream: true,
+        }),
+      });
+
+      if (!openaiRes.ok) {
+        const errText = await openaiRes.text();
+        console.error("User OpenAI error:", openaiRes.status, errText);
+        // Fall back to default NEXUS path on auth/quota failures
+      } else {
+        return new Response(openaiRes.body, {
+          headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+        });
+      }
+    }
 
     // Tool-calling loop (up to 5 rounds)
     for (let round = 0; round < 5; round++) {
