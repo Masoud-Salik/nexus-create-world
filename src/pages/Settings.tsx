@@ -22,6 +22,7 @@ import { DataExportDialog } from "@/components/settings/DataExportDialog";
 import { FeedbackDialog } from "@/components/settings/FeedbackDialog";
 import { RingtoneSelector } from "@/components/settings/RingtoneSelector";
 import { AboutSection } from "@/components/settings/AboutSection";
+import { AIProvidersSection } from "@/components/settings/AIProvidersSection";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
 
 // Reusable settings row
@@ -267,6 +268,16 @@ const Settings = () => {
             )}
           </Card>
         </div>
+
+        {/* SECTION: AI Providers */}
+        {!isGuest && (
+          <div>
+            <SectionHeader label="AI Providers" />
+            <Card className="overflow-hidden">
+              <AIProvidersSection />
+            </Card>
+          </div>
+        )}
 
         {/* SECTION: About */}
         <div>
