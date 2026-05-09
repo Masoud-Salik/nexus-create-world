@@ -33,6 +33,20 @@ export function AboutSection() {
         />
       </div>
 
+<<<<<<< HEAD
+      {/* Hero */}
+      <div className="text-center space-y-2">
+        <div className="inline-flex items-center justify-center w-16 h-16 rounded-2xl bg-primary/10 mx-auto mb-2 overflow-hidden">
+          <img src={appLogo} alt="StudyTime logo" className="w-12 h-12 object-contain" />
+        </div>
+        <h2 className="text-2xl font-bold text-foreground">StudyTime</h2>
+        <p className="text-sm text-muted-foreground max-w-xs mx-auto">
+          .
+        </p>
+      </div>
+
+=======
+>>>>>>> 13c430b6979856c71c7ebca29863f1c43c1a94c6
       {/* Mission */}
       <Card>
         <CardContent className="p-5 space-y-2">
