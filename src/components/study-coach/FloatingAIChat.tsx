@@ -102,14 +102,14 @@ export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blue
   // - "default": fixed bottom-right above nav
   const buttonWrapperCls =
     anchor === "ring"
-      ? "absolute top-2 right-2 sm:top-0 sm:right-0 z-30"
+      ? "fixed top-[88px] right-3 z-50"
       : anchor === "blueprint"
       ? "fixed right-3 bottom-[80px] z-50"
       : "fixed bottom-20 right-3 z-50";
 
   const overlayCls =
     anchor === "ring"
-      ? "fixed right-3 bottom-[80px] left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
+      ? "fixed top-[140px] right-3 left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
       : "fixed right-3 bottom-[140px] left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200";
 
   return (
