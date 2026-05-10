@@ -1,94 +1,59 @@
-## Connect ChatGPT (OpenAI API key) to StudyTime
+# Fix pack: usability, persistence, guest mode, notifications
 
-Let users bring their own OpenAI API key so NEXUS can route chat through their ChatGPT/OpenAI account. Default AI stays as-is; user's ChatGPT becomes an opt-in option.
+## 1. Chat conversation page zoom
+The chat reply view scrolls/scales beyond viewport. Add `h-[100dvh] overflow-hidden` containers to `pages/Index.tsx` chat layout, ensure message list uses `flex-1 min-h-0 overflow-y-auto`, cap composer with `shrink-0`. Verify viewport meta already locks zoom (it does).
 
-### 1. Storage (Lovable Cloud)
+## 2. Sign-in inline in Settings
+In `Settings.tsx` (lines ~176): replace `navigate("/chat")` Sign In/Up buttons with an inline `<AuthDialog />` (reuse `components/Auth.tsx` inside a `Dialog`). Auth happens without leaving Settings.
 
-New table `user_ai_providers`:
-- `user_id` (PK, FK auth.users)
-- `provider` ('openai')
-- `encrypted_api_key` (text — encrypted via edge function using `SUPABASE_SECRET_KEYS`)
-- `key_last4` (text — for UI display, e.g. "sk-…a4F2")
-- `selected_model` ('gpt-5' | 'gpt-5-mini' | 'gpt-5-nano')
-- `is_default` (bool — when true, user's ChatGPT replaces NEXUS default)
-- `verified_at` (timestamp)
-- `created_at`, `updated_at`
+## 3. "Manage GPT models" inline card
+In `AIProvidersSection.tsx` change the "Manage" CTA so it opens an inline collapsible/Dialog with model selector + default toggle + disconnect — no navigation.
 
-RLS: user can only read/write their own row. API key never returned to client — only `key_last4`, `selected_model`, `is_default`, `verified_at` exposed via a view or column-restricted policy.
+## 4 & 10. Persistent timer across navigation + refresh
+Already-global `GlobalTimerContext` survives route changes (so #4 should already work — verify no `stop()` is being called on unmount of `StudyCoach`/music player). Add:
+- On state change, persist `{type, startedAt, totalSeconds, pausedElapsed, isRunning, taskData, pomodoroData}` to `localStorage` key `studytime.timer.v1`.
+- On `GlobalTimerProvider` mount, hydrate: if `isRunning`, recompute elapsed from wall clock (`Date.now() - startedAt + pausedElapsed`) and resume worker with remaining seconds; if finished while away, trigger alarm/done card.
+- Same for `BackgroundMusicPlayer` (persist playing + position).
 
-### 2. Edge functions
+Audit `StudyCoach.tsx` and `BackgroundMusicPlayer.tsx` for any `stop()` calls in cleanup effects and remove them.
 
-**`connect-openai`** (verify_jwt = true)
-- Input: `{ apiKey: string }` (validated: starts with `sk-`, length 20–200)
-- Calls `https://api.openai.com/v1/models` with the key to verify
-- On success: encrypts and upserts into `user_ai_providers`, returns `{ ok, last4, models: [...] }`
-- On failure: returns clear error ("Invalid key", "No access to gpt-5", rate-limited)
+## 5. Guest mode (frictionless first impression)
+Already partly supported per memory. Ensure:
+- Landing → "Try as Guest" CTA leads directly to `/` (StudyCoach) without auth.
+- In guest mode: Blueprint timer, Pomodoro, music, Quick AI chat (rate-limited, no history persistence) all work locally via `useLocalStudyPlan` + localStorage.
+- Persistent gentle banner: "Save your progress — Sign up" (dismissible, reappears after 1 day).
+- Gate only: leaderboard, AI memories, cross-device sync, ChatGPT connection.
 
-**`disconnect-openai`** — deletes the row.
+## 6. Goal-based daily reminders (max 4/day)
+- Use existing `goals` + `habits` data + Web Notifications API + Service Worker.
+- New hook `useStudyReminders`: on app load, request permission once (soft prompt card in Settings, not on first visit). Schedule up to 4 local notifications/day at smart times derived from `time_of_day` patterns in `daily_activities` (default: 10:00, 14:00, 18:00, 20:30). Skip a slot if user already studied within last 2h (check `study_sessions`).
+- Copy is Duolingo-style ("Your goal misses you 🦉 — 10 min of [subject]?") and includes the active goal title.
+- Settings toggle under Notifications: "Daily study reminders".
+- Background delivery via existing `sw-timer.js` / service worker `showNotification` triggered by stored schedule on SW activation; refresh schedule when app opens.
 
-**`update-ai-preferences`** — updates `selected_model` and `is_default`.
+## 7. Rename Study Selfies → AI Memories (merged page)
+- Rename Settings entry "Study Selfies" → "Memories".
+- New `pages/Memories.tsx` (or section) with two tabs: **Photos** (existing `study_selfies`) and **Insights** (existing `user_insights` from `AIMemory.tsx`).
+- Redirect `/ai-memory` → `/memories`. Remove duplicated AI Memory link.
 
-**`chat`** (existing) — enhanced:
-- Reads user's `user_ai_providers` row at the start of each request
-- If `is_default = true` AND user did not override per-request → decrypt key and call OpenAI directly (`https://api.openai.com/v1/chat/completions`) with `selected_model`
-- Else → keep current Lovable AI Gateway path (NEXUS default)
-- Same SSE streaming shape, so frontend doesn't change
-- On 401 from OpenAI → mark provider unverified, surface friendly toast, fall back to default NEXUS for that request
+## 8. AI Memory / chat zoom oversize
+Same root cause as #1 — pages use intrinsic heights causing overflow under `maximum-scale=1`. Wrap `AIMemory.tsx` and chat reply view in `h-[100dvh] overflow-y-auto` with proper `max-w-screen-sm mx-auto px-4` and remove any fixed pixel widths > viewport.
 
-### 3. Settings UI — new "AI Providers" section
+## 9. Reposition Quick AI chat FAB to 60° on timer ring
+In `FloatingAIChat.tsx` (positioning) compute placement relative to the Focus ring center. The 14px-stroke ring center is fixed in `StudyCoach.tsx` Focus Hero. Add an anchor: position FAB at `angle = 60°` from ring center (top-right diagonal-ish), radius = ring-radius + 28px so it sits just outside the stroke, never overlapping ring or text. On Blueprint page, mount FAB at a safe bottom-right offset (above bottom nav, clear of cards). Use `position: absolute` inside the ring's relative wrapper; on small screens fall back to anchored bottom-right with same 60° visual.
 
-Location: `src/pages/Settings.tsx`, new card grouped under existing AI section.
-
-States:
-- **Not connected**: card with OpenAI logo, "Connect your ChatGPT account" subtitle, "Connect" button → opens dialog
-- **Connect dialog**: input for API key (password type, paste-friendly), inline link "Get your key at platform.openai.com/api-keys", "Verify & Connect" button → calls `connect-openai`, shows spinner, success confetti
-- **Connected**: shows `sk-…a4F2 ✓ Verified`, model dropdown (gpt-5 / gpt-5-mini / gpt-5-nano — fetched list filtered to chat-capable), toggle "Use as my default AI", "Disconnect" link
-
-Validation with zod. 10ms haptic on actions.
-
-### 4. Chat menu native banner
-
-In `src/components/ChatTopBar.tsx` (or chat header), add a small dismissible glass card shown only when:
-- User is on the chat page
-- `user_ai_providers` row exists for the user
-- Banner not dismissed (localStorage flag `ai_provider_banner_dismissed_v1`)
-
-Two variants:
-- **Connected & default = NEXUS**: "✨ Your ChatGPT is connected. Make it default? [Switch] [Dismiss]"
-- **Connected & default = ChatGPT**: tiny pill below title "Powered by your ChatGPT (gpt-5) · [Manage]"
-
-Style: backdrop-blur, emerald accent border, slide-up-fade in, ≤56px tall, doesn't push other content (absolute or sticky-tucked).
-
-If not connected, no banner at all (keeps it non-disruptive).
-
-### 5. Security
-
-- API key stored encrypted at rest using a server-side AES key derived from `SUPABASE_SECRET_KEYS`
-- Key never sent to client after initial submit; only `key_last4` returned
-- Rate-limit `connect-openai` (5 attempts / hour / user) to block brute-force
-- All inputs zod-validated client + server
-- RLS strict — no shared reads
-
-### 6. Files to add / change
-
-```text
-supabase/migrations/<ts>_user_ai_providers.sql       (new)
-supabase/functions/connect-openai/index.ts           (new)
-supabase/functions/disconnect-openai/index.ts        (new)
-supabase/functions/update-ai-preferences/index.ts    (new)
-supabase/functions/chat/index.ts                     (edit — provider routing)
-supabase/config.toml                                 (register 3 new functions)
-src/pages/Settings.tsx                               (edit — add AI Providers section)
-src/components/settings/AIProvidersSection.tsx       (new)
-src/components/settings/ConnectOpenAIDialog.tsx      (new)
-src/components/chat/AIProviderBanner.tsx             (new)
-src/pages/Index.tsx                                  (edit — mount banner in chat)
-```
-
-### 7. UX flow summary
-
-1. User taps Settings → AI Providers → Connect
-2. Pastes `sk-…` key → Verify & Connect (~1s)
-3. Picks model from dropdown → optional "Use as default" toggle
-4. Returns to chat — small banner confirms status, can switch default in one tap
-5. NEXUS default stays unless user explicitly flips the toggle
+## Technical notes
+- No DB schema changes. All storage = localStorage + existing tables.
+- Service worker: extend `public/sw-timer.js` to handle scheduled notifications (`registration.showNotification`) and a `SCHEDULE_REMINDERS` postMessage.
+- Files touched (approx):
+  - `src/contexts/GlobalTimerContext.tsx` (persist+hydrate)
+  - `src/components/study-coach/BackgroundMusicPlayer.tsx` (persist)
+  - `src/pages/Index.tsx`, `src/pages/AIMemory.tsx` (layout fix)
+  - `src/pages/Settings.tsx` (inline auth, rename, notif toggle)
+  - `src/components/settings/AIProvidersSection.tsx` (inline manage)
+  - `src/components/study-coach/FloatingAIChat.tsx` (FAB position)
+  - new `src/pages/Memories.tsx`, `src/hooks/useStudyReminders.ts`
+  - `public/sw-timer.js` (scheduled notifications)
+  - `src/App.tsx` (route `/memories`, redirect `/ai-memory`)
+  - `src/components/Auth.tsx` reused as dialog
+- Guest mode wired via existing auth memory rules.
