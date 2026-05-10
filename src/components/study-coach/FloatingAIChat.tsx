@@ -8,7 +8,7 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 type MiniMessage = { role: "user" | "assistant"; content: string };
 
-export function FloatingAIChat() {
+export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blueprint" | "default" }) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<MiniMessage[]>([]);
   const [input, setInput] = useState("");
@@ -96,30 +96,42 @@ export function FloatingAIChat() {
 
   const displayMessages = messages.slice(-4);
 
+  // Position presets:
+  // - "ring": absolute, sits at the 60° outside the round timer ring (top-right diagonal), no overlap
+  // - "blueprint": fixed bottom-right, above bottom nav, clear of cards
+  // - "default": fixed bottom-right above nav
+  const buttonWrapperCls =
+    anchor === "ring"
+      ? "fixed top-[88px] right-3 z-50"
+      : anchor === "blueprint"
+      ? "fixed right-3 bottom-[80px] z-50"
+      : "fixed bottom-20 right-3 z-50";
+
+  const overlayCls =
+    anchor === "ring"
+      ? "fixed top-[140px] right-3 left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
+      : "fixed right-3 bottom-[140px] left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200";
+
   return (
     <>
       {/* Floating Button */}
-      <div
-        className="fixed bottom-20 right-3 z-50"
-      >
+      <div className={buttonWrapperCls}>
         <button
           onClick={() => { setIsOpen(prev => !prev); navigator.vibrate?.(10); }}
           className={cn(
-            "relative w-11 h-11 rounded-full flex items-center justify-center shadow-lg",
+            "relative w-10 h-10 rounded-full flex items-center justify-center shadow-lg",
             "bg-primary text-primary-foreground",
             "active:scale-95 transition-transform duration-150",
             !isOpen && "animate-[pulse-glow_3s_ease-in-out_infinite]"
           )}
         >
-          {isOpen ? <X className="h-5 w-5" /> : <Sparkles className="h-5 w-5" />}
+          {isOpen ? <X className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
         </button>
       </div>
 
       {/* Chat Overlay */}
       {isOpen && (
-        <div
-          className="fixed right-3 bottom-[136px] left-3 z-50 max-w-sm ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
-        >
+        <div className={overlayCls}>
           <div className="rounded-2xl border border-border/50 bg-background/80 backdrop-blur-xl shadow-2xl overflow-hidden">
             {/* Mini header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-border/30">

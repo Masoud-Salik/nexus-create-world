@@ -24,6 +24,9 @@ import { RingtoneSelector } from "@/components/settings/RingtoneSelector";
 import { AboutSection } from "@/components/settings/AboutSection";
 import { AIProvidersSection } from "@/components/settings/AIProvidersSection";
 import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/components/ui/collapsible";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
+import { Auth } from "@/components/Auth";
+import { Brain } from "lucide-react";
 
 // Reusable settings row
 function SettingsRow({
@@ -74,10 +77,12 @@ const Settings = () => {
   const [exportDialogOpen, setExportDialogOpen] = useState(false);
   const [feedbackDialogOpen, setFeedbackDialogOpen] = useState(false);
   const [ringtoneOpen, setRingtoneOpen] = useState(false);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
 
   // Notification preferences
   const [pushNotifications, setPushNotifications] = useState(true);
   const [emailUpdates, setEmailUpdates] = useState(true);
+  const [dailyReminders, setDailyReminders] = useState<boolean>(() => localStorage.getItem("studytime.daily_reminders") !== "0");
 
   // Profile data
   const [name, setName] = useState("");
@@ -173,8 +178,8 @@ const Settings = () => {
                 <p className="text-sm text-muted-foreground mt-1">Sign in to save your progress</p>
               </div>
               <div className="flex gap-2 justify-center">
-                <Button onClick={() => navigate("/chat")} variant="outline" size="sm">Sign In</Button>
-                <Button onClick={() => navigate("/chat")} size="sm">Sign Up</Button>
+                <Button onClick={() => setAuthDialogOpen(true)} variant="outline" size="sm">Sign In</Button>
+                <Button onClick={() => setAuthDialogOpen(true)} size="sm">Sign Up</Button>
               </div>
             </div>
           ) : (
@@ -197,7 +202,7 @@ const Settings = () => {
                 />
               </div>
               <SettingsRow icon={User} label={email || "Email"} />
-              <SettingsRow icon={Camera} label="Study Selfies" onClick={() => navigate("/ai-memory")} />
+              <SettingsRow icon={Brain} label="Memories" onClick={() => navigate("/memories")} />
               <SettingsRow icon={Download} label="Export Data" onClick={() => setExportDialogOpen(true)} />
             </>
           )}
@@ -260,6 +265,22 @@ const Settings = () => {
                       onCheckedChange={(checked) => {
                         setEmailUpdates(checked);
                         updateNotificationPreferences(pushNotifications, checked);
+                      }}
+                    />
+                  }
+                />
+                <SettingsRow
+                  icon={Bell}
+                  label="Daily Study Reminders"
+                  trailing={
+                    <Switch
+                      checked={dailyReminders}
+                      onCheckedChange={(checked) => {
+                        setDailyReminders(checked);
+                        localStorage.setItem("studytime.daily_reminders", checked ? "1" : "0");
+                        if (checked && "Notification" in window && Notification.permission === "default") {
+                          Notification.requestPermission();
+                        }
                       }}
                     />
                   }
@@ -340,6 +361,11 @@ const Settings = () => {
         <DataExportDialog open={exportDialogOpen} onOpenChange={setExportDialogOpen} userId={user.id} />
       )}
       <FeedbackDialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen} />
+      <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-transparent border-0 shadow-none">
+          <Auth />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };

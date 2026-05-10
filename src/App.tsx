@@ -14,6 +14,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { GlobalTimerProvider } from "@/contexts/GlobalTimerContext";
+import { GlobalMusicProvider } from "@/contexts/GlobalMusicContext";
 
 // Lazy load pages
 const Index = lazy(() => import("./pages/Index"));
@@ -50,6 +51,7 @@ const AnimatedRoutes = () => {
           <Route path="/" element={<StudyCoach />} />
           <Route path="/chat" element={<Index />} />
           <Route path="/ai-memory" element={<AIMemory />} />
+          <Route path="/memories" element={<AIMemory />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
@@ -92,16 +94,18 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light">
         <GlobalTimerProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/landing" element={<Suspense fallback={null}><Landing /></Suspense>} />
-                <Route path="*" element={<AppLayout />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
+          <GlobalMusicProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/landing" element={<Suspense fallback={null}><Landing /></Suspense>} />
+                  <Route path="*" element={<AppLayout />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </GlobalMusicProvider>
         </GlobalTimerProvider>
       </ThemeProvider>
     </QueryClientProvider>

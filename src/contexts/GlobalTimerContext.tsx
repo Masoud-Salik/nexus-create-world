@@ -44,6 +44,18 @@ const initialState: TimerState = {
   pomodoroData: null,
 };
 
+const PERSIST_KEY = "studytime.timer.v1";
+
+type PersistedTimer = {
+  type: TimerType | null;
+  isRunning: boolean;
+  totalSeconds: number;
+  startedAtMs: number; // Wall clock when current run segment started
+  pausedElapsedSeconds: number; // Accumulated elapsed before current run segment
+  taskData: ActiveTask | null;
+  pomodoroData: TimerState["pomodoroData"];
+};
+
 const GlobalTimerContext = createContext<GlobalTimerContextValue | null>(null);
 
 export function useGlobalTimer() {
@@ -54,6 +66,7 @@ export function useGlobalTimer() {
 
 export function GlobalTimerProvider({ children }: { children: ReactNode }) {
   const [state, setState] = useState<TimerState>(initialState);
+  const hydrated = useRef(false);
   const workerRef = useRef<Worker | null>(null);
   const startTimestampRef = useRef<number>(0);
   const pausedElapsedRef = useRef<number>(0);
@@ -90,10 +103,89 @@ export function GlobalTimerProvider({ children }: { children: ReactNode }) {
       }
     };
 
+    // Hydrate from localStorage on first mount
+    try {
+      const raw = localStorage.getItem(PERSIST_KEY);
+      if (raw) {
+        const p = JSON.parse(raw) as PersistedTimer;
+        if (p && p.type && p.totalSeconds > 0) {
+          if (p.isRunning) {
+            const wallElapsed = Math.floor((Date.now() - p.startedAtMs) / 1000);
+            const totalElapsed = p.pausedElapsedSeconds + wallElapsed;
+            if (totalElapsed >= p.totalSeconds) {
+              // Finished while away
+              setState({
+                type: p.type,
+                isRunning: false,
+                elapsedSeconds: p.totalSeconds,
+                totalSeconds: p.totalSeconds,
+                isAlarmPlaying: false,
+                showDoneCard: true,
+                taskData: p.taskData,
+                pomodoroData: p.pomodoroData,
+              });
+            } else {
+              const remaining = p.totalSeconds - totalElapsed;
+              startTimestampRef.current = Date.now();
+              pausedElapsedRef.current = totalElapsed;
+              setState({
+                type: p.type,
+                isRunning: true,
+                elapsedSeconds: totalElapsed,
+                totalSeconds: p.totalSeconds,
+                isAlarmPlaying: false,
+                showDoneCard: false,
+                taskData: p.taskData,
+                pomodoroData: p.pomodoroData,
+              });
+              workerRef.current?.postMessage({ command: "start", duration: remaining });
+            }
+          } else {
+            // Paused — restore where we left off
+            pausedElapsedRef.current = p.pausedElapsedSeconds;
+            setState({
+              type: p.type,
+              isRunning: false,
+              elapsedSeconds: p.pausedElapsedSeconds,
+              totalSeconds: p.totalSeconds,
+              isAlarmPlaying: false,
+              showDoneCard: false,
+              taskData: p.taskData,
+              pomodoroData: p.pomodoroData,
+            });
+          }
+        }
+      }
+    } catch (e) {
+      console.warn("Failed to hydrate timer", e);
+    }
+    hydrated.current = true;
+
     return () => {
       if (workerRef.current) workerRef.current.terminate();
     };
   }, []);
+
+  // Persist on every relevant state change
+  useEffect(() => {
+    if (!hydrated.current) return;
+    if (!state.type) {
+      localStorage.removeItem(PERSIST_KEY);
+      return;
+    }
+    const persist: PersistedTimer = {
+      type: state.type,
+      isRunning: state.isRunning,
+      totalSeconds: state.totalSeconds,
+      startedAtMs: startTimestampRef.current || Date.now(),
+      pausedElapsedSeconds: state.isRunning ? pausedElapsedRef.current : state.elapsedSeconds,
+      taskData: state.taskData,
+      pomodoroData: state.pomodoroData,
+    };
+    try {
+      localStorage.setItem(PERSIST_KEY, JSON.stringify(persist));
+    } catch {}
+  }, [state.type, state.isRunning, state.totalSeconds, state.elapsedSeconds, state.taskData, state.pomodoroData]);
 
   useEffect(() => {
     if (!state.isRunning) {

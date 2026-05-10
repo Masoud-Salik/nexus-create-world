@@ -1,60 +1,11 @@
-import { useState, useRef, useEffect, useCallback } from "react";
 import { Button } from "@/components/ui/button";
 import { Slider } from "@/components/ui/slider";
 import { Music, Play, Pause, Volume2 } from "lucide-react";
 import { cn } from "@/lib/utils";
-
-const MUSIC_SRC = "/audio/study-music.mp3";
-const LS_KEY = "studytime-music-volume";
+import { useGlobalMusic } from "@/contexts/GlobalMusicContext";
 
 export function BackgroundMusicPlayer({ compact = true }: { compact?: boolean }) {
-  const audioRef = useRef<HTMLAudioElement | null>(null);
-  const [playing, setPlaying] = useState(false);
-  const [volume, setVolume] = useState(() => {
-    const saved = localStorage.getItem(LS_KEY);
-    return saved ? parseFloat(saved) : 0.3;
-  });
-
-  useEffect(() => {
-    const audio = new Audio(MUSIC_SRC);
-    audio.loop = true;
-    audio.volume = volume;
-    audioRef.current = audio;
-
-    audio.addEventListener("ended", () => setPlaying(false));
-    return () => {
-      audio.pause();
-      audio.src = "";
-    };
-  }, []);
-
-  useEffect(() => {
-    if (audioRef.current) {
-      audioRef.current.volume = volume;
-      localStorage.setItem(LS_KEY, String(volume));
-    }
-  }, [volume]);
-
-  const toggle = useCallback(() => {
-    const audio = audioRef.current;
-    if (!audio) return;
-    if (playing) {
-      audio.pause();
-    } else {
-      audio.play().catch(() => {});
-    }
-    setPlaying(!playing);
-  }, [playing]);
-
-  // Expose pause/resume for timer alarm integration
-  useEffect(() => {
-    (window as any).__studyMusicPause = () => { audioRef.current?.pause(); setPlaying(false); };
-    (window as any).__studyMusicResume = () => { audioRef.current?.play().catch(() => {}); setPlaying(true); };
-    return () => {
-      delete (window as any).__studyMusicPause;
-      delete (window as any).__studyMusicResume;
-    };
-  }, []);
+  const { playing, volume, toggle, setVolume } = useGlobalMusic();
 
   if (compact) {
     return (
@@ -63,7 +14,7 @@ export function BackgroundMusicPlayer({ compact = true }: { compact?: boolean })
         size="sm" 
         onClick={toggle}
         className={cn(
-          "gap-1 transition-colors h-8 px-2 text-xs",
+          "gap-1 transition-colors h-7 px-2 text-xs",
           playing && "border-primary/40 bg-primary/10 text-primary"
         )}
       >
