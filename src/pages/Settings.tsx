@@ -361,6 +361,11 @@ const Settings = () => {
         <DataExportDialog open={exportDialogOpen} onOpenChange={setExportDialogOpen} userId={user.id} />
       )}
       <FeedbackDialog open={feedbackDialogOpen} onOpenChange={setFeedbackDialogOpen} />
+      <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
+        <DialogContent className="max-w-md p-0 overflow-hidden bg-transparent border-0 shadow-none">
+          <Auth />
+        </DialogContent>
+      </Dialog>
     </div>
   );
 };
