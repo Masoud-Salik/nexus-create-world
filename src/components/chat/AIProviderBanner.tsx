@@ -1,14 +1,14 @@
 import { useEffect, useState } from "react";
 import { supabase } from "@/integrations/supabase/client";
-import { Sparkles, X, Settings as SettingsIcon } from "lucide-react";
-import { useNavigate } from "react-router-dom";
+import { Sparkles, X, Settings as SettingsIcon, ChevronDown } from "lucide-react";
+import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
+import { AIProvidersSection } from "@/components/settings/AIProvidersSection";
 
 const DISMISS_KEY = "ai_provider_banner_dismissed_v1";
 
 type Provider = { key_last4: string; selected_model: string; is_default: boolean } | null;
 
 export function AIProviderBanner() {
-  const navigate = useNavigate();
   const [provider, setProvider] = useState<Provider>(null);
   const [dismissed, setDismissed] = useState<boolean>(() => localStorage.getItem(DISMISS_KEY) === "1");
   const [busy, setBusy] = useState(false);
@@ -60,12 +60,16 @@ export function AIProviderBanner() {
         <span className="text-[11px] text-foreground/80">
           Powered by your ChatGPT · <span className="font-mono">{provider.selected_model}</span>
         </span>
-        <button
-          onClick={() => navigate("/settings")}
-          className="text-[11px] text-primary hover:underline ml-1 inline-flex items-center gap-0.5"
-        >
-          <SettingsIcon className="h-2.5 w-2.5" /> Manage
-        </button>
+        <Popover>
+          <PopoverTrigger asChild>
+            <button className="text-[11px] text-primary hover:underline ml-1 inline-flex items-center gap-0.5">
+              <SettingsIcon className="h-2.5 w-2.5" /> Manage <ChevronDown className="h-2.5 w-2.5" />
+            </button>
+          </PopoverTrigger>
+          <PopoverContent align="end" className="w-80 p-0 overflow-hidden">
+            <AIProvidersSection />
+          </PopoverContent>
+        </Popover>
       </div>
     );
   }
