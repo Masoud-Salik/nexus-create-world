@@ -127,8 +127,8 @@ export default function AIMemory() {
   const categories = ["all", ...new Set(memories.map(m => m.category))];
 
   return (
-    <div className="min-h-screen bg-background p-4 md:p-6">
-      <div className="max-w-4xl mx-auto space-y-6">
+    <div className="min-h-[calc(100dvh-4rem)] md:min-h-screen bg-background p-3 sm:p-4 md:p-6 overflow-x-hidden">
+      <div className="max-w-2xl md:max-w-4xl mx-auto space-y-4 md:space-y-6 w-full">
         {/* Header */}
         <div className="flex items-center gap-4">
           <Button variant="ghost" size="icon" onClick={() => navigate(-1)}>
@@ -165,10 +165,10 @@ export default function AIMemory() {
         </Card>
 
         {/* Filter */}
-        <div className="flex items-center gap-4">
+        <div className="flex items-center gap-2 sm:gap-4 flex-wrap">
           <Label>Filter by category:</Label>
           <Select value={selectedCategory} onValueChange={setSelectedCategory}>
-            <SelectTrigger className="w-48">
+            <SelectTrigger className="w-40 sm:w-48">
               <SelectValue />
             </SelectTrigger>
             <SelectContent>
@@ -179,7 +179,7 @@ export default function AIMemory() {
               ))}
             </SelectContent>
           </Select>
-          <Badge variant="outline" className="ml-auto">
+          <Badge variant="outline" className="ml-auto text-xs">
             {filteredMemories.length} memories
           </Badge>
         </div>
@@ -201,8 +201,8 @@ export default function AIMemory() {
             </CardContent>
           </Card>
         ) : (
-          <ScrollArea className="h-[500px]">
-            <div className="space-y-3 pr-4">
+          <ScrollArea className="h-[60vh] max-h-[500px]">
+            <div className="space-y-3 pr-2 sm:pr-4">
               {filteredMemories.map(memory => (
                 <Card key={memory.id} className="group hover:border-primary/30 transition-colors">
                   <CardContent className="p-4">
