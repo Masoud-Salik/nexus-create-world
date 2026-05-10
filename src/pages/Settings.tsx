@@ -269,6 +269,22 @@ const Settings = () => {
                     />
                   }
                 />
+                <SettingsRow
+                  icon={Bell}
+                  label="Daily Study Reminders"
+                  trailing={
+                    <Switch
+                      checked={dailyReminders}
+                      onCheckedChange={(checked) => {
+                        setDailyReminders(checked);
+                        localStorage.setItem("studytime.daily_reminders", checked ? "1" : "0");
+                        if (checked && "Notification" in window && Notification.permission === "default") {
+                          Notification.requestPermission();
+                        }
+                      }}
+                    />
+                  }
+                />
               </>
             )}
           </Card>
