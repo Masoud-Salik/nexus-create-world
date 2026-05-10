@@ -14,6 +14,7 @@ import { useIsMobile } from "@/hooks/use-mobile";
 import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { GlobalTimerProvider } from "@/contexts/GlobalTimerContext";
+import { GlobalMusicProvider } from "@/contexts/GlobalMusicContext";
 
 // Lazy load pages
 const Index = lazy(() => import("./pages/Index"));
@@ -92,16 +93,18 @@ const App = () => (
     <QueryClientProvider client={queryClient}>
       <ThemeProvider defaultTheme="light">
         <GlobalTimerProvider>
-          <TooltipProvider>
-            <Toaster />
-            <Sonner />
-            <BrowserRouter>
-              <Routes>
-                <Route path="/landing" element={<Suspense fallback={null}><Landing /></Suspense>} />
-                <Route path="*" element={<AppLayout />} />
-              </Routes>
-            </BrowserRouter>
-          </TooltipProvider>
+          <GlobalMusicProvider>
+            <TooltipProvider>
+              <Toaster />
+              <Sonner />
+              <BrowserRouter>
+                <Routes>
+                  <Route path="/landing" element={<Suspense fallback={null}><Landing /></Suspense>} />
+                  <Route path="*" element={<AppLayout />} />
+                </Routes>
+              </BrowserRouter>
+            </TooltipProvider>
+          </GlobalMusicProvider>
         </GlobalTimerProvider>
       </ThemeProvider>
     </QueryClientProvider>
