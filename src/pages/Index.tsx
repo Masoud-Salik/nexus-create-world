@@ -451,7 +451,7 @@ const Index = () => {
         {!isGuest && <AIProviderBanner />}
 
         {/* Messages */}
-        <ScrollArea className="flex-1">
+        <ScrollArea className="flex-1 min-h-0">
           {messages.length === 0 ? (
             <WelcomeScreen userName={userName} onSuggestion={handleSuggestion} />
           ) : (
@@ -476,7 +476,7 @@ const Index = () => {
         </ScrollArea>
 
         {/* Input — auto-growing textarea */}
-        <div className="sticky bottom-0 border-t p-3 sm:p-4 glass z-10">
+        <div className="shrink-0 border-t p-3 sm:p-4 glass z-10">
           <div className="mx-auto max-w-3xl">
             <div className="flex items-end gap-2 bg-background/80 border border-border/60 rounded-2xl px-3 py-2 focus-within:border-primary/50 transition-colors">
               <textarea
