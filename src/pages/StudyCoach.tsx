@@ -588,8 +588,9 @@ export default function StudyCoach() {
           </div>
         }
 
-        {/* Floating AI Chat — Focus & Blueprint */}
-        {!activeTask && (studyMode === "timer" || studyMode === "plan") && userId && !isGuest && <FloatingAIChat />}
+        {/* Floating AI Chat — Focus (positioned at 60° from ring) & Blueprint (bottom-right) */}
+        {!activeTask && studyMode === "timer" && userId && !isGuest && <FloatingAIChat anchor="ring" />}
+        {!activeTask && studyMode === "plan" && userId && !isGuest && <FloatingAIChat anchor="blueprint" />}
 
         {/* Plan Mode Content — Full-screen overlay on mobile */}
         {!activeTask && studyMode === "plan" &&
