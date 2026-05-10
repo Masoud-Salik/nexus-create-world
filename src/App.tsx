@@ -51,6 +51,7 @@ const AnimatedRoutes = () => {
           <Route path="/" element={<StudyCoach />} />
           <Route path="/chat" element={<Index />} />
           <Route path="/ai-memory" element={<AIMemory />} />
+          <Route path="/memories" element={<AIMemory />} />
           <Route path="/settings" element={<Settings />} />
           <Route path="/about" element={<About />} />
           <Route path="*" element={<NotFound />} />
