@@ -12,6 +12,33 @@ const MODELS = [
   "google/gemini-2.5-flash-lite",
 ];
 
+// Fast model used when the request looks like simple chat (no tools needed).
+const FAST_MODEL = "google/gemini-2.5-flash-lite";
+// Default model when tool calls are needed.
+const TOOL_MODEL = "google/gemini-3-flash-preview";
+
+// Sliding window for conversation history.
+const MAX_HISTORY_MESSAGES = 12;
+const MAX_MESSAGE_CHARS = 8000;
+
+// Trigger words that suggest the model needs app data via tools.
+const TOOL_HINT_RE = /\b(plan|task|tasks|today|tomorrow|week|weekly|streak|subject|subjects|progress|profile|score|leaderboard|memory|memories|preference|like|dislike|generate|adjust|complete|completed|skip|study)\b/i;
+
+// Validate user time fields server-side to block prompt-injection via these inputs.
+const TIME_RE = /^\d{1,2}:\d{2}(\s?(AM|PM))?$/i;
+const TIME_OF_DAY_ALLOWED = new Set(["morning", "afternoon", "evening", "night"]);
+
+function safeUserTime(localTime: unknown): string | null {
+  if (typeof localTime !== "string") return null;
+  const t = localTime.trim().slice(0, 12);
+  return TIME_RE.test(t) ? t : null;
+}
+function safeTimeOfDay(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const v = value.trim().toLowerCase();
+  return TIME_OF_DAY_ALLOWED.has(v) ? v : null;
+}
+
 // AES-GCM decryption for user's stored OpenAI key (must match encrypt() in connect-openai)
 async function getEncKey(): Promise<CryptoKey> {
   const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "fallback-key";
@@ -346,12 +373,19 @@ async function callAIWithFallback(
   apiKey: string,
   messages: any[],
   includeTools: boolean,
+  preferredModel?: string,
+  toolSubset?: any[],
 ): Promise<Response> {
-  for (let i = 0; i < MODELS.length; i++) {
-    const model = MODELS[i];
+  // Build the model order: caller-preferred model first, then the rest as fallback.
+  const order = preferredModel
+    ? [preferredModel, ...MODELS.filter((m) => m !== preferredModel)]
+    : MODELS;
+
+  for (let i = 0; i < order.length; i++) {
+    const model = order[i];
     try {
       const body: any = { model, messages, stream: !includeTools };
-      if (includeTools) body.tools = tools;
+      if (includeTools) body.tools = toolSubset && toolSubset.length ? toolSubset : tools;
 
       const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -359,13 +393,13 @@ async function callAIWithFallback(
         body: JSON.stringify(body),
       });
 
-      if (res.status === 429 && i < MODELS.length - 1) {
-        console.log(`Rate limited on ${model}, falling back to ${MODELS[i + 1]}`);
+      if (res.status === 429 && i < order.length - 1) {
+        console.log(`Rate limited on ${model}, falling back to ${order[i + 1]}`);
         continue;
       }
       return res;
     } catch (err) {
-      if (i < MODELS.length - 1) {
+      if (i < order.length - 1) {
         console.log(`Error on ${model}, falling back: ${err}`);
         continue;
       }
@@ -401,21 +435,37 @@ Deno.serve(async (req) => {
       });
     }
 
+    const startedAt = Date.now();
     const { messages: clientMessages, userLocalTime, userTimeOfDay } = await req.json();
+
+    // Sanitize client-supplied time fields (prompt-injection hardening).
+    const safeLocalTime = safeUserTime(userLocalTime);
+    const safeTOD = safeTimeOfDay(userTimeOfDay);
 
     // Build system prompt with context
     let systemContent = SYSTEM_PROMPT;
     // userContext is intentionally NOT accepted from the client to prevent system-prompt injection.
-    if (userLocalTime) systemContent += `\nCurrent time: ${userLocalTime} (${userTimeOfDay || ""})`;
+    if (safeLocalTime) systemContent += `\nCurrent time: ${safeLocalTime}${safeTOD ? ` (${safeTOD})` : ""}`;
 
-    const aiMessages = [
+    // Sliding-window history: keep only the last MAX_HISTORY_MESSAGES turns verbatim.
+    const cleanHistory = (clientMessages || [])
+      .filter((m: any) => m && (m.role === "user" || m.role === "assistant"))
+      .map((m: any) => ({
+        role: m.role as "user" | "assistant",
+        content: typeof m.content === "string" ? m.content.slice(0, MAX_MESSAGE_CHARS) : "",
+      }))
+      .filter((m: any) => m.content);
+
+    const trimmedHistory = cleanHistory.slice(-MAX_HISTORY_MESSAGES);
+
+    // Lightweight intent routing — no extra AI call, just a fast heuristic on the latest user turn.
+    const lastUser = [...trimmedHistory].reverse().find((m: any) => m.role === "user")?.content ?? "";
+    const looksLikeToolRequest = TOOL_HINT_RE.test(lastUser) || lastUser.length > 240;
+    const intent: "chat" | "app" = looksLikeToolRequest ? "app" : "chat";
+
+    const aiMessages: any[] = [
       { role: "system", content: systemContent },
-      ...(clientMessages || [])
-        .filter((m: any) => m && (m.role === "user" || m.role === "assistant"))
-        .map((m: any) => ({
-          role: m.role,
-          content: typeof m.content === "string" ? m.content.slice(0, 8000) : m.content,
-        })),
+      ...trimmedHistory,
     ];
 
     // Check if user has a connected OpenAI provider set as default
@@ -464,9 +514,49 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Pick model + tool subset from the routed intent.
+    // - "chat" intent: small fast model, no tools, single shot stream.
+    // - "app" intent: tool-capable model + full tool set, then stream the answer.
+    let routedModel = intent === "chat" ? FAST_MODEL : TOOL_MODEL;
+    let toolCallCount = 0;
+
+    if (intent === "chat") {
+      // Skip the tool-calling loop entirely for plain chat — direct stream.
+      const fastRes = await callAIWithFallback(apiKey, aiMessages, false, routedModel);
+      if (!fastRes.ok) {
+        const status = fastRes.status;
+        const text = await fastRes.text();
+        console.error("Fast stream error:", status, text);
+        if (status === 429) {
+          return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again shortly." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (status === 402) {
+          return new Response(JSON.stringify({ error: "Payment required" }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ error: "AI streaming error" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // Fire-and-forget perf log (don't block the stream).
+      logPerf(supabase, {
+        user_id: user.id, route: "chat", model: routedModel, intent,
+        tool_calls: 0,
+        prompt_chars: aiMessages.reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : 0), 0),
+        total_ms: Date.now() - startedAt,
+        cache_hit: false,
+      });
+      return new Response(fastRes.body, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
+    }
+
     // Tool-calling loop (up to 5 rounds)
     for (let round = 0; round < 5; round++) {
-      const res = await callAIWithFallback(apiKey, aiMessages, true);
+      const res = await callAIWithFallback(apiKey, aiMessages, true, routedModel);
 
       if (!res.ok) {
         const status = res.status;
@@ -495,12 +585,19 @@ Deno.serve(async (req) => {
       // If there are tool calls, execute them
       if (choice.message?.tool_calls?.length) {
         aiMessages.push(choice.message);
+        toolCallCount += choice.message.tool_calls.length;
 
-        for (const tc of choice.message.tool_calls) {
-          let args = {};
-          try { args = JSON.parse(tc.function.arguments || "{}"); } catch {}
-          const result = await executeTool(supabase, user.id, tc.function.name, args);
-          aiMessages.push({ role: "tool", tool_call_id: tc.id, content: result });
+        // Run all tool calls for this round in parallel (they're independent).
+        const settled = await Promise.all(
+          choice.message.tool_calls.map(async (tc: any) => {
+            let args = {};
+            try { args = JSON.parse(tc.function.arguments || "{}"); } catch {}
+            const result = await executeTool(supabase, user.id, tc.function.name, args);
+            return { id: tc.id, content: result };
+          })
+        );
+        for (const r of settled) {
+          aiMessages.push({ role: "tool", tool_call_id: r.id, content: r.content });
         }
         continue; // Next round
       }
@@ -509,8 +606,8 @@ Deno.serve(async (req) => {
       break;
     }
 
-    // Final streaming response
-    const streamRes = await callAIWithFallback(apiKey, aiMessages, false);
+    // Final streaming response — once tools have settled, the small fast model is enough to verbalize.
+    const streamRes = await callAIWithFallback(apiKey, aiMessages, false, FAST_MODEL);
 
     if (!streamRes.ok) {
       const text = await streamRes.text();
@@ -519,6 +616,14 @@ Deno.serve(async (req) => {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    logPerf(supabase, {
+      user_id: user.id, route: "chat", model: `${routedModel}->${FAST_MODEL}`, intent,
+      tool_calls: toolCallCount,
+      prompt_chars: aiMessages.reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : 0), 0),
+      total_ms: Date.now() - startedAt,
+      cache_hit: false,
+    });
 
     return new Response(streamRes.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
@@ -530,3 +635,20 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+// Fire-and-forget perf logger. Failures are swallowed so they never affect the user response.
+function logPerf(
+  supabase: any,
+  row: {
+    user_id: string; route: string; model?: string; intent?: string;
+    tool_calls: number; prompt_chars: number; total_ms: number; cache_hit: boolean;
+  },
+) {
+  try {
+    supabase.from("nexus_perf_logs").insert(row).then((r: any) => {
+      if (r?.error) console.warn("perf log insert error:", r.error.message);
+    });
+  } catch (e) {
+    console.warn("perf log threw:", e);
+  }
+}
