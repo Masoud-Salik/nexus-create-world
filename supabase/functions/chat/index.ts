@@ -401,16 +401,21 @@ Deno.serve(async (req) => {
       });
     }
 
-    const { messages: clientMessages, userContext, userLocalTime, userTimeOfDay } = await req.json();
+    const { messages: clientMessages, userLocalTime, userTimeOfDay } = await req.json();
 
     // Build system prompt with context
     let systemContent = SYSTEM_PROMPT;
-    if (userContext) systemContent += `\n\nUSER CONTEXT:\n${userContext}`;
+    // userContext is intentionally NOT accepted from the client to prevent system-prompt injection.
     if (userLocalTime) systemContent += `\nCurrent time: ${userLocalTime} (${userTimeOfDay || ""})`;
 
     const aiMessages = [
       { role: "system", content: systemContent },
-      ...(clientMessages || []).map((m: any) => ({ role: m.role, content: m.content })),
+      ...(clientMessages || [])
+        .filter((m: any) => m && (m.role === "user" || m.role === "assistant"))
+        .map((m: any) => ({
+          role: m.role,
+          content: typeof m.content === "string" ? m.content.slice(0, 8000) : m.content,
+        })),
     ];
 
     // Check if user has a connected OpenAI provider set as default
