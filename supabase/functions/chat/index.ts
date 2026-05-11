@@ -435,21 +435,37 @@ Deno.serve(async (req) => {
       });
     }
 
+    const startedAt = Date.now();
     const { messages: clientMessages, userLocalTime, userTimeOfDay } = await req.json();
+
+    // Sanitize client-supplied time fields (prompt-injection hardening).
+    const safeLocalTime = safeUserTime(userLocalTime);
+    const safeTOD = safeTimeOfDay(userTimeOfDay);
 
     // Build system prompt with context
     let systemContent = SYSTEM_PROMPT;
     // userContext is intentionally NOT accepted from the client to prevent system-prompt injection.
-    if (userLocalTime) systemContent += `\nCurrent time: ${userLocalTime} (${userTimeOfDay || ""})`;
+    if (safeLocalTime) systemContent += `\nCurrent time: ${safeLocalTime}${safeTOD ? ` (${safeTOD})` : ""}`;
 
-    const aiMessages = [
+    // Sliding-window history: keep only the last MAX_HISTORY_MESSAGES turns verbatim.
+    const cleanHistory = (clientMessages || [])
+      .filter((m: any) => m && (m.role === "user" || m.role === "assistant"))
+      .map((m: any) => ({
+        role: m.role as "user" | "assistant",
+        content: typeof m.content === "string" ? m.content.slice(0, MAX_MESSAGE_CHARS) : "",
+      }))
+      .filter((m: any) => m.content);
+
+    const trimmedHistory = cleanHistory.slice(-MAX_HISTORY_MESSAGES);
+
+    // Lightweight intent routing — no extra AI call, just a fast heuristic on the latest user turn.
+    const lastUser = [...trimmedHistory].reverse().find((m: any) => m.role === "user")?.content ?? "";
+    const looksLikeToolRequest = TOOL_HINT_RE.test(lastUser) || lastUser.length > 240;
+    const intent: "chat" | "app" = looksLikeToolRequest ? "app" : "chat";
+
+    const aiMessages: any[] = [
       { role: "system", content: systemContent },
-      ...(clientMessages || [])
-        .filter((m: any) => m && (m.role === "user" || m.role === "assistant"))
-        .map((m: any) => ({
-          role: m.role,
-          content: typeof m.content === "string" ? m.content.slice(0, 8000) : m.content,
-        })),
+      ...trimmedHistory,
     ];
 
     // Check if user has a connected OpenAI provider set as default
