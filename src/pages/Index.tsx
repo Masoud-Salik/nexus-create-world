@@ -91,6 +91,14 @@ const Index = () => {
     return () => subscription.unsubscribe();
   }, []);
 
+  // Pre-warm the chat edge function so the first user message doesn't pay cold-start.
+  useEffect(() => {
+    const id = setTimeout(() => {
+      fetch(CHAT_URL, { method: "OPTIONS" }).catch(() => { /* ignore */ });
+    }, 600);
+    return () => clearTimeout(id);
+  }, []);
+
   useEffect(() => {
     if (user) checkOnboardingStatus();
   }, [user]);
