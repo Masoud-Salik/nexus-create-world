@@ -373,12 +373,19 @@ async function callAIWithFallback(
   apiKey: string,
   messages: any[],
   includeTools: boolean,
+  preferredModel?: string,
+  toolSubset?: any[],
 ): Promise<Response> {
-  for (let i = 0; i < MODELS.length; i++) {
-    const model = MODELS[i];
+  // Build the model order: caller-preferred model first, then the rest as fallback.
+  const order = preferredModel
+    ? [preferredModel, ...MODELS.filter((m) => m !== preferredModel)]
+    : MODELS;
+
+  for (let i = 0; i < order.length; i++) {
+    const model = order[i];
     try {
       const body: any = { model, messages, stream: !includeTools };
-      if (includeTools) body.tools = tools;
+      if (includeTools) body.tools = toolSubset && toolSubset.length ? toolSubset : tools;
 
       const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
         method: "POST",
@@ -386,13 +393,13 @@ async function callAIWithFallback(
         body: JSON.stringify(body),
       });
 
-      if (res.status === 429 && i < MODELS.length - 1) {
-        console.log(`Rate limited on ${model}, falling back to ${MODELS[i + 1]}`);
+      if (res.status === 429 && i < order.length - 1) {
+        console.log(`Rate limited on ${model}, falling back to ${order[i + 1]}`);
         continue;
       }
       return res;
     } catch (err) {
-      if (i < MODELS.length - 1) {
+      if (i < order.length - 1) {
         console.log(`Error on ${model}, falling back: ${err}`);
         continue;
       }
