@@ -12,6 +12,33 @@ const MODELS = [
   "google/gemini-2.5-flash-lite",
 ];
 
+// Fast model used when the request looks like simple chat (no tools needed).
+const FAST_MODEL = "google/gemini-2.5-flash-lite";
+// Default model when tool calls are needed.
+const TOOL_MODEL = "google/gemini-3-flash-preview";
+
+// Sliding window for conversation history.
+const MAX_HISTORY_MESSAGES = 12;
+const MAX_MESSAGE_CHARS = 8000;
+
+// Trigger words that suggest the model needs app data via tools.
+const TOOL_HINT_RE = /\b(plan|task|tasks|today|tomorrow|week|weekly|streak|subject|subjects|progress|profile|score|leaderboard|memory|memories|preference|like|dislike|generate|adjust|complete|completed|skip|study)\b/i;
+
+// Validate user time fields server-side to block prompt-injection via these inputs.
+const TIME_RE = /^\d{1,2}:\d{2}(\s?(AM|PM))?$/i;
+const TIME_OF_DAY_ALLOWED = new Set(["morning", "afternoon", "evening", "night"]);
+
+function safeUserTime(localTime: unknown): string | null {
+  if (typeof localTime !== "string") return null;
+  const t = localTime.trim().slice(0, 12);
+  return TIME_RE.test(t) ? t : null;
+}
+function safeTimeOfDay(value: unknown): string | null {
+  if (typeof value !== "string") return null;
+  const v = value.trim().toLowerCase();
+  return TIME_OF_DAY_ALLOWED.has(v) ? v : null;
+}
+
 // AES-GCM decryption for user's stored OpenAI key (must match encrypt() in connect-openai)
 async function getEncKey(): Promise<CryptoKey> {
   const secret = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY") || "fallback-key";
