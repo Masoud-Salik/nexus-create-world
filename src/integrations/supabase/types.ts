@@ -97,6 +97,7 @@ export type Database = {
           id: string
           is_pinned: boolean
           local_time: string | null
+          summary: string | null
           time_of_day: string | null
           title: string | null
           updated_at: string | null
@@ -107,6 +108,7 @@ export type Database = {
           id?: string
           is_pinned?: boolean
           local_time?: string | null
+          summary?: string | null
           time_of_day?: string | null
           title?: string | null
           updated_at?: string | null
@@ -117,6 +119,7 @@ export type Database = {
           id?: string
           is_pinned?: boolean
           local_time?: string | null
+          summary?: string | null
           time_of_day?: string | null
           title?: string | null
           updated_at?: string | null
@@ -646,6 +649,45 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      nexus_perf_logs: {
+        Row: {
+          cache_hit: boolean
+          created_at: string
+          id: string
+          intent: string | null
+          model: string | null
+          prompt_chars: number
+          route: string
+          tool_calls: number
+          total_ms: number
+          user_id: string
+        }
+        Insert: {
+          cache_hit?: boolean
+          created_at?: string
+          id?: string
+          intent?: string | null
+          model?: string | null
+          prompt_chars?: number
+          route: string
+          tool_calls?: number
+          total_ms?: number
+          user_id: string
+        }
+        Update: {
+          cache_hit?: boolean
+          created_at?: string
+          id?: string
+          intent?: string | null
+          model?: string | null
+          prompt_chars?: number
+          route?: string
+          tool_calls?: number
+          total_ms?: number
+          user_id?: string
+        }
+        Relationships: []
       }
       predictions: {
         Row: {
