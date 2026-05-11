@@ -514,9 +514,49 @@ Deno.serve(async (req) => {
       }
     }
 
+    // Pick model + tool subset from the routed intent.
+    // - "chat" intent: small fast model, no tools, single shot stream.
+    // - "app" intent: tool-capable model + full tool set, then stream the answer.
+    let routedModel = intent === "chat" ? FAST_MODEL : TOOL_MODEL;
+    let toolCallCount = 0;
+
+    if (intent === "chat") {
+      // Skip the tool-calling loop entirely for plain chat — direct stream.
+      const fastRes = await callAIWithFallback(apiKey, aiMessages, false, routedModel);
+      if (!fastRes.ok) {
+        const status = fastRes.status;
+        const text = await fastRes.text();
+        console.error("Fast stream error:", status, text);
+        if (status === 429) {
+          return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again shortly." }), {
+            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        if (status === 402) {
+          return new Response(JSON.stringify({ error: "Payment required" }), {
+            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
+          });
+        }
+        return new Response(JSON.stringify({ error: "AI streaming error" }), {
+          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+      // Fire-and-forget perf log (don't block the stream).
+      logPerf(supabase, {
+        user_id: user.id, route: "chat", model: routedModel, intent,
+        tool_calls: 0,
+        prompt_chars: aiMessages.reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : 0), 0),
+        total_ms: Date.now() - startedAt,
+        cache_hit: false,
+      });
+      return new Response(fastRes.body, {
+        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      });
+    }
+
     // Tool-calling loop (up to 5 rounds)
     for (let round = 0; round < 5; round++) {
-      const res = await callAIWithFallback(apiKey, aiMessages, true);
+      const res = await callAIWithFallback(apiKey, aiMessages, true, routedModel);
 
       if (!res.ok) {
         const status = res.status;
@@ -545,12 +585,19 @@ Deno.serve(async (req) => {
       // If there are tool calls, execute them
       if (choice.message?.tool_calls?.length) {
         aiMessages.push(choice.message);
+        toolCallCount += choice.message.tool_calls.length;
 
-        for (const tc of choice.message.tool_calls) {
-          let args = {};
-          try { args = JSON.parse(tc.function.arguments || "{}"); } catch {}
-          const result = await executeTool(supabase, user.id, tc.function.name, args);
-          aiMessages.push({ role: "tool", tool_call_id: tc.id, content: result });
+        // Run all tool calls for this round in parallel (they're independent).
+        const settled = await Promise.all(
+          choice.message.tool_calls.map(async (tc: any) => {
+            let args = {};
+            try { args = JSON.parse(tc.function.arguments || "{}"); } catch {}
+            const result = await executeTool(supabase, user.id, tc.function.name, args);
+            return { id: tc.id, content: result };
+          })
+        );
+        for (const r of settled) {
+          aiMessages.push({ role: "tool", tool_call_id: r.id, content: r.content });
         }
         continue; // Next round
       }
@@ -559,8 +606,8 @@ Deno.serve(async (req) => {
       break;
     }
 
-    // Final streaming response
-    const streamRes = await callAIWithFallback(apiKey, aiMessages, false);
+    // Final streaming response — once tools have settled, the small fast model is enough to verbalize.
+    const streamRes = await callAIWithFallback(apiKey, aiMessages, false, FAST_MODEL);
 
     if (!streamRes.ok) {
       const text = await streamRes.text();
@@ -569,6 +616,14 @@ Deno.serve(async (req) => {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
+
+    logPerf(supabase, {
+      user_id: user.id, route: "chat", model: `${routedModel}->${FAST_MODEL}`, intent,
+      tool_calls: toolCallCount,
+      prompt_chars: aiMessages.reduce((n, m) => n + (typeof m.content === "string" ? m.content.length : 0), 0),
+      total_ms: Date.now() - startedAt,
+      cache_hit: false,
+    });
 
     return new Response(streamRes.body, {
       headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
@@ -580,3 +635,20 @@ Deno.serve(async (req) => {
     });
   }
 });
+
+// Fire-and-forget perf logger. Failures are swallowed so they never affect the user response.
+function logPerf(
+  supabase: any,
+  row: {
+    user_id: string; route: string; model?: string; intent?: string;
+    tool_calls: number; prompt_chars: number; total_ms: number; cache_hit: boolean;
+  },
+) {
+  try {
+    supabase.from("nexus_perf_logs").insert(row).then((r: any) => {
+      if (r?.error) console.warn("perf log insert error:", r.error.message);
+    });
+  } catch (e) {
+    console.warn("perf log threw:", e);
+  }
+}
