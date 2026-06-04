@@ -99,6 +99,9 @@ const Index = () => {
     return () => clearTimeout(id);
   }, []);
 
+  // Ensure chat-typing class is cleared when leaving the chat page
+  useEffect(() => () => { document.body.classList.remove("chat-typing"); }, []);
+
   useEffect(() => {
     if (user) checkOnboardingStatus();
   }, [user]);
