@@ -65,8 +65,8 @@ export function ChatMessage({
   };
 
   return (
-    <div className="group relative py-5 px-4 animate-slide-up-fade">
-      <div className="mx-auto max-w-3xl flex gap-3">
+    <div className="group relative py-5 px-3 sm:px-4 animate-slide-up-fade w-full overflow-hidden">
+      <div className="mx-auto max-w-3xl flex gap-3 min-w-0">
         {/* Avatar - 32px circle */}
         <div
           className={`flex-shrink-0 flex items-center justify-center w-8 h-8 rounded-full shadow-sm ${
@@ -79,7 +79,7 @@ export function ChatMessage({
         </div>
 
         {/* Content */}
-        <div className="flex-1 min-w-0">
+        <div className="flex-1 min-w-0 overflow-hidden">
           <div className="text-xs font-medium text-muted-foreground mb-1">
             {role === "user" ? "You" : "StudyTime AI"}
           </div>
@@ -102,7 +102,7 @@ export function ChatMessage({
             </div>
           ) : (
             <>
-              <div className="prose prose-sm dark:prose-invert max-w-none">
+              <div className="prose prose-sm dark:prose-invert max-w-none min-w-0 break-words [overflow-wrap:anywhere] [&_pre]:overflow-x-auto [&_pre]:max-w-full [&_table]:block [&_table]:overflow-x-auto">
                 {role === "assistant" ? (
                   <ReactMarkdown
                     remarkPlugins={[remarkGfm]}
@@ -110,7 +110,7 @@ export function ChatMessage({
                       code({ node, inline, className, children, ...props }: any) {
                         const match = /language-(\w+)/.exec(className || "");
                         return !inline && match ? (
-                          <div className="relative group/code my-4">
+                          <div className="relative group/code my-4 max-w-full overflow-hidden">
                             <div className="absolute top-0 left-0 right-0 h-8 bg-muted/80 rounded-t-lg flex items-center justify-between px-3 text-xs text-muted-foreground">
                               <span className="font-mono">{match[1]}</span>
                               <Button
