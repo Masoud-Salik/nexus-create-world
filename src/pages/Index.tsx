@@ -380,7 +380,37 @@ const Index = () => {
   const conversationGroups = groupConversations(filteredConversations);
 
   return (
-    <div className="flex h-[calc(100dvh-4rem)] md:h-[100dvh] bg-background overflow-hidden">
+    <div
+      className="flex h-[calc(100dvh-4rem)] md:h-[100dvh] bg-background overflow-hidden [body.chat-typing_&]:h-[100dvh] transition-[height] duration-200"
+      onTouchStart={(e) => {
+        const t = e.touches[0];
+        const target = e.target as HTMLElement;
+        // Ignore swipes starting inside scrollable code blocks, textareas, or inputs
+        if (target.closest('textarea, input, pre, [data-no-swipe]')) {
+          (window as any).__chatSwipe = null;
+          return;
+        }
+        (window as any).__chatSwipe = { x: t.clientX, y: t.clientY, t: Date.now() };
+      }}
+      onTouchEnd={(e) => {
+        const s = (window as any).__chatSwipe;
+        if (!s) return;
+        const t = e.changedTouches[0];
+        const dx = t.clientX - s.x;
+        const dy = t.clientY - s.y;
+        const dt = Date.now() - s.t;
+        (window as any).__chatSwipe = null;
+        if (dt > 600) return;
+        if (Math.abs(dy) > Math.abs(dx)) return; // vertical scroll
+        if (Math.abs(dx) < 60) return;
+        if (dx > 0 && !showChatList && s.x < window.innerWidth * 0.35) {
+          setShowChatList(true);
+          navigator.vibrate?.(10);
+        } else if (dx < 0 && showChatList) {
+          setShowChatList(false);
+        }
+      }}
+    >
       {/* Guest Auth Dialog */}
       {isGuest && showAuthDialog && (
         <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowAuthDialog(false)}>
@@ -388,7 +418,7 @@ const Index = () => {
         </div>
       )}
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-0">
+      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {/* Guest inline sign-in prompt */}
         {isGuest && (
           <div className="px-4 py-2 bg-primary/5 border-b border-border/50 flex items-center justify-between">
@@ -459,7 +489,7 @@ const Index = () => {
         {!isGuest && <AIProviderBanner />}
 
         {/* Messages */}
-        <ScrollArea className="flex-1 min-h-0">
+        <ScrollArea className="flex-1 min-h-0 w-full">
           {messages.length === 0 ? (
             <WelcomeScreen userName={userName} onSuggestion={handleSuggestion} />
           ) : (
@@ -491,6 +521,8 @@ const Index = () => {
                 ref={textareaRef}
                 value={input}
                 onChange={(e) => { setInput(e.target.value); adjustTextarea(); }}
+                onFocus={() => document.body.classList.add("chat-typing")}
+                onBlur={() => document.body.classList.remove("chat-typing")}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" && !e.shiftKey && !isLoading) { e.preventDefault(); handleSend(); }
                 }}
