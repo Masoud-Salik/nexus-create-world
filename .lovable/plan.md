@@ -1,50 +1,61 @@
-## AI Chat redesign + mobile fixes
+# Plan — Chat UX polish (4 fixes)
 
-### 1. Suggestion grid → 3 horizontal lines
-**File:** `src/components/WelcomeScreen.tsx`
-- Remove the "Next Task" suggestion.
-- Replace the 2x2 grid with a vertical stack of 3 wide rows (full width, horizontal layout: icon left, title + subtitle right, subtle chevron/arrow on the right).
-- Each row: rounded-2xl, border, hover lifts with primary tint, slide-up-fade stagger.
-- Change greeting to `"Ask me!"` (drop the long sentence and `userName` prefix).
-- Tighten greeting size to `text-3xl` centered, more compact spacing.
+## 1. Fix "zoom / horizontal scroll appearing 1–2s after AI response"
 
-### 2. Mobile "zoom" on chat thread
-Root cause: long markdown content (code blocks, long inline tokens, tables) overflows horizontally on narrow screens, which forces a wider layout and looks zoomed. The viewport already has `maximum-scale=1`, so the user cannot zoom out.
+Root cause: Radix `ScrollArea` wraps its children in a `<div style="display: table">` viewport. When the streamed assistant message finishes (and React re-renders with the final markdown), wide intrinsic content (long code lines, tables, unbreakable strings) makes that `table` div expand past 100% width, so the whole chat thread becomes horizontally scrollable.
 
-**File:** `src/components/ChatMessage.tsx`
-- Add `min-w-0 break-words` on the prose container and `overflow-x-auto` on the code block wrapper.
-- Constrain `pre/code` with `max-w-full whitespace-pre-wrap break-words` for inline code, keep `overflow-x-auto` for fenced blocks so they scroll inside the message, not the page.
-- Add `overflow-wrap-anywhere` utility for long URLs/words.
+Changes:
+- **`src/index.css`** — globally force every Radix scroll-area viewport's inner table div to behave like a block of width 100%:
+  ```css
+  [data-radix-scroll-area-viewport] > div[style*="table"] {
+    display: block !important;
+    width: 100% !important;
+    min-width: 0 !important;
+  }
+  ```
+- **`src/pages/Index.tsx`** — on the messages `ScrollArea`, add `[&_[data-radix-scroll-area-viewport]]:!block` belt-and-braces; wrap the `messages.map(...)` in `<div className="w-full max-w-full min-w-0 overflow-x-hidden">`.
+- **`src/components/ChatMessage.tsx`** — tighten markdown safety:
+  - Add `w-full max-w-full` to the outer `group` div.
+  - On the prose div add `[&_*]:max-w-full [&_img]:h-auto [&_a]:break-all`.
+  - Wrap `<SyntaxHighlighter>` in a `max-w-full overflow-x-auto` container (already present, verify wrapper has `width:100%`).
 
-**File:** `src/pages/Index.tsx`
-- On the messages `<ScrollArea>` and its inner wrapper, add `w-full overflow-x-hidden` and ensure the parent flex column uses `min-w-0`.
-- Reduce horizontal padding on mobile (`px-3 sm:px-4`) on `ChatMessage` so the bubble fits.
+## 2. Instant finger-following swipe drawer (no delay open/close)
 
-### 3. Hide bottom nav while typing on mobile
-**Files:** `src/pages/Index.tsx`, `src/components/MobileBottomNav.tsx` (or via a shared signal)
-- Add local `isInputFocused` state in `Index.tsx` driven by textarea `onFocus`/`onBlur`.
-- Expose it through a tiny context (`ChatInputFocusContext`) or, simpler, a `body` class toggle (`document.body.classList.toggle("chat-typing", focused)`).
-- `MobileBottomNav`: add `hidden` when `body.chat-typing` (Tailwind arbitrary selector: `[body.chat-typing_&]:translate-y-full opacity-0 pointer-events-none`) with a smooth `transition-transform duration-200`.
-- Also shift the chat input down by removing the `pb-[56px]` offset while nav is hidden so the input sits above the keyboard.
+Current: gesture is detected only on `touchend`, then Radix `Sheet` plays a 300–500ms slide-in. Result feels laggy.
 
-### 4. Swipe gestures to open/close chat history
-**File:** `src/pages/Index.tsx`
-- Add touch handlers on the main chat container: track `touchstart` X, on `touchend` compute deltaX.
-- Right-swipe (deltaX > 60px, started within left 30% of screen) → `setShowChatList(true)`.
-- Left-swipe (deltaX < -60px) while drawer is open → `setShowChatList(false)`.
-- Ignore swipes that begin on the textarea / scrollable code block.
-- The existing `Sheet` already animates smoothly, so this just wires gesture → state.
+Replace the chat-history Radix `Sheet` with a custom drawer that translates with the finger:
+- **`src/pages/Index.tsx`**:
+  - Add state `drawerX` (number, px) and `drawerDragging` (bool).
+  - On `onTouchStart` inside left 35% of the screen (and not on input/pre/code), start tracking.
+  - On `onTouchMove`, set `drawerX = clamp(deltaX, 0, drawerWidth)` and translate the drawer with `transform: translate3d(${drawerX - drawerWidth}px,0,0)` — no transition while dragging.
+  - On `onTouchEnd`, decide open/close by threshold (drawerX > drawerWidth * 0.4 OR velocity > 0.5 px/ms) and animate the remainder with a single 150ms transition.
+  - Same logic in reverse when drawer is open (touchstart anywhere → drag left to close).
+  - Add backdrop element that fades opacity proportionally to `drawerX / drawerWidth`.
+- Keep the `Menu` button as a tap-to-open fallback that animates open with the same 150ms transition.
 
-### 5. Greeting copy change
-Covered in step 1: `"What can I help you study today?"` → `"Ask me!"`.
+## 3. Shrink chat-history drawer to ~65% width
 
-### Out of scope
-- No backend, edge function, or DB changes.
-- No changes to chat streaming logic or tools.
+In the new custom drawer (replacing `SheetContent`):
+- `width: min(65vw, 320px)` on mobile, `sm:w-80` on desktop.
+- Drawer height = `100dvh`, background = `bg-background`, border-right, shadow-xl.
+- All existing content (search input, New Chat button, grouped conversation list) moves into this drawer unchanged.
 
-### Files touched
-- `src/components/WelcomeScreen.tsx` (redesign + copy)
-- `src/components/ChatMessage.tsx` (overflow fixes)
-- `src/pages/Index.tsx` (focus state, swipe handlers, scroll container fix)
-- `src/components/MobileBottomNav.tsx` (hide-when-typing class)
-- Possibly `src/index.css` (one helper utility for `overflow-wrap: anywhere` + the `.chat-typing` transition)
+## 4. Better error handling, especially for guests
+
+Centralize a small helper and wire it into the gated entry points:
+- **`src/utils/errorUtils.ts`** — add `requireAuth(user, action, openAuth)` that, when `user` is null, fires a single toast (`"Sign in to {action}"`) AND triggers the project's auth dialog. Returns boolean.
+- **`src/pages/Index.tsx`** — replace the current `if (!user)` toast in `handleSend` with `requireAuth(user, "chat with the AI", () => setShowAuthDialog(true))`. Also gate suggestion clicks and regenerate the same way.
+- **`src/pages/StudyCoach.tsx`** — find the "Generate plan" / "Ask AI" handlers and apply `requireAuth(...)` before the call (instead of silent failure / generic toast). Show the existing Auth dialog modal.
+- **`src/components/study-coach/SmartAdjust.tsx`, `TaskBreakdown.tsx`, `NextTaskCard.tsx`** — if any of them call edge functions, wrap with `requireAuth`. (Read each before editing; only add the guard, no behavior change for signed-in users.)
+- **`src/utils/errorUtils.ts`** — extend `ERROR_MESSAGES` with `"JWT expired"`, `"Invalid JWT"`, `"row-level security"` → friendly messages, and add a dedicated message for `"AI usage limit"` / `"quota"`.
+- **`src/pages/Index.tsx`** chat stream: on 401/403 specifically, call `requireAuth(...)` instead of throwing a generic error.
+
+## Files to touch
+
+- `src/index.css` (1 small rule)
+- `src/pages/Index.tsx` (drawer rewrite, swipe, guards)
+- `src/components/ChatMessage.tsx` (overflow hardening)
+- `src/utils/errorUtils.ts` (helper + new mappings)
+- `src/pages/StudyCoach.tsx` and 2–3 study-coach components (guest gating only)
+
+No backend, DB, or edge-function changes.

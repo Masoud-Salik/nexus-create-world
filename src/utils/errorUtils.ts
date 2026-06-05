@@ -10,10 +10,16 @@ const ERROR_MESSAGES: Record<string, string> = {
   'Authentication required': 'Please sign in to continue.',
   'Invalid login credentials': 'Invalid email or password. Please try again.',
   'Email not confirmed': 'Please verify your email address.',
+  'JWT expired': 'Your session expired. Please sign in again.',
+  'Invalid JWT': 'Your session is invalid. Please sign in again.',
+  'row-level security': 'You don\'t have permission to do that. Try signing in.',
+  'permission denied': 'You don\'t have permission to do that.',
   
   // Rate limiting
   'Rate limits exceeded': 'Too many requests. Please wait a moment and try again.',
   'rate limit': 'Too many requests. Please wait a moment and try again.',
+  'quota': 'AI usage limit reached. Try again later.',
+  'AI usage limit': 'AI usage limit reached. Try again later.',
   
   // Network errors
   'Failed to fetch': 'Connection error. Please check your internet connection.',
@@ -78,4 +84,22 @@ export function logError(context: string, error: unknown): void {
     // In production, log minimal info
     console.error(`[${context}] Error occurred`);
   }
+}
+
+/**
+ * Guard for guest users. If `user` is null, shows a friendly toast-like
+ * message via the provided notify callback and opens the auth dialog.
+ * Returns true when the user IS authenticated and the caller may proceed.
+ */
+export function requireAuth(
+  user: unknown,
+  action: string,
+  openAuth: () => void,
+  notify?: (msg: string) => void,
+): boolean {
+  if (user) return true;
+  const message = `Sign in to ${action}.`;
+  notify?.(message);
+  try { openAuth(); } catch { /* noop */ }
+  return false;
 }

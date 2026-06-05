@@ -16,6 +16,8 @@ import { useLocalStudyPlan } from "@/hooks/useLocalStudyPlan";
 import { BackgroundMusicPlayer } from "@/components/study-coach/BackgroundMusicPlayer";
 import { FloatingAIChat } from "@/components/study-coach/FloatingAIChat";
 import { format, startOfWeek, endOfWeek } from "date-fns";
+import { Auth } from "@/components/Auth";
+import { getUserFriendlyError } from "@/utils/errorUtils";
 import {
   Dialog,
   DialogContent,
@@ -93,6 +95,7 @@ export default function StudyCoach() {
   // Dialog states for icon buttons
   const [subjectsOpen, setSubjectsOpen] = useState(false);
   const [adjustOpen, setAdjustOpen] = useState(false);
+  const [authDialogOpen, setAuthDialogOpen] = useState(false);
   // Active timer state
   const [activeTask, setActiveTask] = useState<ActiveTask | null>(null);
 
@@ -244,11 +247,10 @@ export default function StudyCoach() {
   const handleGeneratePlan = async (duration: PlanDuration = "daily") => {
     if (isGuest) {
       toast({
-        title: "Sign up to generate plans",
-        description: "Create an account to use AI-powered study planning",
-        variant: "destructive"
+        title: "Sign in to generate plans",
+        description: "Create a free account to use AI-powered study planning.",
       });
-      navigate("/chat");
+      setAuthDialogOpen(true);
       return;
     }
 
@@ -277,7 +279,7 @@ export default function StudyCoach() {
       loadData();
     } catch (error) {
       console.error("Error generating plan:", error);
-      toast({ title: "Error", description: "Failed to generate plan", variant: "destructive" });
+      toast({ title: "Couldn't generate plan", description: getUserFriendlyError(error), variant: "destructive" });
     } finally {
       setGenerating(false);
     }
@@ -438,7 +440,8 @@ export default function StudyCoach() {
 
   const handleAdjustPlan = async (mode: "less_time" | "tired" | "push_harder") => {
     if (isGuest) {
-      toast({ title: "Sign up to adjust plans", variant: "destructive" });
+      toast({ title: "Sign in to adjust plans", description: "Create a free account to use AI plan adjustments." });
+      setAuthDialogOpen(true);
       return;
     }
 
@@ -459,7 +462,7 @@ export default function StudyCoach() {
       loadData();
     } catch (error) {
       console.error("Error adjusting plan:", error);
-      toast({ title: "Error", description: "Failed to adjust plan", variant: "destructive" });
+      toast({ title: "Couldn't adjust plan", description: getUserFriendlyError(error), variant: "destructive" });
     } finally {
       setAdjusting(false);
     }
@@ -796,6 +799,13 @@ export default function StudyCoach() {
                 </button>
               )}
             </div>
+          </DialogContent>
+        </Dialog>
+
+        {/* Guest auth prompt */}
+        <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
+          <DialogContent className="max-w-md p-0 overflow-hidden">
+            <Auth />
           </DialogContent>
         </Dialog>
 
