@@ -68,6 +68,22 @@ const Index = () => {
   const abortControllerRef = useRef<AbortController | null>(null);
   const { toast } = useToast();
 
+  // ===== Finger-following drawer state =====
+  const [drawerWidth, setDrawerWidth] = useState(280);
+  const [dragX, setDragX] = useState<number | null>(null); // px offset while dragging (0..drawerWidth)
+  const dragRef = useRef<{ startX: number; startY: number; startedOpen: boolean; active: boolean; locked: boolean } | null>(null);
+
+  useEffect(() => {
+    const compute = () => {
+      const w = window.innerWidth;
+      // 65vw capped at 320px, min 220px
+      setDrawerWidth(Math.max(220, Math.min(320, Math.round(w * 0.65))));
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, []);
+
   const scrollToBottom = (instant = false) => {
     messagesEndRef.current?.scrollIntoView({ behavior: instant ? "instant" : "smooth" });
   };
