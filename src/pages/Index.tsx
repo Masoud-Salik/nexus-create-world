@@ -7,13 +7,12 @@ import { usePageMeta } from "@/hooks/usePageMeta";
 import { supabase } from "@/integrations/supabase/client";
 import { Auth } from "@/components/Auth";
 import { Onboarding } from "@/components/Onboarding";
-import { Sheet, SheetContent, SheetHeader, SheetTitle, SheetTrigger } from "@/components/ui/sheet";
 import { ChatMessage } from "@/components/ChatMessage";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { AIProviderBanner } from "@/components/chat/AIProviderBanner";
 import { getTimeOfDay, getLocalTime } from "@/utils/getTimeOfDay";
-import { getUserFriendlyError, logError } from "@/utils/errorUtils";
+import { getUserFriendlyError, logError, requireAuth } from "@/utils/errorUtils";
 import { isToday, isYesterday, subDays, isAfter } from "date-fns";
 
 const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
