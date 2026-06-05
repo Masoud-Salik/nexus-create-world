@@ -9,6 +9,15 @@ html {
   -webkit-text-size-adjust: 100%;
 }
 
+/* Radix ScrollArea fix: its viewport's inner wrapper uses display:table,
+   which lets wide intrinsic content (long URLs, code, tables) blow out the
+   width and create horizontal scroll. Force it to behave like a block. */
+[data-radix-scroll-area-viewport] > div {
+  display: block !important;
+  width: 100% !important;
+  min-width: 0 !important;
+}
+
 /* Advanced Design System - Emerald Green Scientific Theme */
 
 @layer base {
