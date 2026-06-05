@@ -16,6 +16,8 @@ import { useLocalStudyPlan } from "@/hooks/useLocalStudyPlan";
 import { BackgroundMusicPlayer } from "@/components/study-coach/BackgroundMusicPlayer";
 import { FloatingAIChat } from "@/components/study-coach/FloatingAIChat";
 import { format, startOfWeek, endOfWeek } from "date-fns";
+import { Auth } from "@/components/Auth";
+import { getUserFriendlyError } from "@/utils/errorUtils";
 import {
   Dialog,
   DialogContent,
