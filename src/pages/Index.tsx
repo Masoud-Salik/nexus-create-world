@@ -281,7 +281,7 @@ const Index = () => {
   const handleSend = async (messageText?: string, includeContext: boolean = false, isRegenerate: boolean = false) => {
     const textToSend = messageText || input;
     if (!textToSend.trim() || isLoading) return;
-    if (!user) { toast({ title: "Sign in to chat", description: "Create an account to use the AI chat feature" }); return; }
+    if (!requireAuth(user, "chat with the AI", () => setShowAuthDialog(true), (msg) => toast({ title: msg }))) return;
 
     if (!isRegenerate) {
       const userMessage: Message = { role: "user", content: textToSend };
@@ -317,6 +317,13 @@ const Index = () => {
       if (!response.ok) {
         if (response.status === 429) { toast({ title: "Rate limit exceeded", variant: "destructive" }); setIsLoading(false); return; }
         if (response.status === 402) { toast({ title: "Payment required", variant: "destructive" }); setIsLoading(false); return; }
+        if (response.status === 401 || response.status === 403) {
+          toast({ title: "Session expired", description: "Please sign in to continue.", variant: "destructive" });
+          setShowAuthDialog(true);
+          setIsLoading(false);
+          if (!isRegenerate) setMessages(prev => prev.slice(0, -1));
+          return;
+        }
         throw new Error("Failed to start stream");
       }
 
