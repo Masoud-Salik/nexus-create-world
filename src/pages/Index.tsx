@@ -403,30 +403,43 @@ const Index = () => {
       onTouchStart={(e) => {
         const t = e.touches[0];
         const target = e.target as HTMLElement;
-        // Ignore swipes starting inside scrollable code blocks, textareas, or inputs
         if (target.closest('textarea, input, pre, [data-no-swipe]')) {
-          (window as any).__chatSwipe = null;
+          dragRef.current = null;
           return;
         }
-        (window as any).__chatSwipe = { x: t.clientX, y: t.clientY, t: Date.now() };
-      }}
-      onTouchEnd={(e) => {
-        const s = (window as any).__chatSwipe;
-        if (!s) return;
-        const t = e.changedTouches[0];
-        const dx = t.clientX - s.x;
-        const dy = t.clientY - s.y;
-        const dt = Date.now() - s.t;
-        (window as any).__chatSwipe = null;
-        if (dt > 600) return;
-        if (Math.abs(dy) > Math.abs(dx)) return; // vertical scroll
-        if (Math.abs(dx) < 60) return;
-        if (dx > 0 && !showChatList && s.x < window.innerWidth * 0.35) {
-          setShowChatList(true);
-          navigator.vibrate?.(10);
-        } else if (dx < 0 && showChatList) {
-          setShowChatList(false);
+        const startedOpen = showChatList;
+        // Only start a drag if it begins in the left 35% (to open) or anywhere (to close when open)
+        if (!startedOpen && t.clientX > window.innerWidth * 0.35) {
+          dragRef.current = null;
+          return;
         }
+        dragRef.current = { startX: t.clientX, startY: t.clientY, startedOpen, active: true, locked: false };
+      }}
+      onTouchMove={(e) => {
+        const d = dragRef.current;
+        if (!d || !d.active) return;
+        const t = e.touches[0];
+        const dx = t.clientX - d.startX;
+        const dy = t.clientY - d.startY;
+        // Lock axis on first meaningful movement
+        if (!d.locked) {
+          if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
+          if (Math.abs(dy) > Math.abs(dx)) { d.active = false; return; } // vertical scroll wins
+          d.locked = true;
+        }
+        const base = d.startedOpen ? drawerWidth : 0;
+        const next = Math.max(0, Math.min(drawerWidth, base + dx));
+        setDragX(next);
+      }}
+      onTouchEnd={() => {
+        const d = dragRef.current;
+        dragRef.current = null;
+        if (!d || !d.locked) { setDragX(null); return; }
+        const current = dragX ?? (d.startedOpen ? drawerWidth : 0);
+        const open = current > drawerWidth * 0.4;
+        setShowChatList(open);
+        if (open && !d.startedOpen) navigator.vibrate?.(10);
+        setDragX(null);
       }}
     >
       {/* Guest Auth Dialog */}
@@ -435,6 +448,74 @@ const Index = () => {
           <div onClick={(e) => e.stopPropagation()}><Auth /></div>
         </div>
       )}
+
+      {/* ===== Custom finger-following Chat History Drawer ===== */}
+      {(() => {
+        const offset = dragX ?? (showChatList ? drawerWidth : 0);
+        const progress = offset / drawerWidth; // 0..1
+        const dragging = dragX !== null;
+        return (
+          <>
+            {/* Backdrop */}
+            <div
+              onClick={() => setShowChatList(false)}
+              aria-hidden={offset <= 0}
+              style={{ opacity: progress * 0.5, pointerEvents: offset > 8 ? "auto" : "none" }}
+              className={`fixed inset-0 z-40 bg-black ${dragging ? "" : "transition-opacity duration-150"}`}
+            />
+            {/* Drawer */}
+            <aside
+              role="dialog"
+              aria-label="Chat history"
+              style={{
+                width: drawerWidth,
+                transform: `translate3d(${offset - drawerWidth}px, 0, 0)`,
+                transition: dragging ? "none" : "transform 150ms ease-out",
+              }}
+              className="fixed top-0 left-0 z-50 h-[100dvh] bg-background border-r border-border shadow-2xl flex flex-col"
+            >
+              <div className="p-4 border-b space-y-2">
+                <Button onClick={createNewChat} className="w-full gap-2" variant="outline">
+                  <Plus className="h-4 w-4" /> New Chat
+                </Button>
+                <div className="relative">
+                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
+                  <input
+                    value={chatSearch}
+                    onChange={e => setChatSearch(e.target.value)}
+                    placeholder="Search chats..."
+                    data-no-swipe
+                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-muted/50 border border-border/50 focus:outline-none focus:border-primary/50 transition-colors"
+                  />
+                </div>
+              </div>
+              <ScrollArea className="flex-1 min-h-0">
+                <div className="p-2 space-y-4">
+                  {conversationGroups.map((group) => (
+                    <div key={group.label}>
+                      <p className="text-xs font-semibold text-muted-foreground px-3 py-1">{group.label}</p>
+                      {group.items.map((conv) => (
+                        <button
+                          key={conv.id}
+                          onClick={() => switchChat(conv.id)}
+                          className={`w-full text-left px-3 py-2.5 rounded-lg text-sm truncate transition-colors tap-effect ${
+                            conversationId === conv.id ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-muted/50"
+                          }`}
+                        >
+                          {conv.title || "New Chat"}
+                        </button>
+                      ))}
+                    </div>
+                  ))}
+                  {conversationGroups.length === 0 && (
+                    <p className="text-xs text-muted-foreground text-center py-8">No chats yet.</p>
+                  )}
+                </div>
+              </ScrollArea>
+            </aside>
+          </>
+        );
+      })()}
 
       <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
         {/* Guest inline sign-in prompt */}
@@ -451,49 +532,15 @@ const Index = () => {
         {/* Header — ChatGPT style: [≡] [title] [+ new chat] */}
         <div className="border-b px-4 py-3 flex items-center justify-between glass sticky top-0 z-20">
           <div className="flex items-center gap-2">
-            <Sheet open={showChatList} onOpenChange={setShowChatList}>
-              <SheetTrigger asChild>
-                <Button variant="ghost" size="icon" className="h-9 w-9 tap-effect">
-                  <Menu className="h-5 w-5" />
-                </Button>
-              </SheetTrigger>
-              <SheetContent side="left" className="w-80 p-0">
-                <div className="p-4 border-b space-y-2">
-                  <Button onClick={createNewChat} className="w-full gap-2" variant="outline">
-                    <Plus className="h-4 w-4" /> New Chat
-                  </Button>
-                  <div className="relative">
-                    <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                    <input
-                      value={chatSearch}
-                      onChange={e => setChatSearch(e.target.value)}
-                      placeholder="Search chats..."
-                      className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-muted/50 border border-border/50 focus:outline-none focus:border-primary/50 transition-colors"
-                    />
-                  </div>
-                </div>
-                <ScrollArea className="h-[calc(100vh-80px)]">
-                  <div className="p-2 space-y-4">
-                    {conversationGroups.map((group) => (
-                      <div key={group.label}>
-                        <p className="text-xs font-semibold text-muted-foreground px-3 py-1">{group.label}</p>
-                        {group.items.map((conv) => (
-                          <button
-                            key={conv.id}
-                            onClick={() => switchChat(conv.id)}
-                            className={`w-full text-left px-3 py-2.5 rounded-lg text-sm truncate transition-colors tap-effect ${
-                              conversationId === conv.id ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-muted/50"
-                            }`}
-                          >
-                            {conv.title || "New Chat"}
-                          </button>
-                        ))}
-                      </div>
-                    ))}
-                  </div>
-                </ScrollArea>
-              </SheetContent>
-            </Sheet>
+            <Button
+              variant="ghost"
+              size="icon"
+              className="h-9 w-9 tap-effect"
+              onClick={() => setShowChatList(true)}
+              aria-label="Open chat history"
+            >
+              <Menu className="h-5 w-5" />
+            </Button>
             <h1 className="text-sm font-semibold text-foreground truncate max-w-[200px] sm:max-w-xs">
               {currentTitle}
             </h1>
