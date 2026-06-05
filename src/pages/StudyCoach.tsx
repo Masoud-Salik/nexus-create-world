@@ -802,6 +802,13 @@ export default function StudyCoach() {
           </DialogContent>
         </Dialog>
 
+        {/* Guest auth prompt */}
+        <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
+          <DialogContent className="max-w-md p-0 overflow-hidden">
+            <Auth />
+          </DialogContent>
+        </Dialog>
+
       </div>
     </div>);
 
