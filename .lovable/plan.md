@@ -1,61 +1,91 @@
-# Plan — Chat UX polish (4 fixes)
 
-## 1. Fix "zoom / horizontal scroll appearing 1–2s after AI response"
+# Blueprint Page Redesign — Gamified Study Journey
 
-Root cause: Radix `ScrollArea` wraps its children in a `<div style="display: table">` viewport. When the streamed assistant message finishes (and React re-renders with the final markdown), wide intrinsic content (long code lines, tables, unbreakable strings) makes that `table` div expand past 100% width, so the whole chat thread becomes horizontally scrollable.
+Transform the current flat list of dashed-border task cards into an engaging, science-backed, Duolingo-style learning path with a smarter AI plan engine and an always-available AI copilot while studying.
 
-Changes:
-- **`src/index.css`** — globally force every Radix scroll-area viewport's inner table div to behave like a block of width 100%:
-  ```css
-  [data-radix-scroll-area-viewport] > div[style*="table"] {
-    display: block !important;
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-  ```
-- **`src/pages/Index.tsx`** — on the messages `ScrollArea`, add `[&_[data-radix-scroll-area-viewport]]:!block` belt-and-braces; wrap the `messages.map(...)` in `<div className="w-full max-w-full min-w-0 overflow-x-hidden">`.
-- **`src/components/ChatMessage.tsx`** — tighten markdown safety:
-  - Add `w-full max-w-full` to the outer `group` div.
-  - On the prose div add `[&_*]:max-w-full [&_img]:h-auto [&_a]:break-all`.
-  - Wrap `<SyntaxHighlighter>` in a `max-w-full overflow-x-auto` container (already present, verify wrapper has `width:100%`).
+## 1. New Blueprint UI — "The Path"
 
-## 2. Instant finger-following swipe drawer (no delay open/close)
+Replace the vertical list of task cards with a **gamified learning path**:
 
-Current: gesture is detected only on `touchend`, then Radix `Sheet` plays a 300–500ms slide-in. Result feels laggy.
+- **Path layout**: zig-zag vertical trail of circular "checkpoint" nodes (one per task), connected by an SVG dashed path. Like Duolingo's lesson tree, scoped to today's plan.
+- **Node states**:
+  - Completed → filled emerald with checkmark + subtle glow
+  - Active/next → pulsing primary ring + bouncing "START" label
+  - Locked/future → muted with subject color tint and difficulty emoji
+  - Bonus round → gold sparkle node at the end
+- **Tap node** → expands an inline card with topic, duration, difficulty chip, subject icon, "Start" button, and a small "Ask NEXUS about this" link.
+- **Subject color rail**: left edge of each node uses the subject color for instant scanability.
+- **Micro-rewards**: confetti burst + XP popup ("+25 XP") on completion; streak flame intensifies as more nodes complete.
 
-Replace the chat-history Radix `Sheet` with a custom drawer that translates with the finger:
-- **`src/pages/Index.tsx`**:
-  - Add state `drawerX` (number, px) and `drawerDragging` (bool).
-  - On `onTouchStart` inside left 35% of the screen (and not on input/pre/code), start tracking.
-  - On `onTouchMove`, set `drawerX = clamp(deltaX, 0, drawerWidth)` and translate the drawer with `transform: translate3d(${drawerX - drawerWidth}px,0,0)` — no transition while dragging.
-  - On `onTouchEnd`, decide open/close by threshold (drawerX > drawerWidth * 0.4 OR velocity > 0.5 px/ms) and animate the remainder with a single 150ms transition.
-  - Same logic in reverse when drawer is open (touchstart anywhere → drag left to close).
-  - Add backdrop element that fades opacity proportionally to `drawerX / drawerWidth`.
-- Keep the `Menu` button as a tap-to-open fallback that animates open with the same 150ms transition.
+## 2. Upgraded "Today's Progress" — Life Progress Bar
 
-## 3. Shrink chat-history drawer to ~65% width
+Redesign the single thin progress line into a **multi-layer Life Progress strip**:
 
-In the new custom drawer (replacing `SheetContent`):
-- `width: min(65vw, 320px)` on mobile, `sm:w-80` on desktop.
-- Drawer height = `100dvh`, background = `bg-background`, border-right, shadow-xl.
-- All existing content (search input, New Chat button, grouped conversation list) moves into this drawer unchanged.
+```text
+┌──────────────────────────────────────────────────────┐
+│ 🔥 7d   ⚡ Level 12       1240 / 1500 XP   ▓▓▓▓▓░░  │
+│ ●●●●●○○○○  Today: 4 / 9 quests       ⏱ 65m left      │
+│ Streak ──────────●─────  Weekly goal 62%             │
+└──────────────────────────────────────────────────────┘
+```
 
-## 4. Better error handling, especially for guests
+Three stacked rows:
+1. **Level + XP bar** — XP awarded per completed task (duration × difficulty multiplier), animated fill, level-up celebration.
+2. **Today's quests** — circular pip row (filled = done, empty = pending) + remaining minutes.
+3. **Weekly goal & streak heat-strip** — 7-day mini heatmap (intensity = minutes studied), shows where today sits.
 
-Centralize a small helper and wire it into the gated entry points:
-- **`src/utils/errorUtils.ts`** — add `requireAuth(user, action, openAuth)` that, when `user` is null, fires a single toast (`"Sign in to {action}"`) AND triggers the project's auth dialog. Returns boolean.
-- **`src/pages/Index.tsx`** — replace the current `if (!user)` toast in `handleSend` with `requireAuth(user, "chat with the AI", () => setShowAuthDialog(true))`. Also gate suggestion clicks and regenerate the same way.
-- **`src/pages/StudyCoach.tsx`** — find the "Generate plan" / "Ask AI" handlers and apply `requireAuth(...)` before the call (instead of silent failure / generic toast). Show the existing Auth dialog modal.
-- **`src/components/study-coach/SmartAdjust.tsx`, `TaskBreakdown.tsx`, `NextTaskCard.tsx`** — if any of them call edge functions, wrap with `requireAuth`. (Read each before editing; only add the guard, no behavior change for signed-in users.)
-- **`src/utils/errorUtils.ts`** — extend `ERROR_MESSAGES` with `"JWT expired"`, `"Invalid JWT"`, `"row-level security"` → friendly messages, and add a dedicated message for `"AI usage limit"` / `"quota"`.
-- **`src/pages/Index.tsx`** chat stream: on 401/403 specifically, call `requireAuth(...)` instead of throwing a generic error.
+All rendered with semantic tokens + CSS/SVG only (no chart libs, per project rules).
 
-## Files to touch
+## 3. Smarter Plan Generation
 
-- `src/index.css` (1 small rule)
-- `src/pages/Index.tsx` (drawer rewrite, swipe, guards)
-- `src/components/ChatMessage.tsx` (overflow hardening)
-- `src/utils/errorUtils.ts` (helper + new mappings)
-- `src/pages/StudyCoach.tsx` and 2–3 study-coach components (guest gating only)
+Upgrade `supabase/functions/study-coach/index.ts` `generate-daily-plan`:
 
-No backend, DB, or edge-function changes.
+- **Inputs added to AI context**:
+  - Time-of-day energy curve from `daily_checkins` (morning vs evening accuracy)
+  - Last 14 days of `study_sessions` per topic for spaced-repetition spacing
+  - Goal deadlines from `goals` (urgency weighting)
+  - Subject `weekly_target_minutes` vs minutes already logged this week (rebalances under-served subjects)
+  - Day-of-week pattern (lighter Mon/Fri, heavier mid-week)
+- **Scientific scheduling rules** the model must follow:
+  - Interleaving: never schedule the same subject in two consecutive tasks unless only one subject exists
+  - Spaced repetition: weak topics resurface at 1d / 3d / 7d intervals
+  - Ultradian blocks: 25/45/60-min options aligned to focus cycles, with implicit break nodes between them
+  - Difficulty arc: warm-up easy → peak hard → cool-down review
+- **Output schema** extended: each task gets `xp_reward`, `science_reason` (e.g. "Spaced review — last studied 3 days ago"), and `block_type` (warmup/peak/review/bonus). Surfaced in node tooltip.
+- **Validation layer** on the server: rejects/repairs AI output that breaks interleaving or exceeds daily minute budget; deterministic fallback already exists and gets the same upgrades.
+
+## 4. Smarter Plan Adjustment
+
+Replace the 3-button modal with an **AI Adjuster** that actually re-plans:
+
+- Modes expanded: `less_time`, `tired`, `push_harder`, `quick_review`, `swap_subject`, `reschedule_to_evening`.
+- Instead of a flat multiplier, the edge function:
+  1. Reads remaining pending tasks
+  2. Sends them + the chosen mode + current time + recent check-in to the AI
+  3. Returns a reshuffled set with new durations, difficulties, order, and a one-line rationale shown as a toast ("Cut peak block, added a 15-min review since you're low energy").
+- Adjuster sheet shows current vs proposed plan side-by-side before applying (Undo within 10s).
+
+## 5. AI Chat While Studying
+
+Keep `FloatingAIChat` available **inside the active study session** (currently it disappears when `activeTask` is set):
+
+- During `StudyTaskTimer`: small chat pill anchored bottom-left (clear of timer ring and controls), labelled "Ask NEXUS".
+- Auto-seeds context with current task topic + subject + elapsed minutes so questions like "explain this concept" or "give me a practice question" work without setup.
+- Tap-to-pause-timer toggle when opening chat is optional via a setting; default keeps timer running.
+- Re-enable for guests with the existing auth prompt rather than hiding it.
+
+## 6. Files to touch
+
+- `src/pages/StudyCoach.tsx` — replace Blueprint task list with new `<StudyPath>`, swap progress block for `<LifeProgress>`, mount `<FloatingAIChat anchor="session" />` during `activeTask`.
+- New: `src/components/study-coach/StudyPath.tsx` (zig-zag SVG + nodes + expand card).
+- New: `src/components/study-coach/LifeProgress.tsx` (level/XP, quest pips, weekly heat-strip).
+- New: `src/components/study-coach/PlanAdjusterSheet.tsx` (side-by-side current vs proposed, undo).
+- Update: `src/components/study-coach/FloatingAIChat.tsx` — add `anchor="session"` position + task-context prop.
+- Update: `supabase/functions/study-coach/index.ts` — new context queries, expanded prompt, validation, expanded `adjust-plan` action returning proposed tasks instead of writing immediately.
+- XP / level derivation: client-side helper `src/utils/xp.ts` (xp = minutes × {easy:1, medium:1.5, hard:2}; level = floor(sqrt(totalXp / 50))). No schema change required — derives from existing `study_sessions`.
+
+## 7. Out of scope (won't change)
+
+- Focus Hub timer, Stats tab, bottom nav, theme tokens.
+- Database schema and RLS policies (all new data is derived).
+- Main `/chat` page.
