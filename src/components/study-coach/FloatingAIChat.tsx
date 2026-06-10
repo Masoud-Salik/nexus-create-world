@@ -8,7 +8,21 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 type MiniMessage = { role: "user" | "assistant"; content: string };
 
-export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blueprint" | "default" }) {
+interface TaskContext {
+  subject: string;
+  topic: string;
+  elapsedMinutes?: number;
+}
+
+export function FloatingAIChat({
+  anchor = "default",
+  taskContext,
+  label,
+}: {
+  anchor?: "ring" | "blueprint" | "session" | "default";
+  taskContext?: TaskContext;
+  label?: string;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<MiniMessage[]>([]);
   const [input, setInput] = useState("");
@@ -43,11 +57,20 @@ export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blue
       if (!session?.access_token) { setIsLoading(false); return; }
 
       const allMessages = [...messages, userMsg];
+      // Seed task context as a system-style preface (sent once via first message metadata)
+      const contextPreface: MiniMessage[] = taskContext
+        ? [{
+            role: "user",
+            content: `[Context — I'm currently studying: ${taskContext.subject} → "${taskContext.topic}"${
+              taskContext.elapsedMinutes != null ? ` (${taskContext.elapsedMinutes}m elapsed)` : ""
+            }. Tailor your answer to this topic.]`,
+          }]
+        : [];
       const response = await fetch(CHAT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
         body: JSON.stringify({
-          messages: allMessages.slice(-6), // Last 6 for context, keep it light
+          messages: [...contextPreface, ...allMessages].slice(-7),
           userLocalTime: getLocalTime(),
           userTimeOfDay: getTimeOfDay(),
         }),
@@ -105,11 +128,15 @@ export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blue
       ? "fixed top-[88px] right-3 z-50"
       : anchor === "blueprint"
       ? "fixed right-3 bottom-[80px] z-50"
+      : anchor === "session"
+      ? "fixed left-3 bottom-[80px] z-50"
       : "fixed bottom-20 right-3 z-50";
 
   const overlayCls =
     anchor === "ring"
       ? "fixed top-[140px] right-3 left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
+      : anchor === "session"
+      ? "fixed left-3 right-3 bottom-[140px] sm:right-auto sm:max-w-sm z-50 animate-in fade-in-0 zoom-in-95 duration-200"
       : "fixed right-3 bottom-[140px] left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200";
 
   return (
@@ -119,13 +146,15 @@ export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blue
         <button
           onClick={() => { setIsOpen(prev => !prev); navigator.vibrate?.(10); }}
           className={cn(
-            "relative w-10 h-10 rounded-full flex items-center justify-center shadow-lg",
+            "relative rounded-full flex items-center justify-center shadow-lg gap-1.5",
+            label ? "h-10 px-3" : "w-10 h-10",
             "bg-primary text-primary-foreground",
             "active:scale-95 transition-transform duration-150",
             !isOpen && "animate-[pulse-glow_3s_ease-in-out_infinite]"
           )}
         >
           {isOpen ? <X className="h-4 w-4" /> : <Sparkles className="h-4 w-4" />}
+          {!isOpen && label && <span className="text-xs font-bold">{label}</span>}
         </button>
       </div>
 
@@ -138,6 +167,11 @@ export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blue
               <div className="flex items-center gap-1.5">
                 <Sparkles className="h-3.5 w-3.5 text-primary" />
                 <span className="text-xs font-bold text-foreground">NEXUS</span>
+                {taskContext && (
+                  <span className="text-[10px] text-muted-foreground truncate max-w-[140px]">
+                    · {taskContext.topic}
+                  </span>
+                )}
                 {isLoading && <span className="text-[10px] text-muted-foreground animate-pulse">thinking...</span>}
               </div>
               <button onClick={() => setIsOpen(false)} className="text-muted-foreground hover:text-foreground p-0.5">
@@ -148,9 +182,26 @@ export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blue
             {/* Messages */}
             <div ref={scrollRef} className="max-h-48 overflow-y-auto px-3 py-2 space-y-2">
               {displayMessages.length === 0 && (
-                <p className="text-xs text-muted-foreground text-center py-4">
-                  Ask me anything while you study! 🧠
-                </p>
+                <div className="text-xs text-muted-foreground text-center py-4 space-y-2">
+                  <p>Ask me anything while you study! 🧠</p>
+                  {taskContext && (
+                    <div className="flex flex-wrap gap-1 justify-center">
+                      {[
+                        "Explain this concept",
+                        "Give me a practice question",
+                        "Quick summary please",
+                      ].map((q) => (
+                        <button
+                          key={q}
+                          onClick={() => setInput(q)}
+                          className="px-2 py-1 rounded-full bg-primary/10 text-primary text-[10px] hover:bg-primary/20"
+                        >
+                          {q}
+                        </button>
+                      ))}
+                    </div>
+                  )}
+                </div>
               )}
               {displayMessages.map((msg, i) => (
                 <div key={i} className={cn("text-xs leading-relaxed", msg.role === "user" ? "text-right" : "text-left")}>
