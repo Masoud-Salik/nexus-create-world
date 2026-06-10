@@ -159,10 +159,32 @@ MULTI-DAY PLANNING:
 • Progressive difficulty over the time period
 • Include buffer/catch-up days for longer plans`;
 
+      // Compute minutes already logged this week per subject for rebalancing
+      const weekStart = new Date();
+      weekStart.setDate(weekStart.getDate() - weekStart.getDay());
+      const { data: weekSessions } = await supabase
+        .from("study_sessions")
+        .select("subject_id, time_spent_minutes")
+        .eq("user_id", userId)
+        .gte("session_date", weekStart.toISOString().split("T")[0]);
+      const minutesBySubject: Record<string, number> = {};
+      (weekSessions || []).forEach((s: any) => {
+        minutesBySubject[s.subject_id] = (minutesBySubject[s.subject_id] || 0) + (s.time_spent_minutes || 0);
+      });
+      const subjectBalance = subjects.map((s) => ({
+        name: s.subject_name,
+        target: s.weekly_target_minutes || 180,
+        logged: minutesBySubject[s.id] || 0,
+        deficit: Math.max(0, (s.weekly_target_minutes || 180) - (minutesBySubject[s.id] || 0)),
+      }));
+
       const userPrompt = `Create an optimized ${duration} study plan starting from today (${dayOfWeek}).
 
 SUBJECTS (in priority order):
 ${JSON.stringify(subjectInfo, null, 2)}
+
+WEEKLY BALANCE (rebalance to close deficits):
+${JSON.stringify(subjectBalance, null, 2)}
 
 WEAK AREAS REQUIRING ATTENTION:
 ${weakTopics.length > 0 ? weakTopics.join("\n") : "No significant weak spots detected yet"}
@@ -172,26 +194,31 @@ USER STATE:
 • Typical daily study time: ${Math.round(avgStudyTime)} minutes
 • Goals: ${goals?.map(g => g.goal_title).join(", ") || "None specified"}
 
-REQUIREMENTS:
+SCIENTIFIC REQUIREMENTS (must follow):
 1. Generate tasks for ${daysToGenerate} day(s)
 2. Each day should have ${tasksPerDay}-${tasksPerDay + 2} tasks
 3. Daily total time should be ~${Math.round(avgStudyTime)} minutes
-4. Distribute subjects evenly across all days
-5. At least one task per day should address weak areas
-6. Include specific topics, not generic subject names
-7. Vary difficulty based on day of week (harder on weekdays)
+4. INTERLEAVING: never schedule two consecutive tasks of the same subject within a day (unless only one subject exists)
+5. SPACED REPETITION: weak topics resurface at 1d, 3d, 7d intervals
+6. ULTRADIAN BLOCKS: durations must be 20, 25, 30, 45, or 60 (focus-cycle aligned)
+7. DIFFICULTY ARC per day: warm-up (easy) → peak (hard) → cool-down (easy/review)
+8. WEEKLY BALANCE: prioritize subjects with largest deficit above
+9. Topics must be specific (e.g. "Derivatives — chain rule practice problems"), not "Math study"
+10. Lighter loads on Sunday & Friday; heavier mid-week
 
 DATES TO PLAN FOR:
 ${dates.map(d => `- ${d} (${new Date(d).toLocaleDateString('en-US', { weekday: 'long' })})`).join("\n")}
 
-Return ONLY a JSON array:
+Return ONLY a JSON array. Each task MUST include block_type and science_reason:
 [
   {
     "date": "YYYY-MM-DD",
     "subject_name": "exact match to subject name from list",
     "topic": "Specific, focused topic",
     "duration_minutes": 25-60,
-    "difficulty": "easy" | "medium" | "hard"
+    "difficulty": "easy" | "medium" | "hard",
+    "block_type": "warmup" | "peak" | "review" | "bonus",
+    "science_reason": "one sentence — e.g. 'Spaced review, last studied 3 days ago' or 'Peak block — fresh focus window'"
   }
 ]`;
 
