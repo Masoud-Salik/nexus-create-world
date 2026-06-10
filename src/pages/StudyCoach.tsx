@@ -15,6 +15,10 @@ import { PomodoroTimer } from "@/components/study-coach/PomodoroTimer";
 import { useLocalStudyPlan } from "@/hooks/useLocalStudyPlan";
 import { BackgroundMusicPlayer } from "@/components/study-coach/BackgroundMusicPlayer";
 import { FloatingAIChat } from "@/components/study-coach/FloatingAIChat";
+import { StudyPath } from "@/components/study-coach/StudyPath";
+import { LifeProgress } from "@/components/study-coach/LifeProgress";
+import { PlanAdjusterSheet, AdjustMode, ProposedTask } from "@/components/study-coach/PlanAdjusterSheet";
+import { taskXp, sumXp } from "@/utils/xp";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { Auth } from "@/components/Auth";
 import { getUserFriendlyError } from "@/utils/errorUtils";
@@ -104,6 +108,10 @@ export default function StudyCoach() {
   const [streak, setStreak] = useState(0);
   const [hasGeneratedOnce, setHasGeneratedOnce] = useState(false);
   const autoGenerateAttempted = useRef(false);
+
+  // Weekly minutes (last 7 days, oldest → today) for heat strip
+  const [weeklyMinutes, setWeeklyMinutes] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
+  const [lifetimeXp, setLifetimeXp] = useState(0);
 
   // Local caching for instant updates
   const { cachedTasks, isCacheValid, saveTasks, updateTaskLocally, clearCache } = useLocalStudyPlan(userId);
@@ -196,6 +204,30 @@ export default function StudyCoach() {
       maybeSingle();
 
       setStreak(habitData?.current_streak || 0);
+
+      // Load last 7 days of sessions for the weekly heat strip + lifetime XP estimate
+      const sevenDaysAgo = format(new Date(Date.now() - 6 * 86400000), "yyyy-MM-dd");
+      const { data: weekSessions } = await supabase
+        .from("study_sessions")
+        .select("session_date, time_spent_minutes")
+        .eq("user_id", userId)
+        .gte("session_date", sevenDaysAgo);
+
+      const buckets = [0, 0, 0, 0, 0, 0, 0];
+      (weekSessions || []).forEach((s: any) => {
+        const d = new Date(s.session_date);
+        const idx = 6 - Math.floor((Date.now() - d.getTime()) / 86400000);
+        if (idx >= 0 && idx < 7) buckets[idx] += s.time_spent_minutes || 0;
+      });
+      setWeeklyMinutes(buckets);
+
+      // Lifetime XP: approx using total minutes × 1.2 (medium baseline)
+      const { data: allSessions } = await supabase
+        .from("study_sessions")
+        .select("time_spent_minutes")
+        .eq("user_id", userId);
+      const totalMins = (allSessions || []).reduce((s: number, x: any) => s + (x.time_spent_minutes || 0), 0);
+      setLifetimeXp(Math.round(totalMins * 1.2));
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {
@@ -474,6 +506,47 @@ export default function StudyCoach() {
   const nextTask = pendingTasks[0];
   const otherTasks = pendingTasks.slice(1);
   const pendingMinutes = pendingTasks.reduce((sum, t) => sum + t.duration_minutes, 0);
+  const todayCompletedXp = sumXp(completedTasks);
+  const todayTotalXp = sumXp(cachedTasks);
+  const weeklyGoalMinutes = subjects.reduce((s, x) => s + (x.weekly_target_minutes || 0), 0) || 300;
+
+  // ---------- AI Plan Adjuster ----------
+  const handleAdjustPreview = async (mode: AdjustMode) => {
+    if (isGuest) {
+      toast({ title: "Sign in to adjust plans" });
+      setAuthDialogOpen(true);
+      return null;
+    }
+    if (!userId) return null;
+    try {
+      const { data, error } = await supabase.functions.invoke("study-coach", {
+        body: { action: "adjust-plan", userId, mode, preview: true },
+      });
+      if (error) throw error;
+      if (data?.tasks && Array.isArray(data.tasks)) {
+        return { tasks: data.tasks as ProposedTask[], rationale: data.rationale || "" };
+      }
+      return null;
+    } catch (e) {
+      toast({ title: "Couldn't generate adjustment", description: getUserFriendlyError(e), variant: "destructive" });
+      return null;
+    }
+  };
+
+  const handleAdjustApply = async (proposed: ProposedTask[]) => {
+    if (!userId) return;
+    try {
+      const { error } = await supabase.functions.invoke("study-coach", {
+        body: { action: "adjust-plan", userId, preview: false, proposed },
+      });
+      if (error) throw error;
+      clearCache();
+      toast({ title: "Plan updated! 🎯" });
+      loadData();
+    } catch (e) {
+      toast({ title: "Couldn't apply plan", description: getUserFriendlyError(e), variant: "destructive" });
+    }
+  };
 
   if (loading) {
     return (
@@ -577,6 +650,18 @@ export default function StudyCoach() {
           </div>
         }
 
+        {/* Quick AI chat available DURING a study session */}
+        {activeTask && userId && !isGuest && (
+          <FloatingAIChat
+            anchor="session"
+            label="Ask"
+            taskContext={{
+              subject: activeTask.subject_name,
+              topic: activeTask.topic,
+            }}
+          />
+        )}
+
         {/* Pomodoro Timer Mode */}
         {!activeTask && studyMode === "timer" &&
         <div className="flex-1 flex flex-col justify-center">
@@ -613,72 +698,38 @@ export default function StudyCoach() {
 
             <div className="flex-1 flex flex-col px-4 py-4 md:px-0 md:py-0 max-w-lg mx-auto w-full">
             
-            {/* Compact Stats Bar */}
-            {cachedTasks.length > 0 &&
-              <div className="mb-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-foreground">Today's Progress</span>
-                  <span className="text-sm font-bold text-foreground">{Math.round(completedTasks.length / cachedTasks.length * 100)}%</span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full transition-all duration-500"
-                    style={{ width: `${completedTasks.length / cachedTasks.length * 100}%` }}
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-muted rounded-full text-xs text-muted-foreground">
-                    <ClockIcon className="h-3 w-3" /> {pendingMinutes}m left
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 rounded-full text-xs text-primary font-medium">
-                    <CheckCircle2 className="h-3 w-3" /> {completedTasks.length}/{cachedTasks.length}
-                  </span>
-                </div>
+            {/* Life Progress — Level, XP, quests, weekly heat */}
+            {cachedTasks.length > 0 && (
+              <div className="mb-4">
+                <LifeProgress
+                  todayCompletedXp={todayCompletedXp}
+                  todayTotalXp={todayTotalXp}
+                  totalLifetimeXp={lifetimeXp + todayCompletedXp}
+                  completedCount={completedTasks.length}
+                  totalCount={cachedTasks.length}
+                  pendingMinutes={pendingMinutes}
+                  streak={streak}
+                  weeklyMinutes={weeklyMinutes}
+                  weeklyGoalMinutes={weeklyGoalMinutes}
+                />
               </div>
-            }
+            )}
 
-            {/* Task Cards */}
-            <div className="flex-1 flex flex-col py-2 space-y-3">
-              
-              {nextTask ?
-              <>
-                {pendingTasks.map((task) => {
-                  const Icon = taskIconMap[task.icon_name] || Book;
-                  const diff = difficultyConfig[task.difficulty] || difficultyConfig.medium;
-                  return (
-                    <div
-                      key={task.id}
-                      className="flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-border bg-card hover:border-primary/30 transition-colors"
-                    >
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: `${task.color}20` }}
-                      >
-                        <Icon className="h-5 w-5" style={{ color: task.color }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-foreground text-sm">{task.subject_name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{task.topic}</p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                            <ClockIcon className="h-2.5 w-2.5" /> {task.duration_minutes}m
-                          </span>
-                          <span className={cn("inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium", diff.color)}>
-                            {diff.emoji} {diff.label}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleStartTask(task.id)}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90 active:scale-95 transition-all"
-                      >
-                        <Play className="h-3.5 w-3.5 fill-current" /> Start
-                      </button>
-                    </div>
-                  );
-                })}
-              </> :
-            cachedTasks.length === 0 ? (
+            {/* Study Path — gamified zig-zag node trail */}
+            <div className="flex-1 flex flex-col py-2">
+              {nextTask || completedTasks.length > 0 ? (
+                <StudyPath
+                  tasks={cachedTasks}
+                  onStart={handleStartTask}
+                  onAskNexus={(task) => {
+                    // Trigger floating chat with task context — handled via simple toast hint for now
+                    toast({
+                      title: `Ask NEXUS about ${task.subject_name}`,
+                      description: "Open the chat bubble — your task is pre-loaded as context.",
+                    });
+                  }}
+                />
+              ) : cachedTasks.length === 0 ? (
             /* Empty State - No Tasks */
             <div className="text-center py-8">
                   <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
@@ -779,28 +830,13 @@ export default function StudyCoach() {
         </Dialog>
 
         {/* Adjust Plan Dialog */}
-        <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adjust Today's Plan</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-2 mt-2">
-              {adjustOptions.map((option) =>
-              <button
-                key={option.mode}
-                onClick={() => handleAdjustPlan(option.mode)}
-                className={cn("w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left tap-effect", option.bg, option.border, "hover:opacity-80")}>
-                
-                  <span className="text-2xl">{option.emoji}</span>
-                  <div className="flex-1">
-                    <p className={cn("font-medium", option.text)}>{option.title}</p>
-                    <p className="text-sm text-muted-foreground">{option.desc}</p>
-                  </div>
-                </button>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        <PlanAdjusterSheet
+          open={adjustOpen}
+          onOpenChange={setAdjustOpen}
+          currentTasks={pendingTasks}
+          onPreview={handleAdjustPreview}
+          onApply={handleAdjustApply}
+        />
 
         {/* Guest auth prompt */}
         <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
