@@ -36,8 +36,14 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { action, mode, duration = "daily" } = await req.json();
-    const body = await (async () => null)(); // placeholder removed; we parsed above
+    const reqBody = await req.json();
+    const { action, mode, duration = "daily", preview, proposed } = reqBody as {
+      action: string;
+      mode?: string;
+      duration?: string;
+      preview?: boolean;
+      proposed?: unknown[];
+    };
 
     console.log(`Study Coach action: ${action} for user: ${userId}, duration: ${duration}`);
 
@@ -285,7 +291,6 @@ Return ONLY a JSON array:
     if (action === "adjust-plan") {
       // New flow: preview=true → return AI-proposed tasks without writing.
       //           preview=false + proposed[] → apply provided proposed tasks.
-      const { preview, proposed } = await safeReadBody(req);
       const today = new Date().toISOString().split("T")[0];
 
       const { data: tasks } = await supabase
