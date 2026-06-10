@@ -37,6 +37,7 @@ serve(async (req) => {
     const supabase = createClient(supabaseUrl, supabaseKey);
 
     const { action, mode, duration = "daily" } = await req.json();
+    const body = await (async () => null)(); // placeholder removed; we parsed above
 
     console.log(`Study Coach action: ${action} for user: ${userId}, duration: ${duration}`);
 
@@ -282,6 +283,9 @@ Return ONLY a JSON array:
     }
 
     if (action === "adjust-plan") {
+      // New flow: preview=true → return AI-proposed tasks without writing.
+      //           preview=false + proposed[] → apply provided proposed tasks.
+      const { preview, proposed } = await safeReadBody(req);
       const today = new Date().toISOString().split("T")[0];
 
       const { data: tasks } = await supabase
@@ -297,48 +301,164 @@ Return ONLY a JSON array:
         });
       }
 
+      // ----- APPLY MODE -----
+      if (preview === false && Array.isArray(proposed) && proposed.length > 0) {
+        const updates = proposed
+          .filter((p: any) => p && p.id)
+          .map((p: any) => ({
+            id: p.id,
+            duration_minutes: Math.max(15, Math.min(120, Number(p.duration_minutes) || 30)),
+            difficulty: ["easy", "medium", "hard"].includes(p.difficulty) ? p.difficulty : "medium",
+            topic: typeof p.topic === "string" && p.topic.length > 0 ? p.topic.slice(0, 200) : undefined,
+          }));
+
+        for (const u of updates) {
+          const patch: Record<string, unknown> = {
+            duration_minutes: u.duration_minutes,
+            difficulty: u.difficulty,
+          };
+          if (u.topic) patch.topic = u.topic;
+          await supabase.from("study_tasks").update(patch).eq("id", u.id).eq("user_id", userId);
+        }
+
+        return new Response(JSON.stringify({ success: true, applied: updates.length }), {
+          headers: { ...corsHeaders, "Content-Type": "application/json" },
+        });
+      }
+
+      // ----- PREVIEW MODE: use AI to re-plan -----
+      // Fetch lightweight context for smarter adjustment
+      const { data: recentCheckins } = await supabase
+        .from("daily_checkins")
+        .select("mood_score, energy_score")
+        .eq("user_id", userId)
+        .order("checkin_date", { ascending: false })
+        .limit(3);
+
+      const avgEnergy = recentCheckins && recentCheckins.length > 0
+        ? recentCheckins.reduce((s, c) => s + (c.energy_score || 3), 0) / recentCheckins.length
+        : 3;
+
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      const nowHour = new Date().getHours();
+
+      const modeGuidance: Record<string, string> = {
+        less_time: "User has less time. Cut total duration by ~40%, keep priority topics, drop low-impact ones.",
+        tired: "User is tired. Reduce difficulty one notch, cut duration ~30%, prefer review over new material.",
+        push_harder: "User wants challenge. Add 25% duration on hard topics, bump difficulty one notch where possible.",
+        quick_review: "Convert all tasks into 15-25min spaced-repetition review of weak topics. Keep them light cognitively.",
+        swap_subject: "Reorder for optimal interleaving: never two consecutive same-subject tasks. Shuffle topics within subject if needed.",
+        evening: `It's ${nowHour}h. Reduce cognitive load: shorter blocks, easier difficulty, recall practice over new theory.`,
+      };
+
+      const adjustPrompt = `You are NEXUS, a science-based study planner. Adjust today's remaining tasks based on the user's state.
+
+CURRENT TASKS (do NOT change ids):
+${JSON.stringify(tasks.map((t: any) => ({ id: t.id, subject_id: t.subject_id, topic: t.topic, duration_minutes: t.duration_minutes, difficulty: t.difficulty })), null, 2)}
+
+USER STATE:
+- Energy: ${avgEnergy.toFixed(1)}/5
+- Local hour: ${nowHour}
+- Adjustment mode: ${mode} → ${modeGuidance[mode] || "Rebalance sensibly."}
+
+RULES:
+- Keep ALL task ids unchanged.
+- Duration: 15-90 min per task.
+- Difficulty: easy | medium | hard.
+- Interleave subjects (no two consecutive same subject_id when possible).
+- You may rewrite the topic to be more specific or shift focus (e.g. "Derivatives — practice problems" → "Derivatives — recall flashcards").
+
+Return ONLY JSON:
+{
+  "rationale": "one short sentence explaining the change",
+  "tasks": [
+    { "id": "...", "subject_name": "...", "topic": "...", "duration_minutes": 30, "difficulty": "medium" }
+  ]
+}`;
+
+      const subjectNameById: Record<string, string> = {};
+      const { data: subjList } = await supabase.from("study_subjects").select("id, subject_name").eq("user_id", userId);
+      (subjList || []).forEach((s: any) => { subjectNameById[s.id] = s.subject_name; });
+
+      let rationale = "Rebalanced your remaining quests.";
+      let proposedTasks: any[] = [];
+
+      try {
+        const aiRes = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              { role: "system", content: "You return only valid JSON. No prose outside the JSON." },
+              { role: "user", content: adjustPrompt },
+            ],
+          }),
+        });
+        const aiData = await aiRes.json();
+        const content = aiData.choices?.[0]?.message?.content || "{}";
+        const jsonMatch = content.match(/\{[\s\S]*\}/);
+        const parsed = jsonMatch ? JSON.parse(jsonMatch[0]) : null;
+        if (parsed?.tasks && Array.isArray(parsed.tasks)) {
+          rationale = parsed.rationale || rationale;
+          proposedTasks = parsed.tasks
+            .map((p: any) => {
+              const orig = tasks.find((t: any) => t.id === p.id);
+              if (!orig) return null;
+              return {
+                id: orig.id,
+                subject_name: p.subject_name || subjectNameById[orig.subject_id] || "Subject",
+                topic: typeof p.topic === "string" ? p.topic.slice(0, 200) : orig.topic,
+                duration_minutes: Math.max(15, Math.min(90, Number(p.duration_minutes) || orig.duration_minutes)),
+                difficulty: ["easy", "medium", "hard"].includes(p.difficulty) ? p.difficulty : orig.difficulty,
+              };
+            })
+            .filter(Boolean);
+        }
+      } catch (e) {
+        console.error("Adjust AI error:", e);
+      }
+
+      // Deterministic fallback if AI failed
+      if (proposedTasks.length === 0) {
+        const fallbackAdjust: Record<string, { d: number; df: number }> = {
+          less_time: { d: 0.6, df: 0 },
+          tired: { d: 0.7, df: -1 },
+          push_harder: { d: 1.25, df: 1 },
+          quick_review: { d: 0.5, df: -1 },
+          swap_subject: { d: 1, df: 0 },
+          evening: { d: 0.75, df: -1 },
+        };
+        const a = fallbackAdjust[mode] || fallbackAdjust.less_time;
+        const order = ["easy", "medium", "hard"];
+        proposedTasks = tasks.map((t: any) => {
+          const idx = order.indexOf(t.difficulty);
+          const newIdx = Math.max(0, Math.min(2, idx + a.df));
+          return {
+            id: t.id,
+            subject_name: subjectNameById[t.subject_id] || "Subject",
+            topic: t.topic,
+            duration_minutes: Math.max(15, Math.round(t.duration_minutes * a.d)),
+            difficulty: order[newIdx],
+          };
+        });
+        rationale = `Quick rebalance for ${mode.replace("_", " ")}.`;
+      }
+
+      return new Response(JSON.stringify({ success: true, preview: true, rationale, tasks: proposedTasks }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "__legacy_adjust_disabled__") {
       const adjustments = {
         less_time: { durationMultiplier: 0.6, difficultyShift: 0 },
         tired: { durationMultiplier: 0.7, difficultyShift: -1 },
         push_harder: { durationMultiplier: 1.25, difficultyShift: 1 },
         quick_review: { durationMultiplier: 0.5, difficultyShift: -1 },
       };
-
-      const adjustment = adjustments[mode as keyof typeof adjustments] || adjustments.less_time;
-      const difficultyOrder = ["easy", "medium", "hard"];
-
-      const updates = tasks.map((task) => {
-        let newDuration = Math.max(15, Math.round(task.duration_minutes * adjustment.durationMultiplier));
-        
-        let currentDiffIndex = difficultyOrder.indexOf(task.difficulty);
-        let newDiffIndex = Math.max(0, Math.min(2, currentDiffIndex + adjustment.difficultyShift));
-        let newDifficulty = difficultyOrder[newDiffIndex];
-
-        return {
-          id: task.id,
-          duration_minutes: newDuration,
-          difficulty: newDifficulty,
-        };
-      });
-
-      for (const update of updates) {
-        await supabase
-          .from("study_tasks")
-          .update({
-            duration_minutes: update.duration_minutes,
-            difficulty: update.difficulty,
-          })
-          .eq("id", update.id);
-      }
-
-      return new Response(JSON.stringify({ 
-        success: true, 
-        tasksAdjusted: updates.length,
-        mode: mode,
-        newTotalMinutes: updates.reduce((s, t) => s + t.duration_minutes, 0)
-      }), {
-        headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+      void adjustments;
+      return new Response(JSON.stringify({ success: false }), { headers: corsHeaders, status: 400 });
     }
 
     throw new Error(`Unknown action: ${action}`);
