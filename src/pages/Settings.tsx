@@ -305,7 +305,7 @@ const Settings = () => {
           <SectionHeader label="About" />
           <Card className="overflow-hidden divide-y divide-border">
             <SettingsRow icon={Share2} label="Share App" onClick={handleShare} />
-            <SettingsRow icon={Shield} label="Privacy Policy" onClick={() => setPrivacyDialogOpen(true)} />
+            <SettingsRow icon={Shield} label="Privacy  Policy" onClick={() => setPrivacyDialogOpen(true)} />
             <SettingsRow icon={Shield} label="Terms of Service" onClick={() => toast({ title: "Coming soon" })} />
             <SettingsRow icon={MessageSquare} label="Send Feedback" onClick={() => setFeedbackDialogOpen(true)} />
             {isMobile ? (
