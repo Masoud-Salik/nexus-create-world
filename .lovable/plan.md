@@ -1,61 +1,175 @@
-# Plan — Chat UX polish (4 fixes)
 
-## 1. Fix "zoom / horizontal scroll appearing 1–2s after AI response"
+# Focus Hub — Major Upgrade Plan
 
-Root cause: Radix `ScrollArea` wraps its children in a `<div style="display: table">` viewport. When the streamed assistant message finishes (and React re-renders with the final markdown), wide intrinsic content (long code lines, tables, unbreakable strings) makes that `table` div expand past 100% width, so the whole chat thread becomes horizontally scrollable.
+## 1. Current State (audit)
 
-Changes:
-- **`src/index.css`** — globally force every Radix scroll-area viewport's inner table div to behave like a block of width 100%:
-  ```css
-  [data-radix-scroll-area-viewport] > div[style*="table"] {
-    display: block !important;
-    width: 100% !important;
-    min-width: 0 !important;
-  }
-  ```
-- **`src/pages/Index.tsx`** — on the messages `ScrollArea`, add `[&_[data-radix-scroll-area-viewport]]:!block` belt-and-braces; wrap the `messages.map(...)` in `<div className="w-full max-w-full min-w-0 overflow-x-hidden">`.
-- **`src/components/ChatMessage.tsx`** — tighten markdown safety:
-  - Add `w-full max-w-full` to the outer `group` div.
-  - On the prose div add `[&_*]:max-w-full [&_img]:h-auto [&_a]:break-all`.
-  - Wrap `<SyntaxHighlighter>` in a `max-w-full overflow-x-auto` container (already present, verify wrapper has `width:100%`).
+**Strengths**
+- Solid wall-clock-synced global timer (`GlobalTimerContext` + service worker) with persistence and background notifications.
+- Clean SVG ring, gradient stroke, scrub-bar duration selector, preset chips, session pips (6/day), short motivational quote.
+- Background music + alarm/ringtone system already wired in.
+- Mode toggle (Focus / Blueprint / Stats) and a `FloatingAIChat` anchored near the ring.
 
-## 2. Instant finger-following swipe drawer (no delay open/close)
+**Weaknesses & gaps (vs Forest, Centered, Flow Club, Endel, Brain.fm, Notion Calendar, Duolingo)**
 
-Current: gesture is detected only on `touchend`, then Radix `Sheet` plays a 300–500ms slide-in. Result feels laggy.
+1. **Static & shallow**: ring + numbers + start. No environment, no narrative, no immersion. Looks like every other Pomodoro app.
+2. **No adaptive intelligence**: duration is manual; doesn't learn from completion rate, time-of-day energy (we already collect `daily_checkins`), prior session quality, or weekly deficit.
+3. **No real "focus" affordances**: no full-screen Deep Focus / theater mode, no distraction shield (tab-switch / blur detection), no commitment device, no "what are you focusing on?" intent capture before each session.
+4. **Weak feedback loop**: session ends → toast → break. No reflection (1-tap rating), no flow score, no streak-of-the-day visualization, no XP/level tie-in (we already have `src/utils/xp.ts`).
+5. **Ambient/audio is one button**: just lo-fi on/off. No soundscape picker (rain, café, forest, brown noise, binaural beta/alpha), no per-soundscape volume mix, no ducking when alarms play (we have global music but not layered ambience).
+6. **No breathing / transition rituals**: studies show 30-60s pre-session priming dramatically lifts focus quality. We jump straight in.
+7. **Break time is dumb**: forced 5-min coffee break. No micro-stretch prompts, eye-rest (20-20-20), hydration nudge, breathing exercise, or AI-suggested break activity.
+8. **No social / ambient presence**: no "X people focusing right now" counter (we already have leaderboard infra), no co-focus rooms.
+9. **NEXUS chat is decorative on the focus screen**: it's not session-aware — can't auto-ask "what's blocking you?" mid-pause, can't summarise the session, can't generate a 60-second recall quiz at the end.
+10. **Stats inside Focus Hub are absent**: today's focus minutes, current streak, best session, weekly focus heatmap aren't visible without leaving the screen.
+11. **Accessibility & ergonomics**: no haptic patterns per phase, no reduced-motion path for the pulsing ring, contrast on `text-info` break state, no keyboard shortcuts (space=pause, R=reset, B=break).
+12. **`StudyTaskTimer` feels disconnected** from the polished Pomodoro UI — different fonts, different controls, no shared "focus chrome".
 
-Replace the chat-history Radix `Sheet` with a custom drawer that translates with the finger:
-- **`src/pages/Index.tsx`**:
-  - Add state `drawerX` (number, px) and `drawerDragging` (bool).
-  - On `onTouchStart` inside left 35% of the screen (and not on input/pre/code), start tracking.
-  - On `onTouchMove`, set `drawerX = clamp(deltaX, 0, drawerWidth)` and translate the drawer with `transform: translate3d(${drawerX - drawerWidth}px,0,0)` — no transition while dragging.
-  - On `onTouchEnd`, decide open/close by threshold (drawerX > drawerWidth * 0.4 OR velocity > 0.5 px/ms) and animate the remainder with a single 150ms transition.
-  - Same logic in reverse when drawer is open (touchstart anywhere → drag left to close).
-  - Add backdrop element that fades opacity proportionally to `drawerX / drawerWidth`.
-- Keep the `Menu` button as a tap-to-open fallback that animates open with the same 150ms transition.
+---
 
-## 3. Shrink chat-history drawer to ~65% width
+## 2. Vision
 
-In the new custom drawer (replacing `SheetContent`):
-- `width: min(65vw, 320px)` on mobile, `sm:w-80` on desktop.
-- Drawer height = `100dvh`, background = `bg-background`, border-right, shadow-xl.
-- All existing content (search input, New Chat button, grouped conversation list) moves into this drawer unchanged.
+A **Focus Cockpit** — cinematic, scientific, alive. Inspired by:
+- **Endel / Brain.fm** — adaptive soundscapes tuned to focus state.
+- **Flow Club / Centered** — pre-flight ritual + intent capture + flow score.
+- **Forest** — commitment device & visible growth.
+- **Apple Fitness rings** — daily progress always visible.
+- **Linear / Arc** — restrained, premium, keyboard-first.
 
-## 4. Better error handling, especially for guests
+Three layers:
 
-Centralize a small helper and wire it into the gated entry points:
-- **`src/utils/errorUtils.ts`** — add `requireAuth(user, action, openAuth)` that, when `user` is null, fires a single toast (`"Sign in to {action}"`) AND triggers the project's auth dialog. Returns boolean.
-- **`src/pages/Index.tsx`** — replace the current `if (!user)` toast in `handleSend` with `requireAuth(user, "chat with the AI", () => setShowAuthDialog(true))`. Also gate suggestion clicks and regenerate the same way.
-- **`src/pages/StudyCoach.tsx`** — find the "Generate plan" / "Ask AI" handlers and apply `requireAuth(...)` before the call (instead of silent failure / generic toast). Show the existing Auth dialog modal.
-- **`src/components/study-coach/SmartAdjust.tsx`, `TaskBreakdown.tsx`, `NextTaskCard.tsx`** — if any of them call edge functions, wrap with `requireAuth`. (Read each before editing; only add the guard, no behavior change for signed-in users.)
-- **`src/utils/errorUtils.ts`** — extend `ERROR_MESSAGES` with `"JWT expired"`, `"Invalid JWT"`, `"row-level security"` → friendly messages, and add a dedicated message for `"AI usage limit"` / `"quota"`.
-- **`src/pages/Index.tsx`** chat stream: on 401/403 specifically, call `requireAuth(...)` instead of throwing a generic error.
+```text
+┌──────────────────────────────────────────────┐
+│  AMBIENT LAYER   (background scene + audio) │
+│  ┌────────────────────────────────────────┐ │
+│  │  COCKPIT       (ring, intent, HUD)     │ │
+│  │  ┌──────────────────────────────────┐  │ │
+│  │  │  NEXUS COPILOT (slide-in pill)   │  │ │
+│  │  └──────────────────────────────────┘  │ │
+│  └────────────────────────────────────────┘ │
+└──────────────────────────────────────────────┘
+```
 
-## Files to touch
+---
 
-- `src/index.css` (1 small rule)
-- `src/pages/Index.tsx` (drawer rewrite, swipe, guards)
-- `src/components/ChatMessage.tsx` (overflow hardening)
-- `src/utils/errorUtils.ts` (helper + new mappings)
-- `src/pages/StudyCoach.tsx` and 2–3 study-coach components (guest gating only)
+## 3. Feature Upgrades
 
-No backend, DB, or edge-function changes.
+### A. Pre-Flight Ritual (3-tap launch)
+Before the timer starts:
+1. **Intent**: "What are you focusing on?" — single-line input, auto-suggests from today's tasks / recent topics. Saved with session.
+2. **Energy check**: 3 emoji chips (🥱 / 🙂 / 🔥). Maps to recommended duration:
+   - 🥱 → 20-25m, easy material
+   - 🙂 → 45m default
+   - 🔥 → 60-90m deep block
+3. **Soundscape**: 6 presets (Silence, Lo-fi, Rain, Café, Forest, Brown Noise, Binaural 14Hz). Remembers last choice per energy.
+4. **60-second breathing primer** (skippable): box-breath SVG animation, ring pre-fills as countdown finishes → seamless transition into focus.
+
+### B. Adaptive Session Engine
+Server util `adaptiveDuration(userId)`:
+- Reads last 14 days of `study_sessions`, average completion ratio, current `daily_checkin` energy, time-of-day (we have `time-aware-ai-system`), weekly target deficit from `weekly_goals`.
+- Returns suggested duration + confidence + science reason ("Your 9-11am completion rate is 92% on 45m blocks").
+- Surfaced as a dismissible "✨ Suggested: 45m" chip above the scrub bar; user can accept with one tap.
+
+### C. Cinematic Cockpit (visual upgrade)
+- **Aurora background**: subtle CSS conic-gradient that slowly rotates while running, tinted by subject color or soundscape (rain=cool blue, forest=emerald, café=warm amber). Reduced-motion fallback = static gradient.
+- **Dual-ring design**: outer ring = current session progress; inner thin ring = daily focus goal (e.g., 4h target). Daily progress always visible.
+- **Center stack**: intent text (12pt), monospaced HH:MM:SS, finish time, "🌱 growing" micro-status.
+- **Pulse & glow** tied to phase: green at 70%, gold at 100%, red countdown <10s.
+- **Theater mode** (`F` key or button): hides nav, sidebar, status bars — true full-screen focus.
+
+### D. Distraction Shield
+- Listen for `document.visibilitychange` + `window.blur`. Each tab-switch during an active session increments a `distractions` count and dims the ring slightly.
+- End-of-session card shows "Focus Score" = duration weight × (1 − distractions/threshold) × completion ratio.
+- Optional "Strict mode" toggle: if user switches away >3 times, session is auto-marked Partial. Pure client-side; no permissions needed.
+
+### E. Layered Soundscapes
+- New `useSoundscape` hook with Web Audio API: 6 looping audio sources mixable, each with its own gain. Master volume + per-track sliders behind a small "🎚 Mix" sheet.
+- Auto-ducks to 30% when alarm plays, restores after.
+- Persists last mix to localStorage.
+- All audio lazy-loaded (only fetched when first selected) to keep bundle small.
+
+### F. Smart Breaks
+- After a focus block, micro-card rotates through:
+  - 20-20-20 eye rest (visual cue)
+  - 4-7-8 breathing
+  - Quick stretch GIF (CSS-only stick figure)
+  - Hydration nudge (every 3rd break)
+  - NEXUS-generated 30s recall quiz from the just-completed intent ("Name 3 things you just learned about X").
+- Break length adapts: 5m after 25-45m focus, 10m after 60-90m, 15m every 4 sessions (long break rule).
+
+### G. Session Debrief
+End card replaces current toast:
+- ⭐ rating chips (1-3): Flow / OK / Distracted
+- Auto-computed Focus Score (0-100) + XP earned (via `src/utils/xp.ts`)
+- "What did you accomplish?" → 1-line input, saved as session note.
+- One-tap: Start Next, Take Break, End for the Day.
+
+### H. NEXUS in-Focus Copilot
+Upgrade `FloatingAIChat` with `mode="focus"`:
+- Auto-seeds: intent, elapsed, distractions, subject.
+- Three quick-action chips during pause: "I'm stuck", "Explain this concept", "Quiz me 60s".
+- Post-session: auto-prompt "Want a 3-bullet recap?" — uses session intent + duration.
+
+### I. Always-Visible Stats Strip
+Slim header strip above the ring:
+- 🔥 Streak  |  ⏱ Today XmXX of goal  |  🏆 Level N (Xxp to next)  |  🌎 1,247 focusing now (live count from `weekly_leaderboard` rollup or a lightweight realtime presence).
+
+### J. Keyboard & Haptics
+- `Space` pause/resume, `R` reset, `F` theater, `B` break, `M` mute, `1/2/3` energy.
+- Haptic patterns: 10ms tap on start, double-tap on 70%, triple on done. Respect Reduced Motion.
+
+### K. StudyTaskTimer parity
+Refactor `StudyTaskTimer` to reuse the new `<FocusRing/>` + `<FocusHUD/>` primitives so both Pomodoro and Task modes share the same cockpit shell, with subject icon/color replacing the soundscape theming.
+
+---
+
+## 4. New / Edited Files
+
+**New components** (`src/components/study-coach/focus/`)
+- `FocusCockpit.tsx` — top-level shell, mode/state machine.
+- `FocusRing.tsx` — dual-ring SVG, glow, pulse, reduced-motion variant.
+- `FocusHUD.tsx` — intent / time / finish / status stack.
+- `PreFlight.tsx` — intent + energy + soundscape + breathing primer.
+- `SoundscapeMixer.tsx` — sheet with 6 layered tracks + per-track sliders.
+- `DistractionShield.tsx` — visibility/blur listener + counter UI.
+- `SmartBreakCard.tsx` — rotating break activities.
+- `SessionDebrief.tsx` — rating, score, XP, note, next-action.
+- `FocusStatsStrip.tsx` — streak / today / level / live count.
+- `AuroraBackground.tsx` — animated tinted gradient.
+
+**New hooks / utils**
+- `src/hooks/useSoundscape.ts` — Web Audio mixer.
+- `src/hooks/useDistractionTracker.ts`.
+- `src/hooks/useKeyboardShortcuts.ts`.
+- `src/utils/adaptiveDuration.ts` — client heuristic (reads cached sessions + checkin).
+- `src/utils/focusScore.ts` — formula.
+
+**Edited**
+- `src/pages/StudyCoach.tsx` — mount `FocusCockpit` in `studyMode === "timer"` and inside `StudyTaskTimer` path.
+- `src/components/study-coach/PomodoroTimer.tsx` — slim wrapper around `FocusCockpit` (keeps API).
+- `src/components/study-coach/StudyTaskTimer.tsx` — adopt shared cockpit.
+- `src/components/study-coach/FloatingAIChat.tsx` — add `mode="focus"` + auto-seed.
+- `src/contexts/GlobalTimerContext.tsx` — extend state with `intent`, `distractions`, `soundscape`, `energy`; persist them.
+- `src/index.css` — aurora keyframes, dual-ring tokens, reduced-motion guards.
+
+**Audio assets** (lazy-loaded from `public/sounds/`)
+- `rain.mp3`, `cafe.mp3`, `forest.mp3`, `brown-noise.mp3`, `binaural-14hz.mp3`. (Add as small loops, ~30-60s each, looped seamlessly.)
+
+**No DB schema changes required** — we already have `study_sessions` (notes/interruptions columns can hold intent + distractions); if a column is missing we'll write a tiny additive migration with proper GRANTs + RLS, but plan assumes existing columns suffice.
+
+---
+
+## 5. Out of Scope
+- Blueprint, Stats tab, Settings, Leaderboard pages (left as-is).
+- Mobile native app (`mobile/`).
+- Co-focus rooms / WebRTC (parking lot for v2).
+- Account-level realtime presence beyond a cheap polled count.
+
+---
+
+## 6. Technical Notes
+- All visuals CSS/SVG (no chart libs), per project rules.
+- Fonts stay Montserrat / Cormorant / IBM Plex Mono.
+- Tokens only (no hardcoded colors); add aurora + soundscape tint tokens to `index.css`.
+- Wall-clock timer architecture preserved — new state fields piggyback on existing persistence.
+- All new audio behind dynamic `import()` + `<audio preload="none">` so initial bundle is unchanged.
+- Accessibility: full keyboard control, ARIA live region for time milestones, prefers-reduced-motion honored throughout.
