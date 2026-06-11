@@ -12,13 +12,10 @@ import { StudyTaskTimer, ActiveTask, CompletionStatus } from "@/components/study
 import { SubjectManager } from "@/components/study-coach/SubjectManager";
 import { PlanDurationSelector, PlanDuration } from "@/components/study-coach/PlanDurationSelector";
 import { PomodoroTimer } from "@/components/study-coach/PomodoroTimer";
+import { FocusCockpit } from "@/components/study-coach/focus/FocusCockpit";
 import { useLocalStudyPlan } from "@/hooks/useLocalStudyPlan";
 import { BackgroundMusicPlayer } from "@/components/study-coach/BackgroundMusicPlayer";
 import { FloatingAIChat } from "@/components/study-coach/FloatingAIChat";
-import { StudyPath } from "@/components/study-coach/StudyPath";
-import { LifeProgress } from "@/components/study-coach/LifeProgress";
-import { PlanAdjusterSheet, AdjustMode, ProposedTask } from "@/components/study-coach/PlanAdjusterSheet";
-import { taskXp, sumXp } from "@/utils/xp";
 import { format, startOfWeek, endOfWeek } from "date-fns";
 import { Auth } from "@/components/Auth";
 import { getUserFriendlyError } from "@/utils/errorUtils";
@@ -108,10 +105,6 @@ export default function StudyCoach() {
   const [streak, setStreak] = useState(0);
   const [hasGeneratedOnce, setHasGeneratedOnce] = useState(false);
   const autoGenerateAttempted = useRef(false);
-
-  // Weekly minutes (last 7 days, oldest → today) for heat strip
-  const [weeklyMinutes, setWeeklyMinutes] = useState<number[]>([0, 0, 0, 0, 0, 0, 0]);
-  const [lifetimeXp, setLifetimeXp] = useState(0);
 
   // Local caching for instant updates
   const { cachedTasks, isCacheValid, saveTasks, updateTaskLocally, clearCache } = useLocalStudyPlan(userId);
@@ -204,30 +197,6 @@ export default function StudyCoach() {
       maybeSingle();
 
       setStreak(habitData?.current_streak || 0);
-
-      // Load last 7 days of sessions for the weekly heat strip + lifetime XP estimate
-      const sevenDaysAgo = format(new Date(Date.now() - 6 * 86400000), "yyyy-MM-dd");
-      const { data: weekSessions } = await supabase
-        .from("study_sessions")
-        .select("session_date, time_spent_minutes")
-        .eq("user_id", userId)
-        .gte("session_date", sevenDaysAgo);
-
-      const buckets = [0, 0, 0, 0, 0, 0, 0];
-      (weekSessions || []).forEach((s: any) => {
-        const d = new Date(s.session_date);
-        const idx = 6 - Math.floor((Date.now() - d.getTime()) / 86400000);
-        if (idx >= 0 && idx < 7) buckets[idx] += s.time_spent_minutes || 0;
-      });
-      setWeeklyMinutes(buckets);
-
-      // Lifetime XP: approx using total minutes × 1.2 (medium baseline)
-      const { data: allSessions } = await supabase
-        .from("study_sessions")
-        .select("time_spent_minutes")
-        .eq("user_id", userId);
-      const totalMins = (allSessions || []).reduce((s: number, x: any) => s + (x.time_spent_minutes || 0), 0);
-      setLifetimeXp(Math.round(totalMins * 1.2));
     } catch (error) {
       console.error("Error loading data:", error);
     } finally {
@@ -506,47 +475,6 @@ export default function StudyCoach() {
   const nextTask = pendingTasks[0];
   const otherTasks = pendingTasks.slice(1);
   const pendingMinutes = pendingTasks.reduce((sum, t) => sum + t.duration_minutes, 0);
-  const todayCompletedXp = sumXp(completedTasks);
-  const todayTotalXp = sumXp(cachedTasks);
-  const weeklyGoalMinutes = subjects.reduce((s, x) => s + (x.weekly_target_minutes || 0), 0) || 300;
-
-  // ---------- AI Plan Adjuster ----------
-  const handleAdjustPreview = async (mode: AdjustMode) => {
-    if (isGuest) {
-      toast({ title: "Sign in to adjust plans" });
-      setAuthDialogOpen(true);
-      return null;
-    }
-    if (!userId) return null;
-    try {
-      const { data, error } = await supabase.functions.invoke("study-coach", {
-        body: { action: "adjust-plan", userId, mode, preview: true },
-      });
-      if (error) throw error;
-      if (data?.tasks && Array.isArray(data.tasks)) {
-        return { tasks: data.tasks as ProposedTask[], rationale: data.rationale || "" };
-      }
-      return null;
-    } catch (e) {
-      toast({ title: "Couldn't generate adjustment", description: getUserFriendlyError(e), variant: "destructive" });
-      return null;
-    }
-  };
-
-  const handleAdjustApply = async (proposed: ProposedTask[]) => {
-    if (!userId) return;
-    try {
-      const { error } = await supabase.functions.invoke("study-coach", {
-        body: { action: "adjust-plan", userId, preview: false, proposed },
-      });
-      if (error) throw error;
-      clearCache();
-      toast({ title: "Plan updated! 🎯" });
-      loadData();
-    } catch (e) {
-      toast({ title: "Couldn't apply plan", description: getUserFriendlyError(e), variant: "destructive" });
-    }
-  };
 
   if (loading) {
     return (
@@ -650,29 +578,30 @@ export default function StudyCoach() {
           </div>
         }
 
-        {/* Quick AI chat available DURING a study session */}
-        {activeTask && userId && !isGuest && (
-          <FloatingAIChat
-            anchor="session"
-            label="Ask"
-            taskContext={{
-              subject: activeTask.subject_name,
-              topic: activeTask.topic,
-            }}
-          />
-        )}
-
         {/* Pomodoro Timer Mode */}
         {!activeTask && studyMode === "timer" &&
         <div className="flex-1 flex flex-col justify-center">
-            <PomodoroTimer
-            onSessionComplete={(minutes, focusType) => {
-              toast({
-                title: "Session complete! 🎉",
-                description: `${minutes} minutes of ${focusType} logged`
-              });
-            }} />
-          
+            <FocusCockpit
+              userId={userId}
+              streak={streak}
+              todayMinutes={0}
+              level={1}
+              xpInLevel={0}
+              xpForLevel={100}
+              onSessionLogged={(minutes, intent) => {
+                toast({
+                  title: "Session complete! 🎉",
+                  description: `${minutes}m on ${intent || "deep work"} logged`,
+                });
+                if (userId) {
+                  supabase.from("study_sessions").insert({
+                    user_id: userId,
+                    topic: intent || "Focus session",
+                    time_spent_minutes: minutes,
+                  }).then(() => {});
+                }
+              }} />
+
           </div>
         }
 
@@ -698,75 +627,72 @@ export default function StudyCoach() {
 
             <div className="flex-1 flex flex-col px-4 py-4 md:px-0 md:py-0 max-w-lg mx-auto w-full">
             
-            {/* Life Progress — Level, XP, quests, weekly heat */}
-            {cachedTasks.length > 0 && (
-              <div className="mb-4">
-                <LifeProgress
-                  todayCompletedXp={todayCompletedXp}
-                  todayTotalXp={todayTotalXp}
-                  totalLifetimeXp={lifetimeXp + todayCompletedXp}
-                  completedCount={completedTasks.length}
-                  totalCount={cachedTasks.length}
-                  pendingMinutes={pendingMinutes}
-                  streak={streak}
-                  weeklyMinutes={weeklyMinutes}
-                  weeklyGoalMinutes={weeklyGoalMinutes}
-                />
-              </div>
-            )}
-
-            {/* Study Path — gamified zig-zag node trail */}
-            <div className="flex-1 flex flex-col py-2">
-              {cachedTasks.length > 0 ? (
-                <>
-                  <StudyPath
-                  tasks={cachedTasks}
-                  onStart={handleStartTask}
-                  onAskNexus={(task) => {
-                    // Trigger floating chat with task context — handled via simple toast hint for now
-                    toast({
-                      title: `Ask NEXUS about ${task.subject_name}`,
-                      description: "Open the chat bubble — your task is pre-loaded as context.",
-                    });
-                  }}
+            {/* Compact Stats Bar */}
+            {cachedTasks.length > 0 &&
+              <div className="mb-4 space-y-2">
+                <div className="flex items-center justify-between">
+                  <span className="text-sm font-semibold text-foreground">Today's Progress</span>
+                  <span className="text-sm font-bold text-foreground">{Math.round(completedTasks.length / cachedTasks.length * 100)}%</span>
+                </div>
+                <div className="h-2 bg-muted rounded-full overflow-hidden">
+                  <div
+                    className="h-full bg-primary rounded-full transition-all duration-500"
+                    style={{ width: `${completedTasks.length / cachedTasks.length * 100}%` }}
                   />
-                  {pendingTasks.length === 0 && (
-                    <div className="text-center py-6 space-y-4 mt-4">
-                      <p className="text-sm text-muted-foreground">All quests cleared. Legends don't stop here.</p>
-                      <div className="rounded-2xl border-2 border-dashed border-primary/40 bg-gradient-to-br from-primary/5 to-primary/10 p-4 mx-auto max-w-xs">
-                        <div className="flex items-center justify-center gap-2 mb-2">
-                          <Zap className="h-5 w-5 text-primary" />
-                          <p className="font-bold text-base text-foreground">Bonus Round</p>
-                          <Zap className="h-5 w-5 text-primary" />
-                        </div>
-                        <p className="text-[11px] text-muted-foreground mb-3">Earn <span className="font-bold text-primary">1.5x XP</span> on bonus minutes</p>
-                        <div className="flex gap-2 justify-center">
-                          {[15, 25, 45].map(mins => (
-                            <button key={mins}
-                              className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all"
-                              onClick={() => {
-                                if (isGuest) { toast({ title: "Sign up for bonus rounds", variant: "destructive" }); return; }
-                                if (!userId) return;
-                                const subj = subjects[0];
-                                if (!subj) return;
-                                supabase.from("study_sessions").insert({
-                                  user_id: userId, subject_id: subj.id, topic: "Bonus Session",
-                                  time_spent_minutes: mins, session_date: format(new Date(), "yyyy-MM-dd"), is_bonus: true,
-                                }).then(() => {
-                                  toast({ title: `Bonus +${mins}min logged! 🔥`, description: "1.5x XP earned" });
-                                  loadData();
-                                });
-                              }}>
-                              <span className="text-base">⚡</span>
-                              <span className="text-xs font-bold text-primary">{mins}m</span>
-                            </button>
-                          ))}
+                </div>
+                <div className="flex items-center gap-3">
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-muted rounded-full text-xs text-muted-foreground">
+                    <ClockIcon className="h-3 w-3" /> {pendingMinutes}m left
+                  </span>
+                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 rounded-full text-xs text-primary font-medium">
+                    <CheckCircle2 className="h-3 w-3" /> {completedTasks.length}/{cachedTasks.length}
+                  </span>
+                </div>
+              </div>
+            }
+
+            {/* Task Cards */}
+            <div className="flex-1 flex flex-col py-2 space-y-3">
+              
+              {nextTask ?
+              <>
+                {pendingTasks.map((task) => {
+                  const Icon = taskIconMap[task.icon_name] || Book;
+                  const diff = difficultyConfig[task.difficulty] || difficultyConfig.medium;
+                  return (
+                    <div
+                      key={task.id}
+                      className="flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-border bg-card hover:border-primary/30 transition-colors"
+                    >
+                      <div
+                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
+                        style={{ backgroundColor: `${task.color}20` }}
+                      >
+                        <Icon className="h-5 w-5" style={{ color: task.color }} />
+                      </div>
+                      <div className="flex-1 min-w-0">
+                        <p className="font-bold text-foreground text-sm">{task.subject_name}</p>
+                        <p className="text-xs text-muted-foreground truncate">{task.topic}</p>
+                        <div className="flex items-center gap-2 mt-1.5">
+                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
+                            <ClockIcon className="h-2.5 w-2.5" /> {task.duration_minutes}m
+                          </span>
+                          <span className={cn("inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium", diff.color)}>
+                            {diff.emoji} {diff.label}
+                          </span>
                         </div>
                       </div>
+                      <button
+                        onClick={() => handleStartTask(task.id)}
+                        className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90 active:scale-95 transition-all"
+                      >
+                        <Play className="h-3.5 w-3.5 fill-current" /> Start
+                      </button>
                     </div>
-                  )}
-                </>
-              ) : (
+                  );
+                })}
+              </> :
+            cachedTasks.length === 0 ? (
             /* Empty State - No Tasks */
             <div className="text-center py-8">
                   <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
@@ -799,8 +725,46 @@ export default function StudyCoach() {
                       Add Subjects
                     </Button>
               }
-                </div>
-              )}
+                </div>) : (
+
+            /* All Tasks Completed — Break The Rules */
+            <div className="text-center py-6 space-y-5">
+                  <div className="text-6xl mb-2">🏆</div>
+                  <h3 className="text-xl font-bold text-foreground">
+                    You crushed it!
+                  </h3>
+                  <p className="text-sm text-muted-foreground">All tasks done. But legends don't stop here.</p>
+                  <div className="rounded-2xl border-2 border-dashed border-primary/40 bg-gradient-to-br from-primary/5 to-primary/10 p-5 mx-auto max-w-xs">
+                    <div className="flex items-center justify-center gap-2 mb-3">
+                      <Zap className="h-6 w-6 text-primary" />
+                      <p className="font-bold text-lg text-foreground">Break The Rules</p>
+                      <Zap className="h-6 w-6 text-primary" />
+                    </div>
+                    <p className="text-xs text-muted-foreground mb-4">Go beyond your plan for <span className="font-bold text-primary text-sm">1.5x XP!</span></p>
+                    <div className="flex gap-2.5 justify-center">
+                      {[15, 25, 45].map(mins => (
+                        <button key={mins}
+                          className="flex flex-col items-center gap-1 px-4 py-3 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all"
+                          onClick={() => {
+                            if (isGuest) { toast({ title: "Sign up for bonus rounds", variant: "destructive" }); return; }
+                            if (!userId) return;
+                            const subj = subjects[0];
+                            if (!subj) return;
+                            supabase.from("study_sessions").insert({
+                              user_id: userId, subject_id: subj.id, topic: "Bonus Session",
+                              time_spent_minutes: mins, session_date: format(new Date(), "yyyy-MM-dd"), is_bonus: true,
+                            }).then(() => {
+                              toast({ title: `Bonus +${mins}min logged! 🔥`, description: "1.5x XP earned" });
+                            });
+                          }}>
+                          <span className="text-lg">⚡</span>
+                          <span className="text-sm font-bold text-primary">{mins}m</span>
+                        </button>
+                      ))}
+                    </div>
+                  </div>
+                </div>)
+            }
             </div>
             </div>
           </div>
@@ -829,13 +793,28 @@ export default function StudyCoach() {
         </Dialog>
 
         {/* Adjust Plan Dialog */}
-        <PlanAdjusterSheet
-          open={adjustOpen}
-          onOpenChange={setAdjustOpen}
-          currentTasks={pendingTasks}
-          onPreview={handleAdjustPreview}
-          onApply={handleAdjustApply}
-        />
+        <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
+          <DialogContent>
+            <DialogHeader>
+              <DialogTitle>Adjust Today's Plan</DialogTitle>
+            </DialogHeader>
+            <div className="space-y-2 mt-2">
+              {adjustOptions.map((option) =>
+              <button
+                key={option.mode}
+                onClick={() => handleAdjustPlan(option.mode)}
+                className={cn("w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left tap-effect", option.bg, option.border, "hover:opacity-80")}>
+                
+                  <span className="text-2xl">{option.emoji}</span>
+                  <div className="flex-1">
+                    <p className={cn("font-medium", option.text)}>{option.title}</p>
+                    <p className="text-sm text-muted-foreground">{option.desc}</p>
+                  </div>
+                </button>
+              )}
+            </div>
+          </DialogContent>
+        </Dialog>
 
         {/* Guest auth prompt */}
         <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
