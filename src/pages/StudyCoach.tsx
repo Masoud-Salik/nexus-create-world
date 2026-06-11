@@ -12,6 +12,7 @@ import { StudyTaskTimer, ActiveTask, CompletionStatus } from "@/components/study
 import { SubjectManager } from "@/components/study-coach/SubjectManager";
 import { PlanDurationSelector, PlanDuration } from "@/components/study-coach/PlanDurationSelector";
 import { PomodoroTimer } from "@/components/study-coach/PomodoroTimer";
+import { FocusCockpit } from "@/components/study-coach/focus/FocusCockpit";
 import { useLocalStudyPlan } from "@/hooks/useLocalStudyPlan";
 import { BackgroundMusicPlayer } from "@/components/study-coach/BackgroundMusicPlayer";
 import { FloatingAIChat } from "@/components/study-coach/FloatingAIChat";
@@ -580,14 +581,27 @@ export default function StudyCoach() {
         {/* Pomodoro Timer Mode */}
         {!activeTask && studyMode === "timer" &&
         <div className="flex-1 flex flex-col justify-center">
-            <PomodoroTimer
-            onSessionComplete={(minutes, focusType) => {
-              toast({
-                title: "Session complete! 🎉",
-                description: `${minutes} minutes of ${focusType} logged`
-              });
-            }} />
-          
+            <FocusCockpit
+              userId={userId}
+              streak={streak}
+              todayMinutes={0}
+              level={1}
+              xpInLevel={0}
+              xpForLevel={100}
+              onSessionLogged={(minutes, intent) => {
+                toast({
+                  title: "Session complete! 🎉",
+                  description: `${minutes}m on ${intent || "deep work"} logged`,
+                });
+                if (userId) {
+                  supabase.from("study_sessions").insert({
+                    user_id: userId,
+                    topic: intent || "Focus session",
+                    time_spent_minutes: minutes,
+                  }).then(() => {});
+                }
+              }} />
+
           </div>
         }
 
