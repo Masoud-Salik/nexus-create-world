@@ -22,23 +22,22 @@ export async function suggestDuration(
     const since = new Date(Date.now() - 14 * 24 * 3600 * 1000).toISOString();
     const { data, error } = await supabase
       .from("study_sessions")
-      .select("duration_minutes, actual_minutes, completed_at")
+      .select("time_spent_minutes, session_date")
       .eq("user_id", userId)
-      .gte("completed_at", since)
+      .gte("created_at", since)
       .limit(60);
     if (error || !data || data.length === 0) {
       return { minutes: snap(base), reason: energyReason(energy, hour), confidence: 0.55 };
     }
-    const ratios = data
-      .filter((r: any) => r.duration_minutes > 0)
-      .map((r: any) => Math.min(1, (r.actual_minutes ?? r.duration_minutes) / r.duration_minutes));
-    const avg = ratios.reduce((s, n) => s + n, 0) / Math.max(1, ratios.length);
+    const lengths = data.map((r: any) => r.time_spent_minutes).filter((n: number) => n > 0);
+    const avgLen = lengths.reduce((s: number, n: number) => s + n, 0) / Math.max(1, lengths.length);
     let adjusted = base;
-    if (avg >= 0.9) adjusted = Math.min(90, base + 10);
-    else if (avg < 0.6) adjusted = Math.max(20, base - 15);
+    // If you typically sustain longer than base, lean up; if shorter, lean down
+    if (avgLen >= base + 15) adjusted = Math.min(90, base + 10);
+    else if (avgLen <= base - 15) adjusted = Math.max(20, base - 10);
     return {
       minutes: snap(adjusted),
-      reason: `${Math.round(avg * 100)}% recent completion · ${energyReason(energy, hour)}`,
+      reason: `${Math.round(avgLen)}m avg recent · ${energyReason(energy, hour)}`,
       confidence: 0.75,
     };
   } catch {
