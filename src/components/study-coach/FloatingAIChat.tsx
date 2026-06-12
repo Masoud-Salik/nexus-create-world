@@ -8,7 +8,20 @@ const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 type MiniMessage = { role: "user" | "assistant"; content: string };
 
-export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blueprint" | "default" }) {
+export interface TaskContext {
+  intent?: string;
+  elapsedSeconds?: number;
+  plannedMinutes?: number;
+  subject?: string;
+}
+
+export function FloatingAIChat({
+  anchor = "default",
+  taskContext,
+}: {
+  anchor?: "ring" | "blueprint" | "default" | "focus-active";
+  taskContext?: TaskContext;
+}) {
   const [isOpen, setIsOpen] = useState(false);
   const [messages, setMessages] = useState<MiniMessage[]>([]);
   const [input, setInput] = useState("");
@@ -42,7 +55,13 @@ export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blue
       const { data: { session } } = await supabase.auth.getSession();
       if (!session?.access_token) { setIsLoading(false); return; }
 
-      const allMessages = [...messages, userMsg];
+      const contextPreamble: MiniMessage[] = taskContext?.intent
+        ? [{
+            role: "user",
+            content: `[Context — currently focusing on: "${taskContext.intent}"${taskContext.subject ? ` (${taskContext.subject})` : ""}${typeof taskContext.elapsedSeconds === "number" ? `, ${Math.round(taskContext.elapsedSeconds / 60)}m elapsed of ${taskContext.plannedMinutes ?? "?"}m planned` : ""}. Keep replies under 2 sentences.]`,
+          }]
+        : [];
+      const allMessages = [...contextPreamble, ...messages, userMsg];
       const response = await fetch(CHAT_URL, {
         method: "POST",
         headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
@@ -105,11 +124,15 @@ export function FloatingAIChat({ anchor = "default" }: { anchor?: "ring" | "blue
       ? "fixed top-[88px] right-3 z-50"
       : anchor === "blueprint"
       ? "fixed right-3 bottom-[80px] z-50"
+      : anchor === "focus-active"
+      ? "fixed bottom-24 right-3 z-50"
       : "fixed bottom-20 right-3 z-50";
 
   const overlayCls =
     anchor === "ring"
       ? "fixed top-[140px] right-3 left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
+      : anchor === "focus-active"
+      ? "fixed right-3 bottom-[150px] left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
       : "fixed right-3 bottom-[140px] left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200";
 
   return (
