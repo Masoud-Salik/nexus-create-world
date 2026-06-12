@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -523,7 +523,16 @@ export default function StudyCoach() {
   const pendingMinutes = pendingTasks.reduce((sum, t) => sum + t.duration_minutes, 0);
 
   // Per-day counts for WeekRibbon
-  const weekPerDay = useMemoLike(weekTasks);
+  const weekPerDay = useMemo(() => {
+    const map = new Map<string, { total: number; done: number }>();
+    weekTasks.forEach((t) => {
+      const entry = map.get(t.task_date) || { total: 0, done: 0 };
+      entry.total += 1;
+      if (t.status === "completed") entry.done += 1;
+      map.set(t.task_date, entry);
+    });
+    return Array.from(map.entries()).map(([date, v]) => ({ date, ...v }));
+  }, [weekTasks]);
 
   // Tasks for selected day (today uses cache for instant updates)
   const isToday = selectedDate === format(new Date(), "yyyy-MM-dd");
