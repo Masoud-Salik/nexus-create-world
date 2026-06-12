@@ -1,16 +1,20 @@
 import { useEffect, useMemo, useState } from "react";
-import { Pause, Play, RotateCcw, Maximize2, Minimize2, Volume2, VolumeX } from "lucide-react";
+import { Pause, Play, RotateCcw, Maximize2, Minimize2, Volume2, VolumeX, X } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { useGlobalTimer } from "@/contexts/GlobalTimerContext";
 import { useSoundscape, SOUNDSCAPES, SoundscapeId } from "@/hooks/useSoundscape";
 import { useDistractionTracker } from "@/hooks/useDistractionTracker";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
+import { useToast } from "@/hooks/use-toast";
 import { AuroraBackground } from "./AuroraBackground";
 import { FocusRing } from "./FocusRing";
 import { PreFlight, Energy } from "./PreFlight";
 import { BreathingPrimer } from "./BreathingPrimer";
 import { SessionDebrief } from "./SessionDebrief";
 import { FocusStatsStrip } from "./FocusStatsStrip";
+import { SmartBreakCard } from "./SmartBreakCard";
+import { FloatingAIChat } from "@/components/study-coach/FloatingAIChat";
+import { calcFocusScore } from "@/utils/focusScore";
 import { Slider } from "@/components/ui/slider";
 import { Sheet, SheetContent, SheetTrigger } from "@/components/ui/sheet";
 
@@ -21,7 +25,8 @@ interface Props {
   level: number;
   xpInLevel: number;
   xpForLevel: number;
-  onSessionLogged?: (minutes: number, intent: string) => void;
+  dailyGoalMinutes?: number;
+  onSessionLogged?: (payload: { minutes: number; intent: string; distractions: number; focusScore: number }) => void;
 }
 
 const TINT_BY_SOUND: Record<SoundscapeId, "primary" | "rain" | "warm" | "night"> = {
@@ -32,10 +37,11 @@ const TINT_BY_SOUND: Record<SoundscapeId, "primary" | "rain" | "warm" | "night">
 };
 
 export function FocusCockpit({
-  userId, streak, todayMinutes, level, xpInLevel, xpForLevel, onSessionLogged,
+  userId, streak, todayMinutes, level, xpInLevel, xpForLevel, dailyGoalMinutes = 240, onSessionLogged,
 }: Props) {
   const { state, startPomodoro, startBreak, pause, resume, stop, stopAlarm, dismissDoneCard } = useGlobalTimer();
   const sound = useSoundscape();
+  const { toast } = useToast();
 
   const [theater, setTheater] = useState(false);
   const [primer, setPrimer] = useState<null | { config: LaunchConfig }>(null);
@@ -55,6 +61,19 @@ export function FocusCockpit({
   // Distraction tracking only during actual focus (not break, not alarm)
   const trackerActive = isRunning && !isBreak;
   const { distractions, reset: resetDistractions } = useDistractionTracker(trackerActive);
+  const [distractionWarned, setDistractionWarned] = useState(false);
+
+  useEffect(() => {
+    if (!trackerActive) { setDistractionWarned(false); return; }
+    if (distractions >= 3 && !distractionWarned) {
+      setDistractionWarned(true);
+      navigator.vibrate?.([10, 40, 10]);
+      toast({
+        title: "Focus drifting",
+        description: `${distractions} tab-switches — close distractions and breathe.`,
+      });
+    }
+  }, [distractions, trackerActive, distractionWarned, toast]);
 
   // Duck soundscape during alarm
   useEffect(() => {
@@ -66,9 +85,6 @@ export function FocusCockpit({
   useEffect(() => {
     if (showDoneCard && !isBreak && !debriefShown) setDebriefShown(true);
   }, [showDoneCard, isBreak, debriefShown]);
-
-  // Daily goal in minutes (configurable later)
-  const dailyGoal = 240;
 
   const formatTime = (s: number) => {
     const m = Math.floor(s / 60).toString().padStart(2, "0");
@@ -110,22 +126,32 @@ export function FocusCockpit({
 
   const handleReset = () => { stop(); setDebriefShown(false); };
 
+  const logSession = () => {
+    const { score } = calcFocusScore({ elapsedSeconds: elapsed, plannedSeconds: total, distractions });
+    onSessionLogged?.({
+      minutes: Math.round(elapsed / 60),
+      intent,
+      distractions,
+      focusScore: score,
+    });
+  };
+
   const handleDebriefContinue = (_rating: 1 | 2 | 3, _note: string) => {
-    if (onSessionLogged) onSessionLogged(Math.round(elapsed / 60), intent);
+    logSession();
     setDebriefShown(false);
     dismissDoneCard();
     startBreak(5 * 60);
   };
 
   const handleDebriefBreak = () => {
-    if (onSessionLogged) onSessionLogged(Math.round(elapsed / 60), intent);
+    logSession();
     setDebriefShown(false);
     dismissDoneCard();
     startBreak(5 * 60);
   };
 
   const handleDebriefEnd = () => {
-    if (onSessionLogged) onSessionLogged(Math.round(elapsed / 60), intent);
+    logSession();
     setDebriefShown(false);
     stop();
     sound.stop();
@@ -141,7 +167,7 @@ export function FocusCockpit({
 
   const tint = TINT_BY_SOUND[sound.active] || "primary";
   const progress = total > 0 ? elapsed / total : 0;
-  const goalProgress = Math.min(1, todayMinutes / Math.max(1, dailyGoal));
+  const goalProgress = Math.min(1, todayMinutes / Math.max(1, dailyGoalMinutes));
   const pulse = isRunning && timeLeft <= 10 && timeLeft > 0;
 
   // Idle state — show PreFlight
@@ -152,7 +178,7 @@ export function FocusCockpit({
         <FocusStatsStrip
           streak={streak}
           todayMinutes={todayMinutes}
-          goalMinutes={dailyGoal}
+          goalMinutes={dailyGoalMinutes}
           level={level}
           xpInLevel={xpInLevel}
           xpForLevel={xpForLevel}
@@ -198,11 +224,22 @@ export function FocusCockpit({
         <FocusStatsStrip
           streak={streak}
           todayMinutes={todayMinutes + Math.round(elapsed / 60)}
-          goalMinutes={dailyGoal}
+          goalMinutes={dailyGoalMinutes}
           level={level}
           xpInLevel={xpInLevel}
           xpForLevel={xpForLevel}
         />
+      )}
+
+      {/* Theater mode exit (mobile-friendly) */}
+      {theater && (
+        <button
+          onClick={() => setTheater(false)}
+          className="fixed top-4 right-4 z-50 h-10 w-10 rounded-full bg-card border border-border flex items-center justify-center shadow-lg"
+          aria-label="Exit theater"
+        >
+          <X className="h-4 w-4" />
+        </button>
       )}
 
       <FocusRing
@@ -333,10 +370,23 @@ export function FocusCockpit({
         />
       )}
 
-      {!debriefShown && isRunning && distractions === 0 && (
+      {/* Smart break card during break */}
+      {isBreak && !debriefShown && (
+        <SmartBreakCard intent={intent} />
+      )}
+
+      {!debriefShown && isRunning && !isBreak && distractions === 0 && (
         <p className="text-[11px] text-muted-foreground italic max-w-[260px] text-center animate-fade-in">
           🌱 Deep work is being deposited.
         </p>
+      )}
+
+      {/* Mid-session quick chat */}
+      {userId && isRunning && !isBreak && !debriefShown && !theater && (
+        <FloatingAIChat
+          anchor="focus-active"
+          taskContext={{ intent, elapsedSeconds: elapsed, plannedMinutes: Math.round(total / 60) }}
+        />
       )}
     </div>
   );
