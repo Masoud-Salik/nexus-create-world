@@ -690,73 +690,51 @@ export default function StudyCoach() {
             </div>
 
             <div className="flex-1 flex flex-col px-4 py-4 md:px-0 md:py-0 max-w-lg mx-auto w-full">
-            
-            {/* Compact Stats Bar */}
-            {cachedTasks.length > 0 &&
-              <div className="mb-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-foreground">Today's Progress</span>
-                  <span className="text-sm font-bold text-foreground">{Math.round(completedTasks.length / cachedTasks.length * 100)}%</span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full transition-all duration-500"
-                    style={{ width: `${completedTasks.length / cachedTasks.length * 100}%` }}
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-muted rounded-full text-xs text-muted-foreground">
-                    <ClockIcon className="h-3 w-3" /> {pendingMinutes}m left
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 rounded-full text-xs text-primary font-medium">
-                    <CheckCircle2 className="h-3 w-3" /> {completedTasks.length}/{cachedTasks.length}
-                  </span>
-                </div>
-              </div>
-            }
 
-            {/* Task Cards */}
-            <div className="flex-1 flex flex-col py-2 space-y-3">
-              
-              {nextTask ?
-              <>
-                {pendingTasks.map((task) => {
-                  const Icon = taskIconMap[task.icon_name] || Book;
-                  const diff = difficultyConfig[task.difficulty] || difficultyConfig.medium;
-                  return (
-                    <div
-                      key={task.id}
-                      className="flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-border bg-card hover:border-primary/30 transition-colors"
-                    >
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: `${task.color}20` }}
-                      >
-                        <Icon className="h-5 w-5" style={{ color: task.color }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-foreground text-sm">{task.subject_name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{task.topic}</p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                            <ClockIcon className="h-2.5 w-2.5" /> {task.duration_minutes}m
-                          </span>
-                          <span className={cn("inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium", diff.color)}>
-                            {diff.emoji} {diff.label}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleStartTask(task.id)}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90 active:scale-95 transition-all"
-                      >
-                        <Play className="h-3.5 w-3.5 fill-current" /> Start
-                      </button>
-                    </div>
-                  );
-                })}
-              </> :
-            cachedTasks.length === 0 ? (
+            {/* Life Progress (XP / level / quests / heatmap) */}
+            {!isGuest && <LifeProgress progress={progress} streak={streak} />}
+
+            {/* Week ribbon */}
+            <div className="mt-3">
+              <WeekRibbon
+                selectedDate={selectedDate}
+                onSelect={setSelectedDate}
+                perDay={weekPerDay}
+              />
+            </div>
+
+            {/* Day header + adjust button */}
+            {dayTasks.length > 0 && (
+              <div className="flex items-center justify-between mt-3 mb-1">
+                <div>
+                  <div className="text-sm font-bold text-foreground">
+                    {isToday ? "Today's path" : format(new Date(selectedDate), "EEEE, MMM d")}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {dayTasks.filter(t => t.status === "completed").length} / {dayTasks.length} done · {dayTasks.reduce((s, t) => s + t.duration_minutes, 0)}m total
+                  </div>
+                </div>
+                {isToday && cachedTasks.length > 0 && (
+                  <button
+                    onClick={() => setAdjustOpen(true)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-card border border-border text-xs font-semibold tap-effect hover:border-primary/40"
+                  >
+                    <Sliders className="h-3 w-3" /> Adjust
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Path (or empty / done states) */}
+            <div className="flex-1 flex flex-col py-2">
+              {dayTasks.length > 0 ? (
+                <StudyPath
+                  tasks={dayTasks}
+                  onStart={(id) => isToday && handleStartTask(id)}
+                  onMarkDone={isToday ? handleMarkDone : undefined}
+                  onSkip={isToday ? handleSkipTask : undefined}
+                />
+              ) : cachedTasks.length === 0 && isToday ? (
             /* Empty State - No Tasks */
             <div className="text-center py-8">
                   <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
@@ -789,8 +767,8 @@ export default function StudyCoach() {
                       Add Subjects
                     </Button>
               }
-                </div>) : (
-
+                </div>
+              ) : isToday && pendingTasks.length === 0 ? (
             /* All Tasks Completed — Break The Rules */
             <div className="text-center py-6 space-y-5">
                   <div className="text-6xl mb-2">🏆</div>
@@ -819,6 +797,7 @@ export default function StudyCoach() {
                               time_spent_minutes: mins, session_date: format(new Date(), "yyyy-MM-dd"), is_bonus: true,
                             }).then(() => {
                               toast({ title: `Bonus +${mins}min logged! 🔥`, description: "1.5x XP earned" });
+                              refreshProgress();
                             });
                           }}>
                           <span className="text-lg">⚡</span>
@@ -827,8 +806,12 @@ export default function StudyCoach() {
                       ))}
                     </div>
                   </div>
-                </div>)
-            }
+                </div>
+              ) : (
+                <div className="text-center py-10 text-sm text-muted-foreground">
+                  No tasks scheduled for this day.
+                </div>
+              )}
             </div>
             </div>
           </div>
