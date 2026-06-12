@@ -646,21 +646,23 @@ export default function StudyCoach() {
             <FocusCockpit
               userId={userId}
               streak={streak}
-              todayMinutes={0}
-              level={1}
-              xpInLevel={0}
-              xpForLevel={100}
-              onSessionLogged={(minutes, intent) => {
+              todayMinutes={progress.todayMinutes}
+              level={progress.level}
+              xpInLevel={progress.xpInLevel}
+              xpForLevel={progress.xpForLevel}
+              dailyGoalMinutes={progress.dailyGoalMinutes}
+              onSessionLogged={({ minutes, intent, distractions, focusScore }) => {
                 toast({
                   title: "Session complete! 🎉",
-                  description: `${minutes}m on ${intent || "deep work"} logged`,
+                  description: `${minutes}m · Focus ${focusScore} · ${distractions} distractions`,
                 });
                 if (userId) {
                   supabase.from("study_sessions").insert({
                     user_id: userId,
                     topic: intent || "Focus session",
                     time_spent_minutes: minutes,
-                  }).then(() => {});
+                    notes: encodeSessionNote({ intent, distractions, focusScore }),
+                  }).then(() => { refreshProgress(); });
                 }
               }} />
 
