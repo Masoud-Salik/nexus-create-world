@@ -13,6 +13,11 @@ import { SubjectManager } from "@/components/study-coach/SubjectManager";
 import { PlanDurationSelector, PlanDuration } from "@/components/study-coach/PlanDurationSelector";
 import { PomodoroTimer } from "@/components/study-coach/PomodoroTimer";
 import { FocusCockpit } from "@/components/study-coach/focus/FocusCockpit";
+import { StudyPath } from "@/components/study-coach/blueprint/StudyPath";
+import { LifeProgress } from "@/components/study-coach/blueprint/LifeProgress";
+import { WeekRibbon } from "@/components/study-coach/blueprint/WeekRibbon";
+import { PlanAdjusterSheet } from "@/components/study-coach/blueprint/PlanAdjusterSheet";
+import { useStudyProgress, encodeSessionNote } from "@/hooks/useStudyProgress";
 import { useLocalStudyPlan } from "@/hooks/useLocalStudyPlan";
 import { BackgroundMusicPlayer } from "@/components/study-coach/BackgroundMusicPlayer";
 import { FloatingAIChat } from "@/components/study-coach/FloatingAIChat";
@@ -100,6 +105,10 @@ export default function StudyCoach() {
   // Active timer state
   const [activeTask, setActiveTask] = useState<ActiveTask | null>(null);
 
+  // Week view state
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [weekTasks, setWeekTasks] = useState<Array<StudyTaskData & { task_date: string }>>([]);
+
   // Data states
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [streak, setStreak] = useState(0);
@@ -108,6 +117,9 @@ export default function StudyCoach() {
 
   // Local caching for instant updates
   const { cachedTasks, isCacheValid, saveTasks, updateTaskLocally, clearCache } = useLocalStudyPlan(userId);
+
+  // Gamification spine
+  const { progress, refresh: refreshProgress } = useStudyProgress(userId, isGuest);
 
   // Demo data for guest users
   const demoSubjects: Subject[] = [
@@ -160,6 +172,28 @@ export default function StudyCoach() {
       order("priority_order");
 
       setSubjects(subjectsData || []);
+
+      // Load the whole current week for the ribbon
+      const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+      const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+      const { data: weekData } = await supabase
+        .from("study_tasks")
+        .select(`id, topic, duration_minutes, difficulty, status, task_date,
+          study_subjects (subject_name, icon_name, color)`)
+        .eq("user_id", userId)
+        .gte("task_date", weekStart)
+        .lte("task_date", weekEnd);
+      setWeekTasks(((weekData || []) as any[]).map((t: any) => ({
+        id: t.id,
+        subject_name: t.study_subjects?.subject_name || "Unknown",
+        icon_name: t.study_subjects?.icon_name || "book",
+        color: t.study_subjects?.color || "#3b82f6",
+        topic: t.topic,
+        duration_minutes: t.duration_minutes,
+        difficulty: t.difficulty,
+        status: t.status,
+        task_date: t.task_date,
+      })));
 
       // Load today's tasks (only if cache is invalid)
       const today = format(new Date(), "yyyy-MM-dd");
@@ -295,7 +329,7 @@ export default function StudyCoach() {
   }, [loading, userId, subjects.length, cachedTasks.length, generating, hasGeneratedOnce]);
 
   const handleStartTask = useCallback((taskId: string) => {
-    const task = cachedTasks.find((t) => t.id === taskId);
+    const task = cachedTasks.find((t) => t.id === taskId) || weekTasks.find((t) => t.id === taskId);
     if (!task) return;
 
     updateTaskLocally(taskId, { status: "in_progress" });
@@ -322,7 +356,7 @@ export default function StudyCoach() {
     if (userId) {
       supabase.from("leaderboard_opt_ins").update({ is_studying: true }).eq("user_id", userId).then(() => {});
     }
-  }, [cachedTasks, updateTaskLocally, userId]);
+  }, [cachedTasks, weekTasks, updateTaskLocally, userId]);
 
   const handleTaskComplete = useCallback(async (
   taskId: string,
@@ -421,7 +455,19 @@ export default function StudyCoach() {
     } catch (error) {
       console.error("Background sync error:", error);
     }
-  }, [userId, isGuest, cachedTasks, subjects, updateTaskLocally, toast]);
+    refreshProgress();
+  }, [userId, isGuest, cachedTasks, subjects, updateTaskLocally, toast, refreshProgress]);
+  // Manual mark done / skip from StudyPath sheet
+  const handleMarkDone = useCallback(async (taskId: string) => {
+    const task = cachedTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    await handleTaskComplete(taskId, "completed", task.duration_minutes);
+  }, [cachedTasks, handleTaskComplete]);
+  const handleSkipTask = useCallback(async (taskId: string) => {
+    const task = cachedTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    await handleTaskComplete(taskId, "skipped", 0);
+  }, [cachedTasks, handleTaskComplete]);
 
   const handleCancelTask = useCallback(() => {
     if (!activeTask) return;
@@ -475,6 +521,13 @@ export default function StudyCoach() {
   const nextTask = pendingTasks[0];
   const otherTasks = pendingTasks.slice(1);
   const pendingMinutes = pendingTasks.reduce((sum, t) => sum + t.duration_minutes, 0);
+
+  // Per-day counts for WeekRibbon
+  const weekPerDay = useMemoLike(weekTasks);
+
+  // Tasks for selected day (today uses cache for instant updates)
+  const isToday = selectedDate === format(new Date(), "yyyy-MM-dd");
+  const dayTasks: StudyTaskData[] = isToday ? cachedTasks : weekTasks.filter((t) => t.task_date === selectedDate);
 
   if (loading) {
     return (
