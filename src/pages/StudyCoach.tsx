@@ -1,4 +1,4 @@
-import { useState, useEffect, useCallback, useRef } from "react";
+import { useState, useEffect, useCallback, useRef, useMemo } from "react";
 import { cn } from "@/lib/utils";
 import { useNavigate, Link } from "react-router-dom";
 import { supabase } from "@/integrations/supabase/client";
@@ -13,6 +13,11 @@ import { SubjectManager } from "@/components/study-coach/SubjectManager";
 import { PlanDurationSelector, PlanDuration } from "@/components/study-coach/PlanDurationSelector";
 import { PomodoroTimer } from "@/components/study-coach/PomodoroTimer";
 import { FocusCockpit } from "@/components/study-coach/focus/FocusCockpit";
+import { StudyPath } from "@/components/study-coach/blueprint/StudyPath";
+import { LifeProgress } from "@/components/study-coach/blueprint/LifeProgress";
+import { WeekRibbon } from "@/components/study-coach/blueprint/WeekRibbon";
+import { PlanAdjusterSheet } from "@/components/study-coach/blueprint/PlanAdjusterSheet";
+import { useStudyProgress, encodeSessionNote } from "@/hooks/useStudyProgress";
 import { useLocalStudyPlan } from "@/hooks/useLocalStudyPlan";
 import { BackgroundMusicPlayer } from "@/components/study-coach/BackgroundMusicPlayer";
 import { FloatingAIChat } from "@/components/study-coach/FloatingAIChat";
@@ -100,6 +105,10 @@ export default function StudyCoach() {
   // Active timer state
   const [activeTask, setActiveTask] = useState<ActiveTask | null>(null);
 
+  // Week view state
+  const [selectedDate, setSelectedDate] = useState(format(new Date(), "yyyy-MM-dd"));
+  const [weekTasks, setWeekTasks] = useState<Array<StudyTaskData & { task_date: string }>>([]);
+
   // Data states
   const [subjects, setSubjects] = useState<Subject[]>([]);
   const [streak, setStreak] = useState(0);
@@ -108,6 +117,9 @@ export default function StudyCoach() {
 
   // Local caching for instant updates
   const { cachedTasks, isCacheValid, saveTasks, updateTaskLocally, clearCache } = useLocalStudyPlan(userId);
+
+  // Gamification spine
+  const { progress, refresh: refreshProgress } = useStudyProgress(userId, isGuest);
 
   // Demo data for guest users
   const demoSubjects: Subject[] = [
@@ -160,6 +172,28 @@ export default function StudyCoach() {
       order("priority_order");
 
       setSubjects(subjectsData || []);
+
+      // Load the whole current week for the ribbon
+      const weekStart = format(startOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+      const weekEnd = format(endOfWeek(new Date(), { weekStartsOn: 1 }), "yyyy-MM-dd");
+      const { data: weekData } = await supabase
+        .from("study_tasks")
+        .select(`id, topic, duration_minutes, difficulty, status, task_date,
+          study_subjects (subject_name, icon_name, color)`)
+        .eq("user_id", userId)
+        .gte("task_date", weekStart)
+        .lte("task_date", weekEnd);
+      setWeekTasks(((weekData || []) as any[]).map((t: any) => ({
+        id: t.id,
+        subject_name: t.study_subjects?.subject_name || "Unknown",
+        icon_name: t.study_subjects?.icon_name || "book",
+        color: t.study_subjects?.color || "#3b82f6",
+        topic: t.topic,
+        duration_minutes: t.duration_minutes,
+        difficulty: t.difficulty,
+        status: t.status,
+        task_date: t.task_date,
+      })));
 
       // Load today's tasks (only if cache is invalid)
       const today = format(new Date(), "yyyy-MM-dd");
@@ -295,7 +329,7 @@ export default function StudyCoach() {
   }, [loading, userId, subjects.length, cachedTasks.length, generating, hasGeneratedOnce]);
 
   const handleStartTask = useCallback((taskId: string) => {
-    const task = cachedTasks.find((t) => t.id === taskId);
+    const task = cachedTasks.find((t) => t.id === taskId) || weekTasks.find((t) => t.id === taskId);
     if (!task) return;
 
     updateTaskLocally(taskId, { status: "in_progress" });
@@ -322,7 +356,7 @@ export default function StudyCoach() {
     if (userId) {
       supabase.from("leaderboard_opt_ins").update({ is_studying: true }).eq("user_id", userId).then(() => {});
     }
-  }, [cachedTasks, updateTaskLocally, userId]);
+  }, [cachedTasks, weekTasks, updateTaskLocally, userId]);
 
   const handleTaskComplete = useCallback(async (
   taskId: string,
@@ -421,7 +455,19 @@ export default function StudyCoach() {
     } catch (error) {
       console.error("Background sync error:", error);
     }
-  }, [userId, isGuest, cachedTasks, subjects, updateTaskLocally, toast]);
+    refreshProgress();
+  }, [userId, isGuest, cachedTasks, subjects, updateTaskLocally, toast, refreshProgress]);
+  // Manual mark done / skip from StudyPath sheet
+  const handleMarkDone = useCallback(async (taskId: string) => {
+    const task = cachedTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    await handleTaskComplete(taskId, "completed", task.duration_minutes);
+  }, [cachedTasks, handleTaskComplete]);
+  const handleSkipTask = useCallback(async (taskId: string) => {
+    const task = cachedTasks.find((t) => t.id === taskId);
+    if (!task) return;
+    await handleTaskComplete(taskId, "skipped", 0);
+  }, [cachedTasks, handleTaskComplete]);
 
   const handleCancelTask = useCallback(() => {
     if (!activeTask) return;
@@ -475,6 +521,22 @@ export default function StudyCoach() {
   const nextTask = pendingTasks[0];
   const otherTasks = pendingTasks.slice(1);
   const pendingMinutes = pendingTasks.reduce((sum, t) => sum + t.duration_minutes, 0);
+
+  // Per-day counts for WeekRibbon
+  const weekPerDay = useMemo(() => {
+    const map = new Map<string, { total: number; done: number }>();
+    weekTasks.forEach((t) => {
+      const entry = map.get(t.task_date) || { total: 0, done: 0 };
+      entry.total += 1;
+      if (t.status === "completed") entry.done += 1;
+      map.set(t.task_date, entry);
+    });
+    return Array.from(map.entries()).map(([date, v]) => ({ date, ...v }));
+  }, [weekTasks]);
+
+  // Tasks for selected day (today uses cache for instant updates)
+  const isToday = selectedDate === format(new Date(), "yyyy-MM-dd");
+  const dayTasks: StudyTaskData[] = isToday ? cachedTasks : weekTasks.filter((t) => t.task_date === selectedDate);
 
   if (loading) {
     return (
@@ -584,21 +646,23 @@ export default function StudyCoach() {
             <FocusCockpit
               userId={userId}
               streak={streak}
-              todayMinutes={0}
-              level={1}
-              xpInLevel={0}
-              xpForLevel={100}
-              onSessionLogged={(minutes, intent) => {
+              todayMinutes={progress.todayMinutes}
+              level={progress.level}
+              xpInLevel={progress.xpInLevel}
+              xpForLevel={progress.xpForLevel}
+              dailyGoalMinutes={progress.dailyGoalMinutes}
+              onSessionLogged={({ minutes, intent, distractions, focusScore }) => {
                 toast({
                   title: "Session complete! 🎉",
-                  description: `${minutes}m on ${intent || "deep work"} logged`,
+                  description: `${minutes}m · Focus ${focusScore} · ${distractions} distractions`,
                 });
                 if (userId) {
                   supabase.from("study_sessions").insert({
                     user_id: userId,
                     topic: intent || "Focus session",
                     time_spent_minutes: minutes,
-                  }).then(() => {});
+                    notes: encodeSessionNote({ intent, distractions, focusScore }),
+                  }).then(() => { refreshProgress(); });
                 }
               }} />
 
@@ -626,73 +690,51 @@ export default function StudyCoach() {
             </div>
 
             <div className="flex-1 flex flex-col px-4 py-4 md:px-0 md:py-0 max-w-lg mx-auto w-full">
-            
-            {/* Compact Stats Bar */}
-            {cachedTasks.length > 0 &&
-              <div className="mb-4 space-y-2">
-                <div className="flex items-center justify-between">
-                  <span className="text-sm font-semibold text-foreground">Today's Progress</span>
-                  <span className="text-sm font-bold text-foreground">{Math.round(completedTasks.length / cachedTasks.length * 100)}%</span>
-                </div>
-                <div className="h-2 bg-muted rounded-full overflow-hidden">
-                  <div
-                    className="h-full bg-primary rounded-full transition-all duration-500"
-                    style={{ width: `${completedTasks.length / cachedTasks.length * 100}%` }}
-                  />
-                </div>
-                <div className="flex items-center gap-3">
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-muted rounded-full text-xs text-muted-foreground">
-                    <ClockIcon className="h-3 w-3" /> {pendingMinutes}m left
-                  </span>
-                  <span className="inline-flex items-center gap-1 px-2.5 py-1 bg-primary/10 rounded-full text-xs text-primary font-medium">
-                    <CheckCircle2 className="h-3 w-3" /> {completedTasks.length}/{cachedTasks.length}
-                  </span>
-                </div>
-              </div>
-            }
 
-            {/* Task Cards */}
-            <div className="flex-1 flex flex-col py-2 space-y-3">
-              
-              {nextTask ?
-              <>
-                {pendingTasks.map((task) => {
-                  const Icon = taskIconMap[task.icon_name] || Book;
-                  const diff = difficultyConfig[task.difficulty] || difficultyConfig.medium;
-                  return (
-                    <div
-                      key={task.id}
-                      className="flex items-center gap-3 p-4 rounded-2xl border-2 border-dashed border-border bg-card hover:border-primary/30 transition-colors"
-                    >
-                      <div
-                        className="w-10 h-10 rounded-xl flex items-center justify-center shrink-0"
-                        style={{ backgroundColor: `${task.color}20` }}
-                      >
-                        <Icon className="h-5 w-5" style={{ color: task.color }} />
-                      </div>
-                      <div className="flex-1 min-w-0">
-                        <p className="font-bold text-foreground text-sm">{task.subject_name}</p>
-                        <p className="text-xs text-muted-foreground truncate">{task.topic}</p>
-                        <div className="flex items-center gap-2 mt-1.5">
-                          <span className="inline-flex items-center gap-0.5 text-[10px] text-muted-foreground">
-                            <ClockIcon className="h-2.5 w-2.5" /> {task.duration_minutes}m
-                          </span>
-                          <span className={cn("inline-flex items-center gap-0.5 text-[10px] px-1.5 py-0.5 rounded-full font-medium", diff.color)}>
-                            {diff.emoji} {diff.label}
-                          </span>
-                        </div>
-                      </div>
-                      <button
-                        onClick={() => handleStartTask(task.id)}
-                        className="flex items-center gap-1.5 px-4 py-2 bg-primary text-primary-foreground rounded-full text-sm font-bold hover:opacity-90 active:scale-95 transition-all"
-                      >
-                        <Play className="h-3.5 w-3.5 fill-current" /> Start
-                      </button>
-                    </div>
-                  );
-                })}
-              </> :
-            cachedTasks.length === 0 ? (
+            {/* Life Progress (XP / level / quests / heatmap) */}
+            {!isGuest && <LifeProgress progress={progress} streak={streak} />}
+
+            {/* Week ribbon */}
+            <div className="mt-3">
+              <WeekRibbon
+                selectedDate={selectedDate}
+                onSelect={setSelectedDate}
+                perDay={weekPerDay}
+              />
+            </div>
+
+            {/* Day header + adjust button */}
+            {dayTasks.length > 0 && (
+              <div className="flex items-center justify-between mt-3 mb-1">
+                <div>
+                  <div className="text-sm font-bold text-foreground">
+                    {isToday ? "Today's path" : format(new Date(selectedDate), "EEEE, MMM d")}
+                  </div>
+                  <div className="text-[11px] text-muted-foreground">
+                    {dayTasks.filter(t => t.status === "completed").length} / {dayTasks.length} done · {dayTasks.reduce((s, t) => s + t.duration_minutes, 0)}m total
+                  </div>
+                </div>
+                {isToday && cachedTasks.length > 0 && (
+                  <button
+                    onClick={() => setAdjustOpen(true)}
+                    className="inline-flex items-center gap-1 px-3 py-1.5 rounded-full bg-card border border-border text-xs font-semibold tap-effect hover:border-primary/40"
+                  >
+                    <Sliders className="h-3 w-3" /> Adjust
+                  </button>
+                )}
+              </div>
+            )}
+
+            {/* Path (or empty / done states) */}
+            <div className="flex-1 flex flex-col py-2">
+              {dayTasks.length > 0 ? (
+                <StudyPath
+                  tasks={dayTasks}
+                  onStart={(id) => isToday && handleStartTask(id)}
+                  onMarkDone={isToday ? handleMarkDone : undefined}
+                  onSkip={isToday ? handleSkipTask : undefined}
+                />
+              ) : cachedTasks.length === 0 && isToday ? (
             /* Empty State - No Tasks */
             <div className="text-center py-8">
                   <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
@@ -725,8 +767,8 @@ export default function StudyCoach() {
                       Add Subjects
                     </Button>
               }
-                </div>) : (
-
+                </div>
+              ) : isToday && pendingTasks.length === 0 ? (
             /* All Tasks Completed — Break The Rules */
             <div className="text-center py-6 space-y-5">
                   <div className="text-6xl mb-2">🏆</div>
@@ -755,6 +797,7 @@ export default function StudyCoach() {
                               time_spent_minutes: mins, session_date: format(new Date(), "yyyy-MM-dd"), is_bonus: true,
                             }).then(() => {
                               toast({ title: `Bonus +${mins}min logged! 🔥`, description: "1.5x XP earned" });
+                              refreshProgress();
                             });
                           }}>
                           <span className="text-lg">⚡</span>
@@ -763,8 +806,12 @@ export default function StudyCoach() {
                       ))}
                     </div>
                   </div>
-                </div>)
-            }
+                </div>
+              ) : (
+                <div className="text-center py-10 text-sm text-muted-foreground">
+                  No tasks scheduled for this day.
+                </div>
+              )}
             </div>
             </div>
           </div>
@@ -792,29 +839,12 @@ export default function StudyCoach() {
           </DialogContent>
         </Dialog>
 
-        {/* Adjust Plan Dialog */}
-        <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adjust Today's Plan</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-2 mt-2">
-              {adjustOptions.map((option) =>
-              <button
-                key={option.mode}
-                onClick={() => handleAdjustPlan(option.mode)}
-                className={cn("w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left tap-effect", option.bg, option.border, "hover:opacity-80")}>
-                
-                  <span className="text-2xl">{option.emoji}</span>
-                  <div className="flex-1">
-                    <p className={cn("font-medium", option.text)}>{option.title}</p>
-                    <p className="text-sm text-muted-foreground">{option.desc}</p>
-                  </div>
-                </button>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Adjust Plan Sheet — preview before apply */}
+        <PlanAdjusterSheet
+          open={adjustOpen}
+          onOpenChange={setAdjustOpen}
+          onApplied={() => { clearCache(); loadData(); refreshProgress(); }}
+        />
 
         {/* Guest auth prompt */}
         <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>

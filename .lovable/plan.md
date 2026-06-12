@@ -1,175 +1,114 @@
+## Diagnosis
 
-# Focus Hub — Major Upgrade Plan
+After reading `StudyCoach.tsx`, `focus/FocusCockpit.tsx`, `focus/PreFlight.tsx`, and `supabase/functions/study-coach/index.ts`, here is the honest state of the two surfaces.
 
-## 1. Current State (audit)
+### Focus Hub — what works
+- `FocusCockpit` with PreFlight → BreathingPrimer → Ring → Debrief flow is solid.
+- Wall-clock global timer, soundscape ducking, distraction tracker, keyboard shortcuts are in place.
+- Adaptive duration suggestion already pulls from `study_sessions`.
 
-**Strengths**
-- Solid wall-clock-synced global timer (`GlobalTimerContext` + service worker) with persistence and background notifications.
-- Clean SVG ring, gradient stroke, scrub-bar duration selector, preset chips, session pips (6/day), short motivational quote.
-- Background music + alarm/ringtone system already wired in.
-- Mode toggle (Focus / Blueprint / Stats) and a `FloatingAIChat` anchored near the ring.
+### Focus Hub — weaknesses
+1. **Stats strip is fake.** `StudyCoach.tsx` passes `todayMinutes={0} level={1} xpInLevel={0} xpForLevel={100}` — the level/XP/today badges always show zero. The whole gamification spine is decorative.
+2. **Session log is thin.** On `onSessionLogged` we insert a `study_sessions` row with no `subject_id`, no distractions, no focus score, no intent tagging. The data needed for adaptive duration to actually learn is being thrown away.
+3. **No mid-session quick chat.** `FloatingAIChat anchor="ring"` is gated on `!activeTask`, so the moment a task starts it disappears. The user explicitly asked for AI access while studying.
+4. **No distraction feedback loop.** The counter increments silently; user never sees "you tabbed out 3 times — strict mode?" intervention.
+5. **Smart breaks are missing.** Break starts as a plain 5-min countdown — no 20-20-20 eye prompt, no stretch card, no NEXUS recall quiz, no hydration nudge.
+6. **No session debrief intelligence.** Rating + note are captured but never sent to AI for next-session calibration or memory extraction.
+7. **Soundscape mixer is single-select.** "Layered" mixing promised in earlier plan was never built — one sound at a time, no per-layer volume.
+8. **Theater mode escape is half-implemented.** No exit affordance besides `Esc`/`F`; on mobile (no keyboard) there is only the small minimize button after the fact.
 
-**Weaknesses & gaps (vs Forest, Centered, Flow Club, Endel, Brain.fm, Notion Calendar, Duolingo)**
+### Blueprint — what works
+- AI generation calls edge function, falls back gracefully on parse fail.
+- Local-cache instant updates via `useLocalStudyPlan`.
+- "Break the Rules" bonus session block is a nice touch.
 
-1. **Static & shallow**: ring + numbers + start. No environment, no narrative, no immersion. Looks like every other Pomodoro app.
-2. **No adaptive intelligence**: duration is manual; doesn't learn from completion rate, time-of-day energy (we already collect `daily_checkins`), prior session quality, or weekly deficit.
-3. **No real "focus" affordances**: no full-screen Deep Focus / theater mode, no distraction shield (tab-switch / blur detection), no commitment device, no "what are you focusing on?" intent capture before each session.
-4. **Weak feedback loop**: session ends → toast → break. No reflection (1-tap rating), no flow score, no streak-of-the-day visualization, no XP/level tie-in (we already have `src/utils/xp.ts`).
-5. **Ambient/audio is one button**: just lo-fi on/off. No soundscape picker (rain, café, forest, brown noise, binaural beta/alpha), no per-soundscape volume mix, no ducking when alarms play (we have global music but not layered ambience).
-6. **No breathing / transition rituals**: studies show 30-60s pre-session priming dramatically lifts focus quality. We jump straight in.
-7. **Break time is dumb**: forced 5-min coffee break. No micro-stretch prompts, eye-rest (20-20-20), hydration nudge, breathing exercise, or AI-suggested break activity.
-8. **No social / ambient presence**: no "X people focusing right now" counter (we already have leaderboard infra), no co-focus rooms.
-9. **NEXUS chat is decorative on the focus screen**: it's not session-aware — can't auto-ask "what's blocking you?" mid-pause, can't summarise the session, can't generate a 60-second recall quiz at the end.
-10. **Stats inside Focus Hub are absent**: today's focus minutes, current streak, best session, weekly focus heatmap aren't visible without leaving the screen.
-11. **Accessibility & ergonomics**: no haptic patterns per phase, no reduced-motion path for the pulsing ring, contrast on `text-info` break state, no keyboard shortcuts (space=pause, R=reset, B=break).
-12. **`StudyTaskTimer` feels disconnected** from the polished Pomodoro UI — different fonts, different controls, no shared "focus chrome".
+### Blueprint — weaknesses
+1. **It's a flat list.** The Duolingo-style `StudyPath` referenced in earlier summaries does not exist on disk. Today's Blueprint is `pendingTasks.map(...)` cards — zero spatial story, zero progression feel.
+2. **No XP/level/quest system.** "Today's Progress" is just `completed / total`. There is no streak shield, no daily quest pips, no weekly heatmap, no rank.
+3. **Adjust plan is mechanical.** The edge function `adjust-plan` multiplies durations and shifts difficulty — no AI, no reshuffle, no preview-before-apply. `PlanAdjusterSheet` referenced earlier doesn't exist.
+4. **No weekly view.** Only "today" is visible. User cannot see tomorrow, the week, or drag to reschedule.
+5. **No manual task add / edit / reorder.** Everything must come from the AI.
+6. **Bonus rounds insert raw rows.** No XP multiplier persisted, no quest credit, no link back to the day's plan.
+7. **No "next-up" focus CTA from Blueprint into Focus Hub.** Switching modes requires manual tab tap.
+8. **Generation prompt ignores time-of-day.** Despite check-in data being pulled, the model never gets "user studies best 7-10am" type signal, nor topic interleaving constraints in the response schema.
 
 ---
 
-## 2. Vision
+## Upgrade Plan
 
-A **Focus Cockpit** — cinematic, scientific, alive. Inspired by:
-- **Endel / Brain.fm** — adaptive soundscapes tuned to focus state.
-- **Flow Club / Centered** — pre-flight ritual + intent capture + flow score.
-- **Forest** — commitment device & visible growth.
-- **Apple Fitness rings** — daily progress always visible.
-- **Linear / Arc** — restrained, premium, keyboard-first.
+Scope is deliberately split into 4 buckets so credit usage stays modest while still being a major visible jump. No new tables; reuse `study_sessions`, `study_tasks`, `habits`, `daily_checkins`.
 
-Three layers:
+### Bucket 1 — Wire the gamification spine (foundation for both pages)
 
-```text
-┌──────────────────────────────────────────────┐
-│  AMBIENT LAYER   (background scene + audio) │
-│  ┌────────────────────────────────────────┐ │
-│  │  COCKPIT       (ring, intent, HUD)     │ │
-│  │  ┌──────────────────────────────────┐  │ │
-│  │  │  NEXUS COPILOT (slide-in pill)   │  │ │
-│  │  └──────────────────────────────────┘  │ │
-│  └────────────────────────────────────────┘ │
-└──────────────────────────────────────────────┘
+Create `src/hooks/useStudyProgress.ts`:
+- Reads `study_sessions` for today and the trailing 7 days.
+- Computes: `todayMinutes`, `weekMinutesPerDay[7]`, `totalXp`, `level`, `xpInLevel`, `xpForLevel`, `dailyGoalMinutes` (from `daily_checkins.study_minutes` median or 60 default), `dailyQuestsDone[3]`.
+- XP formula already in `src/utils/xp.ts`; reuse.
+- Returns `{ progress, refresh }`. Auto-refresh after every session insert via a passed callback.
+
+Update `StudyCoach.tsx` to consume this hook and pass real values to `FocusCockpit` and to a new `LifeProgress` strip on Blueprint.
+
+### Bucket 2 — Blueprint redesign (the major visible upgrade)
+
+New components under `src/components/study-coach/blueprint/`:
+
+- **`StudyPath.tsx`** — Duolingo-style zig-zag SVG path. Each node = one task. States: completed (filled emerald with check), active (pulsing ring, "Start" CTA on tap), locked (greyed, requires prior node). Subject icon inside the node, difficulty ring color. Tapping active node opens a bottom sheet with topic, science_reason, "Start focus" (jumps to Focus Hub pre-seeded), "Mark done", "Skip".
+- **`LifeProgress.tsx`** — Top strip with: level badge + XP bar, 3 daily-quest pips ("Complete 1 task", "30+ min focus", "0 distractions in a block"), 7-day mini-heatmap (CSS grid, opacity by minutes), streak flame with shield indicator.
+- **`WeekRibbon.tsx`** — Horizontal scrollable Mon–Sun strip above the path. Each day shows mini-dot indicators per task (filled/empty). Tap a day to swap the path to that date's tasks. Today is highlighted, future days dimmed.
+- **`PlanAdjusterSheet.tsx`** — Bottom sheet with 4 mode chips (Less time, Tired, Push harder, Reshuffle). On select, calls edge function with `preview: true`, renders a diff card (`old → new` per task), then "Apply" or "Discard".
+- **`AddTaskSheet.tsx`** — Manual task creation: subject select, topic input, duration slider (15-90), difficulty chips, date picker. Posts to `study_tasks`.
+
+Layout swap in `StudyCoach.tsx`'s `studyMode === "plan"` branch: `<LifeProgress/>` → `<WeekRibbon/>` → `<StudyPath/>` (replaces the flat card list) → FAB row (Add task, Adjust, Subjects). Empty state and "all done — bonus round" survive but live below the path.
+
+### Bucket 3 — Smarter edge function
+
+Extend `supabase/functions/study-coach/index.ts`:
+
+- **`generate-daily-plan`**: enrich prompt with hourly preference (peak hour computed from past sessions' `created_at`), require `science_reason` and `slot_hint` ("morning"/"afternoon"/"evening") in JSON, enforce interleaving in a post-processing pass (swap adjacent same-subject tasks).
+- **New action `adjust-plan-preview`**: same as `adjust-plan` but returns the proposed updates as JSON instead of writing. Used by `PlanAdjusterSheet`.
+- **New action `adjust-plan-reshuffle`**: calls the AI to reorder + retitle remaining tasks based on time of day and weak topics. Returns preview.
+- **New action `debrief-session`**: takes `{ elapsed, planned, distractions, intent, rating, note }`, returns one-sentence calibration ("Next session try 35m — your sweet spot drops sharply past 40m on low-energy days").
+
+### Bucket 4 — Focus Hub polish
+
+- **Persistent quick chat during sessions.** Add `<FloatingAIChat anchor="ring" mode="focus" taskContext={{intent, elapsed, plannedMinutes}} />` in `FocusCockpit` rendered always (collapsed bubble) so it's reachable mid-study. Single-tap expand.
+- **Smart break cards.** Replace the plain break countdown with a rotating `<SmartBreakCard/>` (20-20-20 eye rest, box breathing, hydration nudge, stretch GIF, one NEXUS recall question seeded from `intent`). Card swaps every 30s.
+- **Distraction intervention.** When `distractions >= 3` in a single block, show a non-blocking toast: "3 tab-switches — enable Strict mode?" → toggles `useDistractionTracker` strict flag that auto-marks the session "partial" if it hits 5.
+- **Session log enrichment.** `onSessionLogged` callback receives `{ minutes, intent, distractions, focusScore, taskId? }` and writes to `study_sessions` with `subject_id` resolved from the active task (when launched from Blueprint) plus a `notes` field encoding `intent|distractions|score`.
+- **Debrief AI tip.** After rating, call the new `debrief-session` action and display the one-liner inside `SessionDebrief`.
+- **Theater mode mobile exit.** Add a persistent floating `×` in the top-right when `theater === true`.
+
+---
+
+## Technical details (skimmable)
+
+```
+src/
+  hooks/
+    useStudyProgress.ts         NEW — single source of truth for XP/level/today/week
+  components/study-coach/
+    blueprint/
+      StudyPath.tsx             NEW — SVG zig-zag
+      LifeProgress.tsx          NEW — level + quests + heatmap
+      WeekRibbon.tsx            NEW — day strip
+      PlanAdjusterSheet.tsx     NEW — preview diff
+      AddTaskSheet.tsx          NEW — manual add
+    focus/
+      SmartBreakCard.tsx        NEW — rotating break content
+      FocusCockpit.tsx          EDIT — wire real stats, persistent chat, theater × button
+      SessionDebrief.tsx        EDIT — show AI tip from edge fn
+  pages/
+    StudyCoach.tsx              EDIT — use useStudyProgress, swap plan layout, enrich onSessionLogged
+supabase/functions/study-coach/
+  index.ts                      EDIT — prompt upgrade + new actions (adjust-preview, reshuffle, debrief)
 ```
 
----
+DB: no schema changes. Bonus sessions already supported via `is_bonus`. Quest progress derived on read.
 
-## 3. Feature Upgrades
-
-### A. Pre-Flight Ritual (3-tap launch)
-Before the timer starts:
-1. **Intent**: "What are you focusing on?" — single-line input, auto-suggests from today's tasks / recent topics. Saved with session.
-2. **Energy check**: 3 emoji chips (🥱 / 🙂 / 🔥). Maps to recommended duration:
-   - 🥱 → 20-25m, easy material
-   - 🙂 → 45m default
-   - 🔥 → 60-90m deep block
-3. **Soundscape**: 6 presets (Silence, Lo-fi, Rain, Café, Forest, Brown Noise, Binaural 14Hz). Remembers last choice per energy.
-4. **60-second breathing primer** (skippable): box-breath SVG animation, ring pre-fills as countdown finishes → seamless transition into focus.
-
-### B. Adaptive Session Engine
-Server util `adaptiveDuration(userId)`:
-- Reads last 14 days of `study_sessions`, average completion ratio, current `daily_checkin` energy, time-of-day (we have `time-aware-ai-system`), weekly target deficit from `weekly_goals`.
-- Returns suggested duration + confidence + science reason ("Your 9-11am completion rate is 92% on 45m blocks").
-- Surfaced as a dismissible "✨ Suggested: 45m" chip above the scrub bar; user can accept with one tap.
-
-### C. Cinematic Cockpit (visual upgrade)
-- **Aurora background**: subtle CSS conic-gradient that slowly rotates while running, tinted by subject color or soundscape (rain=cool blue, forest=emerald, café=warm amber). Reduced-motion fallback = static gradient.
-- **Dual-ring design**: outer ring = current session progress; inner thin ring = daily focus goal (e.g., 4h target). Daily progress always visible.
-- **Center stack**: intent text (12pt), monospaced HH:MM:SS, finish time, "🌱 growing" micro-status.
-- **Pulse & glow** tied to phase: green at 70%, gold at 100%, red countdown <10s.
-- **Theater mode** (`F` key or button): hides nav, sidebar, status bars — true full-screen focus.
-
-### D. Distraction Shield
-- Listen for `document.visibilitychange` + `window.blur`. Each tab-switch during an active session increments a `distractions` count and dims the ring slightly.
-- End-of-session card shows "Focus Score" = duration weight × (1 − distractions/threshold) × completion ratio.
-- Optional "Strict mode" toggle: if user switches away >3 times, session is auto-marked Partial. Pure client-side; no permissions needed.
-
-### E. Layered Soundscapes
-- New `useSoundscape` hook with Web Audio API: 6 looping audio sources mixable, each with its own gain. Master volume + per-track sliders behind a small "🎚 Mix" sheet.
-- Auto-ducks to 30% when alarm plays, restores after.
-- Persists last mix to localStorage.
-- All audio lazy-loaded (only fetched when first selected) to keep bundle small.
-
-### F. Smart Breaks
-- After a focus block, micro-card rotates through:
-  - 20-20-20 eye rest (visual cue)
-  - 4-7-8 breathing
-  - Quick stretch GIF (CSS-only stick figure)
-  - Hydration nudge (every 3rd break)
-  - NEXUS-generated 30s recall quiz from the just-completed intent ("Name 3 things you just learned about X").
-- Break length adapts: 5m after 25-45m focus, 10m after 60-90m, 15m every 4 sessions (long break rule).
-
-### G. Session Debrief
-End card replaces current toast:
-- ⭐ rating chips (1-3): Flow / OK / Distracted
-- Auto-computed Focus Score (0-100) + XP earned (via `src/utils/xp.ts`)
-- "What did you accomplish?" → 1-line input, saved as session note.
-- One-tap: Start Next, Take Break, End for the Day.
-
-### H. NEXUS in-Focus Copilot
-Upgrade `FloatingAIChat` with `mode="focus"`:
-- Auto-seeds: intent, elapsed, distractions, subject.
-- Three quick-action chips during pause: "I'm stuck", "Explain this concept", "Quiz me 60s".
-- Post-session: auto-prompt "Want a 3-bullet recap?" — uses session intent + duration.
-
-### I. Always-Visible Stats Strip
-Slim header strip above the ring:
-- 🔥 Streak  |  ⏱ Today XmXX of goal  |  🏆 Level N (Xxp to next)  |  🌎 1,247 focusing now (live count from `weekly_leaderboard` rollup or a lightweight realtime presence).
-
-### J. Keyboard & Haptics
-- `Space` pause/resume, `R` reset, `F` theater, `B` break, `M` mute, `1/2/3` energy.
-- Haptic patterns: 10ms tap on start, double-tap on 70%, triple on done. Respect Reduced Motion.
-
-### K. StudyTaskTimer parity
-Refactor `StudyTaskTimer` to reuse the new `<FocusRing/>` + `<FocusHUD/>` primitives so both Pomodoro and Task modes share the same cockpit shell, with subject icon/color replacing the soundscape theming.
+Out of scope this pass: co-focus rooms, calendar drag-drop, push notifications, mobile native app, new tables. Those can come next round.
 
 ---
 
-## 4. New / Edited Files
+## Open question
 
-**New components** (`src/components/study-coach/focus/`)
-- `FocusCockpit.tsx` — top-level shell, mode/state machine.
-- `FocusRing.tsx` — dual-ring SVG, glow, pulse, reduced-motion variant.
-- `FocusHUD.tsx` — intent / time / finish / status stack.
-- `PreFlight.tsx` — intent + energy + soundscape + breathing primer.
-- `SoundscapeMixer.tsx` — sheet with 6 layered tracks + per-track sliders.
-- `DistractionShield.tsx` — visibility/blur listener + counter UI.
-- `SmartBreakCard.tsx` — rotating break activities.
-- `SessionDebrief.tsx` — rating, score, XP, note, next-action.
-- `FocusStatsStrip.tsx` — streak / today / level / live count.
-- `AuroraBackground.tsx` — animated tinted gradient.
-
-**New hooks / utils**
-- `src/hooks/useSoundscape.ts` — Web Audio mixer.
-- `src/hooks/useDistractionTracker.ts`.
-- `src/hooks/useKeyboardShortcuts.ts`.
-- `src/utils/adaptiveDuration.ts` — client heuristic (reads cached sessions + checkin).
-- `src/utils/focusScore.ts` — formula.
-
-**Edited**
-- `src/pages/StudyCoach.tsx` — mount `FocusCockpit` in `studyMode === "timer"` and inside `StudyTaskTimer` path.
-- `src/components/study-coach/PomodoroTimer.tsx` — slim wrapper around `FocusCockpit` (keeps API).
-- `src/components/study-coach/StudyTaskTimer.tsx` — adopt shared cockpit.
-- `src/components/study-coach/FloatingAIChat.tsx` — add `mode="focus"` + auto-seed.
-- `src/contexts/GlobalTimerContext.tsx` — extend state with `intent`, `distractions`, `soundscape`, `energy`; persist them.
-- `src/index.css` — aurora keyframes, dual-ring tokens, reduced-motion guards.
-
-**Audio assets** (lazy-loaded from `public/sounds/`)
-- `rain.mp3`, `cafe.mp3`, `forest.mp3`, `brown-noise.mp3`, `binaural-14hz.mp3`. (Add as small loops, ~30-60s each, looped seamlessly.)
-
-**No DB schema changes required** — we already have `study_sessions` (notes/interruptions columns can hold intent + distractions); if a column is missing we'll write a tiny additive migration with proper GRANTs + RLS, but plan assumes existing columns suffice.
-
----
-
-## 5. Out of Scope
-- Blueprint, Stats tab, Settings, Leaderboard pages (left as-is).
-- Mobile native app (`mobile/`).
-- Co-focus rooms / WebRTC (parking lot for v2).
-- Account-level realtime presence beyond a cheap polled count.
-
----
-
-## 6. Technical Notes
-- All visuals CSS/SVG (no chart libs), per project rules.
-- Fonts stay Montserrat / Cormorant / IBM Plex Mono.
-- Tokens only (no hardcoded colors); add aurora + soundscape tint tokens to `index.css`.
-- Wall-clock timer architecture preserved — new state fields piggyback on existing persistence.
-- All new audio behind dynamic `import()` + `<audio preload="none">` so initial bundle is unchanged.
-- Accessibility: full keyboard control, ARIA live region for time milestones, prefers-reduced-motion honored throughout.
+The plan is large but additive — no destructive rewrites. If you'd rather I land it in two waves (Bucket 1 + 2 first, then 3 + 4), say the word; otherwise I'll ship all four in one pass after you approve.

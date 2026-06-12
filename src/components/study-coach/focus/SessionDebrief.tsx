@@ -1,7 +1,8 @@
-import { useState } from "react";
-import { Sparkles, Trophy, Zap } from "lucide-react";
+import { useEffect, useState } from "react";
+import { Sparkles, Zap } from "lucide-react";
 import { cn } from "@/lib/utils";
 import { calcFocusScore } from "@/utils/focusScore";
+import { supabase } from "@/integrations/supabase/client";
 
 interface Props {
   elapsedSeconds: number;
@@ -21,6 +22,26 @@ export function SessionDebrief({
   const { score, xp, band } = calcFocusScore({
     elapsedSeconds, plannedSeconds, distractions, selfRating: rating ?? undefined,
   });
+
+  const [tip, setTip] = useState<string | null>(null);
+
+  useEffect(() => {
+    if (rating === null) return;
+    let cancelled = false;
+    supabase.functions
+      .invoke("study-coach", {
+        body: {
+          action: "debrief-session",
+          payload: { elapsed: elapsedSeconds, planned: plannedSeconds, distractions, intent, rating, score },
+        },
+      })
+      .then(({ data, error }) => {
+        if (cancelled || error) return;
+        if (data?.tip) setTip(data.tip);
+      })
+      .catch(() => {});
+    return () => { cancelled = true; };
+  }, [rating]); // eslint-disable-line react-hooks/exhaustive-deps
 
   const bandColor =
     band === "flow" ? "text-primary" :
@@ -81,6 +102,13 @@ export function SessionDebrief({
         placeholder={intent ? `What did you accomplish on "${intent}"?` : "What did you accomplish?"}
         className="w-full px-3 py-2.5 rounded-xl bg-muted/40 border border-border focus:border-primary outline-none text-sm transition-colors"
       />
+
+      {tip && (
+        <div className="rounded-xl border border-primary/30 bg-primary/5 p-3 flex gap-2 text-xs text-foreground/85 animate-fade-in">
+          <Sparkles className="h-4 w-4 text-primary shrink-0 mt-0.5" />
+          <span>{tip}</span>
+        </div>
+      )}
 
       <div className="grid grid-cols-3 gap-2">
         <button

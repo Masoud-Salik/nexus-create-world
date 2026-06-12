@@ -36,7 +36,7 @@ serve(async (req) => {
     const supabaseKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
     const supabase = createClient(supabaseUrl, supabaseKey);
 
-    const { action, mode, duration = "daily" } = await req.json();
+    const { action, mode, duration = "daily", payload } = await req.json();
 
     console.log(`Study Coach action: ${action} for user: ${userId}, duration: ${duration}`);
 
@@ -337,6 +337,69 @@ Return ONLY a JSON array:
         mode: mode,
         newTotalMinutes: updates.reduce((s, t) => s + t.duration_minutes, 0)
       }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "adjust-plan-preview") {
+      const today = new Date().toISOString().split("T")[0];
+      const { data: tasks } = await supabase
+        .from("study_tasks")
+        .select("id, topic, duration_minutes, difficulty, subject_id, study_subjects(subject_name)")
+        .eq("user_id", userId)
+        .eq("task_date", today)
+        .in("status", ["pending", "in_progress"]);
+
+      const adjustments: Record<string, { d: number; s: number }> = {
+        less_time: { d: 0.6, s: 0 },
+        tired: { d: 0.7, s: -1 },
+        push_harder: { d: 1.25, s: 1 },
+        reshuffle: { d: 1, s: 0 },
+      };
+      const adj = adjustments[mode as string] || adjustments.less_time;
+      const order = ["easy", "medium", "hard"];
+
+      const diffs = (tasks || []).map((t: any) => {
+        const newDur = Math.max(15, Math.round(t.duration_minutes * adj.d));
+        const newIdx = Math.max(0, Math.min(2, order.indexOf(t.difficulty) + adj.s));
+        return {
+          id: t.id,
+          topic: t.topic,
+          subject_name: t.study_subjects?.subject_name,
+          before: { duration_minutes: t.duration_minutes, difficulty: t.difficulty },
+          after: { duration_minutes: newDur, difficulty: order[newIdx] },
+        };
+      });
+
+      return new Response(JSON.stringify({ diffs }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json" },
+      });
+    }
+
+    if (action === "debrief-session") {
+      const { elapsed = 0, planned = 0, distractions = 0, intent = "", rating = 2, score = 0 } = payload || {};
+      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
+      const minutes = Math.round(elapsed / 60);
+      let tip = `Solid ${minutes}m block. Try the same length next session.`;
+      try {
+        const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
+          body: JSON.stringify({
+            model: "google/gemini-2.5-flash",
+            messages: [
+              { role: "system", content: "You are a focus coach. Reply in ONE sentence (max 22 words) with a concrete, science-backed calibration tip for the next session. No preface." },
+              { role: "user", content: `Just finished ${minutes}m on "${intent}" (planned ${Math.round(planned/60)}m). Focus score ${score}/100. ${distractions} distractions. Self-rating ${rating}/3. What should I do next?` },
+            ],
+          }),
+        });
+        const d = await r.json();
+        const c = d.choices?.[0]?.message?.content;
+        if (c) tip = String(c).trim().slice(0, 220);
+      } catch (e) {
+        console.error("debrief AI fail", e);
+      }
+      return new Response(JSON.stringify({ tip }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
     }
