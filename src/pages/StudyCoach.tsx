@@ -839,29 +839,12 @@ export default function StudyCoach() {
           </DialogContent>
         </Dialog>
 
-        {/* Adjust Plan Dialog */}
-        <Dialog open={adjustOpen} onOpenChange={setAdjustOpen}>
-          <DialogContent>
-            <DialogHeader>
-              <DialogTitle>Adjust Today's Plan</DialogTitle>
-            </DialogHeader>
-            <div className="space-y-2 mt-2">
-              {adjustOptions.map((option) =>
-              <button
-                key={option.mode}
-                onClick={() => handleAdjustPlan(option.mode)}
-                className={cn("w-full flex items-center gap-4 p-4 rounded-xl border transition-colors text-left tap-effect", option.bg, option.border, "hover:opacity-80")}>
-                
-                  <span className="text-2xl">{option.emoji}</span>
-                  <div className="flex-1">
-                    <p className={cn("font-medium", option.text)}>{option.title}</p>
-                    <p className="text-sm text-muted-foreground">{option.desc}</p>
-                  </div>
-                </button>
-              )}
-            </div>
-          </DialogContent>
-        </Dialog>
+        {/* Adjust Plan Sheet — preview before apply */}
+        <PlanAdjusterSheet
+          open={adjustOpen}
+          onOpenChange={setAdjustOpen}
+          onApplied={() => { clearCache(); loadData(); refreshProgress(); }}
+        />
 
         {/* Guest auth prompt */}
         <Dialog open={authDialogOpen} onOpenChange={setAuthDialogOpen}>
