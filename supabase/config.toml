@@ -29,3 +29,6 @@ verify_jwt = false
 
 [functions.update-ai-preferences]
 verify_jwt = false
+
+[functions.ai-training]
+verify_jwt = true
