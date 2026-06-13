@@ -50,6 +50,83 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_knowledge_chunks: {
+        Row: {
+          chunk_index: number
+          content: string
+          created_at: string
+          doc_id: string
+          embedding: string | null
+          id: string
+          token_count: number | null
+        }
+        Insert: {
+          chunk_index: number
+          content: string
+          created_at?: string
+          doc_id: string
+          embedding?: string | null
+          id?: string
+          token_count?: number | null
+        }
+        Update: {
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          doc_id?: string
+          embedding?: string | null
+          id?: string
+          token_count?: number | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_knowledge_chunks_doc_id_fkey"
+            columns: ["doc_id"]
+            isOneToOne: false
+            referencedRelation: "ai_knowledge_docs"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_knowledge_docs: {
+        Row: {
+          chunk_count: number
+          created_at: string
+          created_by: string | null
+          error_message: string | null
+          id: string
+          source_type: string
+          source_url: string | null
+          status: string
+          title: string
+          updated_at: string
+        }
+        Insert: {
+          chunk_count?: number
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          source_type?: string
+          source_url?: string | null
+          status?: string
+          title: string
+          updated_at?: string
+        }
+        Update: {
+          chunk_count?: number
+          created_at?: string
+          created_by?: string | null
+          error_message?: string | null
+          id?: string
+          source_type?: string
+          source_url?: string | null
+          status?: string
+          title?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
       ai_memory: {
         Row: {
           category: string
@@ -84,6 +161,134 @@ export type Database = {
         Relationships: [
           {
             foreignKeyName: "ai_memory_source_message_id_fkey"
+            columns: ["source_message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_message_feedback: {
+        Row: {
+          conversation_id: string | null
+          created_at: string
+          id: string
+          message_id: string | null
+          note: string | null
+          rating: string
+          user_id: string
+        }
+        Insert: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          message_id?: string | null
+          note?: string | null
+          rating: string
+          user_id: string
+        }
+        Update: {
+          conversation_id?: string | null
+          created_at?: string
+          id?: string
+          message_id?: string | null
+          note?: string | null
+          rating?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_message_feedback_conversation_id_fkey"
+            columns: ["conversation_id"]
+            isOneToOne: false
+            referencedRelation: "conversations"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "ai_message_feedback_message_id_fkey"
+            columns: ["message_id"]
+            isOneToOne: false
+            referencedRelation: "messages"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      ai_prompt_versions: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          few_shots: Json
+          id: string
+          is_active: boolean
+          max_tokens: number
+          name: string
+          persona: string | null
+          system_prompt: string
+          temperature: number
+          tool_aggressiveness: string
+          updated_at: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          few_shots?: Json
+          id?: string
+          is_active?: boolean
+          max_tokens?: number
+          name: string
+          persona?: string | null
+          system_prompt: string
+          temperature?: number
+          tool_aggressiveness?: string
+          updated_at?: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          few_shots?: Json
+          id?: string
+          is_active?: boolean
+          max_tokens?: number
+          name?: string
+          persona?: string | null
+          system_prompt?: string
+          temperature?: number
+          tool_aggressiveness?: string
+          updated_at?: string
+        }
+        Relationships: []
+      }
+      ai_training_examples: {
+        Row: {
+          created_at: string
+          created_by: string | null
+          id: string
+          ideal_response: string
+          source_message_id: string | null
+          tags: string[]
+          user_input: string
+        }
+        Insert: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ideal_response: string
+          source_message_id?: string | null
+          tags?: string[]
+          user_input: string
+        }
+        Update: {
+          created_at?: string
+          created_by?: string | null
+          id?: string
+          ideal_response?: string
+          source_message_id?: string | null
+          tags?: string[]
+          user_input?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "ai_training_examples_source_message_id_fkey"
             columns: ["source_message_id"]
             isOneToOne: false
             referencedRelation: "messages"
@@ -1194,6 +1399,27 @@ export type Database = {
         }
         Relationships: []
       }
+      user_roles: {
+        Row: {
+          created_at: string
+          id: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          id?: string
+          role: Database["public"]["Enums"]["app_role"]
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          id?: string
+          role?: Database["public"]["Enums"]["app_role"]
+          user_id?: string
+        }
+        Relationships: []
+      }
       users: {
         Row: {
           id: string
@@ -1331,10 +1557,26 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
-      [_ in never]: never
+      has_role: {
+        Args: {
+          _role: Database["public"]["Enums"]["app_role"]
+          _user_id: string
+        }
+        Returns: boolean
+      }
+      match_knowledge: {
+        Args: { match_count?: number; query_embedding: string }
+        Returns: {
+          content: string
+          doc_id: string
+          doc_title: string
+          id: string
+          similarity: number
+        }[]
+      }
     }
     Enums: {
-      [_ in never]: never
+      app_role: "admin" | "user"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1461,6 +1703,8 @@ export type CompositeTypes<
 
 export const Constants = {
   public: {
-    Enums: {},
+    Enums: {
+      app_role: ["admin", "user"],
+    },
   },
 } as const
