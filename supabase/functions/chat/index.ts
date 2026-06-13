@@ -24,6 +24,9 @@ const MAX_MESSAGE_CHARS = 8000;
 // Trigger words that suggest the model needs app data via tools.
 const TOOL_HINT_RE = /\b(plan|task|tasks|today|tomorrow|week|weekly|streak|subject|subjects|progress|profile|score|leaderboard|memory|memories|preference|like|dislike|generate|adjust|complete|completed|skip|study)\b/i;
 
+// Trigger words that suggest the model should consult the knowledge base.
+const RAG_HINT_RE = /\b(what is|explain|how does|definition|formula|theory|concept|kb|knowledge|doc|docs|guide|policy|company|product|feature|tutorial)\b/i;
+
 // Validate user time fields server-side to block prompt-injection via these inputs.
 const TIME_RE = /^\d{1,2}:\d{2}(\s?(AM|PM))?$/i;
 const TIME_OF_DAY_ALLOWED = new Set(["morning", "afternoon", "evening", "night"]);
@@ -197,6 +200,21 @@ const tools = [
       },
     },
   },
+  {
+    type: "function",
+    function: {
+      name: "rag_search",
+      description: "Search the admin-curated knowledge base for grounded facts, definitions, policies, or domain content. Use this whenever the user asks about topics that may be documented in the platform's knowledge base. Returns top matching chunks with similarity scores and document titles for citation.",
+      parameters: {
+        type: "object",
+        properties: {
+          query: { type: "string", description: "Semantic search query (rewrite the user's question into a focused retrieval query)." },
+          top_k: { type: "number", description: "Number of chunks to return (default 4, max 8)." },
+        },
+        required: ["query"],
+      },
+    },
+  },
 ];
 
 // Execute tool calls
@@ -355,6 +373,38 @@ async function executeTool(supabase: any, userId: string, name: string, args: an
       return JSON.stringify(error ? { error: error.message } : { success: true, saved: args.content });
     }
 
+    case "rag_search": {
+      try {
+        const query = String(args.query || "").slice(0, 1000);
+        if (!query) return JSON.stringify({ error: "query required" });
+        const topK = Math.min(Math.max(Number(args.top_k) || 4, 1), 8);
+        const apiKey = Deno.env.get("LOVABLE_API_KEY")!;
+        const embedRes = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
+          method: "POST",
+          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
+          body: JSON.stringify({ model: "google/gemini-embedding-001", input: query, dimensions: 768 }),
+        });
+        if (!embedRes.ok) return JSON.stringify({ error: "embed failed", chunks: [] });
+        const ej = await embedRes.json();
+        const vec = ej.data?.[0]?.embedding;
+        if (!vec) return JSON.stringify({ chunks: [] });
+        const { data, error } = await supabase.rpc("match_knowledge", {
+          query_embedding: vec, match_count: topK,
+        });
+        if (error) return JSON.stringify({ error: error.message, chunks: [] });
+        return JSON.stringify({
+          chunks: (data || []).map((c: any) => ({
+            content: c.content,
+            similarity: Math.round((c.similarity || 0) * 1000) / 1000,
+            source: c.doc_title,
+            doc_id: c.doc_id,
+          })),
+        });
+      } catch (e) {
+        return JSON.stringify({ error: e instanceof Error ? e.message : "rag failed", chunks: [] });
+      }
+    }
+
     default:
       return JSON.stringify({ error: "Unknown tool" });
   }
@@ -442,8 +492,26 @@ Deno.serve(async (req) => {
     const safeLocalTime = safeUserTime(userLocalTime);
     const safeTOD = safeTimeOfDay(userTimeOfDay);
 
-    // Build system prompt with context
+    // Build system prompt — prefer admin-configured active version, fall back to default.
     let systemContent = SYSTEM_PROMPT;
+    let activePromptId: string | null = null;
+    let fewShots: Array<{ user: string; assistant: string }> = [];
+    try {
+      const { data: active } = await supabase
+        .from("ai_prompt_versions")
+        .select("id, system_prompt, few_shots, persona")
+        .eq("is_active", true)
+        .order("updated_at", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (active?.system_prompt) {
+        systemContent = active.system_prompt;
+        activePromptId = active.id;
+        if (Array.isArray(active.few_shots)) fewShots = active.few_shots;
+      }
+    } catch (e) {
+      console.warn("active prompt load failed:", e);
+    }
     // userContext is intentionally NOT accepted from the client to prevent system-prompt injection.
     if (safeLocalTime) systemContent += `\nCurrent time: ${safeLocalTime}${safeTOD ? ` (${safeTOD})` : ""}`;
 
@@ -460,11 +528,52 @@ Deno.serve(async (req) => {
 
     // Lightweight intent routing — no extra AI call, just a fast heuristic on the latest user turn.
     const lastUser = [...trimmedHistory].reverse().find((m: any) => m.role === "user")?.content ?? "";
-    const looksLikeToolRequest = TOOL_HINT_RE.test(lastUser) || lastUser.length > 240;
+    const looksLikeRag = RAG_HINT_RE.test(lastUser);
+    const looksLikeToolRequest = TOOL_HINT_RE.test(lastUser) || looksLikeRag || lastUser.length > 240;
     const intent: "chat" | "app" = looksLikeToolRequest ? "app" : "chat";
+
+    // Few-shot injection: prepend up to 3 gold examples as alternating user/assistant turns
+    // so the model imitates the curated style without bloating every turn.
+    const fewShotMsgs: Array<{ role: "user" | "assistant"; content: string }> = [];
+    for (const fs of (fewShots || []).slice(0, 3)) {
+      if (fs?.user && fs?.assistant) {
+        fewShotMsgs.push({ role: "user", content: String(fs.user).slice(0, 1000) });
+        fewShotMsgs.push({ role: "assistant", content: String(fs.assistant).slice(0, 1500) });
+      }
+    }
+
+    // Also pull up to 2 admin-curated training examples that share lexical overlap with the user turn.
+    try {
+      const lastUserLower = lastUser.toLowerCase();
+      const { data: examples } = await supabase
+        .from("ai_training_examples")
+        .select("user_input, ideal_response, tags")
+        .order("created_at", { ascending: false })
+        .limit(20);
+      const ranked = (examples || [])
+        .map((e: any) => {
+          const text = (e.user_input || "").toLowerCase();
+          const words = text.split(/\W+/).filter((w: string) => w.length > 4);
+          const score = words.reduce(
+            (n: number, w: string) => n + (lastUserLower.includes(w) ? 1 : 0),
+            0,
+          );
+          return { ...e, score };
+        })
+        .filter((e: any) => e.score > 0)
+        .sort((a: any, b: any) => b.score - a.score)
+        .slice(0, 2);
+      for (const ex of ranked) {
+        fewShotMsgs.push({ role: "user", content: String(ex.user_input).slice(0, 1000) });
+        fewShotMsgs.push({ role: "assistant", content: String(ex.ideal_response).slice(0, 1500) });
+      }
+    } catch (e) {
+      console.warn("training example match failed:", e);
+    }
 
     const aiMessages: any[] = [
       { role: "system", content: systemContent },
+      ...fewShotMsgs,
       ...trimmedHistory,
     ];
 
@@ -550,7 +659,11 @@ Deno.serve(async (req) => {
         cache_hit: false,
       });
       return new Response(fastRes.body, {
-        headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+        headers: {
+          ...corsHeaders,
+          "Content-Type": "text/event-stream",
+          "X-Prompt-Version": activePromptId || "default",
+        },
       });
     }
 
