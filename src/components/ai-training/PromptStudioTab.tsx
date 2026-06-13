@@ -50,7 +50,7 @@ export default function PromptStudioTab() {
       .select("*")
       .order("created_at", { ascending: false })
       .limit(20);
-    const list = (data as Version[]) || [];
+    const list = ((data as unknown) as Version[]) || [];
     setVersions(list);
     const active = list.find((v) => v.is_active) || list[0];
     if (active && !name) loadInto(active);
