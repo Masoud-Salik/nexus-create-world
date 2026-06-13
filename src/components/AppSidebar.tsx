@@ -1,5 +1,6 @@
-import { MessageSquare, GraduationCap, Settings, Info } from "lucide-react";
+import { MessageSquare, GraduationCap, Settings, Info, Brain } from "lucide-react";
 import { NavLink } from "react-router-dom";
+import { useIsAdmin } from "@/hooks/useIsAdmin";
 import {
   Sidebar,
   SidebarContent,
@@ -19,6 +20,10 @@ const items = [
 
 
 export function AppSidebar() {
+  const isAdmin = useIsAdmin();
+  const allItems = isAdmin
+    ? [...items, { title: "AI Training", url: "/ai-training", icon: Brain }]
+    : items;
   return (
     <Sidebar collapsible="icon">
       <SidebarContent className="shadow-none">
@@ -26,7 +31,7 @@ export function AppSidebar() {
           <SidebarGroupLabel>Menu</SidebarGroupLabel>
           <SidebarGroupContent>
             <SidebarMenu>
-              {items.map((item) =>
+              {allItems.map((item) =>
               <SidebarMenuItem key={item.title}>
                   <SidebarMenuButton asChild>
                     <NavLink
