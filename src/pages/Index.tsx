@@ -577,6 +577,7 @@ const Index = () => {
                   onCancelEdit={() => setEditingIndex(null)}
                   onRegenerate={msg.role === "assistant" && idx === messages.length - 1 && !isLoading ? handleRegenerate : undefined}
                   isLastAssistant={msg.role === "assistant" && idx === messages.length - 1}
+                  conversationId={conversationId}
                 />
               ))}
               {isLoading && !messages.find(m => m.role === "assistant" && m.content === "") && <TypingIndicator />}
