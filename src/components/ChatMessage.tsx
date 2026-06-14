@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Copy, Edit2, Check, RotateCw, User, Bot, Volume2, ThumbsUp, ThumbsDown } from "lucide-react";
 import { useToast } from "@/hooks/use-toast";
+import { supabase } from "@/integrations/supabase/client";
 
 interface ChatMessageProps {
   content: string;
@@ -18,6 +19,7 @@ interface ChatMessageProps {
   onCancelEdit?: () => void;
   onRegenerate?: () => void;
   isLastAssistant?: boolean;
+  conversationId?: string | null;
 }
 
 export function ChatMessage({
@@ -30,6 +32,7 @@ export function ChatMessage({
   onCancelEdit,
   onRegenerate,
   isLastAssistant,
+  conversationId,
 }: ChatMessageProps) {
   const [editContent, setEditContent] = useState(content);
   const [isSpeaking, setIsSpeaking] = useState(false);
@@ -59,9 +62,22 @@ export function ChatMessage({
     setIsSpeaking(true);
   };
 
-  const handleFeedback = (type: "up" | "down") => {
+  const handleFeedback = async (type: "up" | "down") => {
+    if (feedback === type) return;
     setFeedback(type);
     toast({ title: type === "up" ? "Thanks! 👍" : "Got it, we'll improve 🙏" });
+    try {
+      const { data: { user } } = await supabase.auth.getUser();
+      if (!user) return;
+      await supabase.from("ai_message_feedback").insert({
+        user_id: user.id,
+        conversation_id: conversationId ?? null,
+        rating: type === "up" ? "positive" : "negative",
+        note: content.slice(0, 2000),
+      });
+    } catch (e) {
+      console.error("feedback save failed", e);
+    }
   };
 
   return (
