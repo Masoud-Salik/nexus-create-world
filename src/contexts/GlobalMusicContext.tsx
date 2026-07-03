@@ -1,6 +1,7 @@
 import { createContext, useCallback, useContext, useEffect, useRef, useState, ReactNode } from "react";
+import persianAsset from "@/assets/persian-528hz.mp3.asset.json";
 
-const MUSIC_SRC = "/audio/study-music.mp3";
+const MUSIC_SRC = persianAsset.url;
 const LS_VOLUME = "studytime-music-volume";
 const LS_PLAYING = "studytime-music-playing";
 

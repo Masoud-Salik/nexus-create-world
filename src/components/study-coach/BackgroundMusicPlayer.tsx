@@ -36,7 +36,7 @@ export function BackgroundMusicPlayer({ compact = true }: { compact?: boolean })
       </Button>
       <div className="flex-1 min-w-0">
         <p className="text-xs font-medium truncate">Study Music</p>
-        <p className="text-[10px] text-muted-foreground">Lo-fi • Ghibli</p>
+        <p className="text-[10px] text-muted-foreground">Persian Ambient • 528 Hz</p>
       </div>
       <div className="flex items-center gap-2 w-24">
         <Volume2 className="h-3 w-3 text-muted-foreground shrink-0" />
