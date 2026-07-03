@@ -6,7 +6,8 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle, CardFooter } from "@/components/ui/card";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
-import { Eye, EyeOff, Mail, Lock, User, Sparkles, CheckCircle2, XCircle, Loader2 } from "lucide-react";
+import { Eye, EyeOff, Mail, Lock, User, Sparkles, CheckCircle2, XCircle, Loader2, KeyRound } from "lucide-react";
+import { InputOTP, InputOTPGroup, InputOTPSlot } from "@/components/ui/input-otp";
 
 // Zod schemas for secure input validation
 const emailSchema = z.string()
@@ -47,11 +48,12 @@ const forgotSchema = z.object({
 });
 
 export const Auth = () => {
-  const [mode, setMode] = useState<"login" | "signup" | "forgot">("login");
+  const [mode, setMode] = useState<"login" | "signup" | "forgot" | "verify-otp" | "set-password">("login");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [confirmPassword, setConfirmPassword] = useState("");
   const [name, setName] = useState("");
+  const [otp, setOtp] = useState("");
   const [showPassword, setShowPassword] = useState(false);
   const [loading, setLoading] = useState(false);
   const { toast } = useToast();
@@ -134,18 +136,49 @@ export const Auth = () => {
           description: "Welcome aboard! Let's get started."
         });
       } else if (mode === "forgot") {
-        const { error } = await supabase.auth.resetPasswordForEmail(email.trim(), {
-          redirectTo: `${window.location.origin}/`
+        // Send a 6-digit OTP by email (recovery OTP — signs the user in on verify
+        // so they can then set a new password).
+        const { error } = await supabase.auth.signInWithOtp({
+          email: email.trim(),
+          options: {
+            shouldCreateUser: false,
+            emailRedirectTo: undefined,
+          },
         });
-        if (error) {
-          // Always show success to prevent email enumeration
+        // Always advance to verify step to prevent email enumeration.
+        toast({
+          title: "Check your email",
+          description: "We sent a 6-digit code. Enter it below to continue.",
+        });
+        setOtp("");
+        setMode("verify-otp");
+        if (error) console.warn("otp send:", error.message);
+      } else if (mode === "verify-otp") {
+        if (otp.length !== 6) {
+          throw new Error("Enter the 6-digit code from your email.");
         }
-        // Always show success message regardless of whether email exists
-        toast({ 
-          title: "Reset email sent", 
-          description: "If an account exists with this email, you'll receive reset instructions."
+        const { error } = await supabase.auth.verifyOtp({
+          email: email.trim(),
+          token: otp,
+          type: "email",
         });
-        setMode("login");
+        if (error) throw new Error("That code is invalid or expired. Try again.");
+        toast({ title: "Code verified", description: "Now set a new password." });
+        setPassword("");
+        setConfirmPassword("");
+        setMode("set-password");
+      } else if (mode === "set-password") {
+        // Validate password strength via signup schema (reuses password rules).
+        try {
+          passwordSchema.parse(password);
+        } catch (err: any) {
+          throw new Error(err?.errors?.[0]?.message || "Password too weak");
+        }
+        if (password !== confirmPassword) throw new Error("Passwords don't match");
+        const { error } = await supabase.auth.updateUser({ password });
+        if (error) throw new Error(error.message);
+        toast({ title: "Password updated!", description: "You're signed in with your new password." });
+        // Session is already active from verifyOtp — user proceeds into the app.
       }
     } catch (error: any) {
       toast({ 
@@ -158,6 +191,22 @@ export const Auth = () => {
     }
   };
 
+  const titleByMode = {
+    login: "Welcome Back",
+    signup: "Create Account",
+    forgot: "Reset Password",
+    "verify-otp": "Enter Code",
+    "set-password": "New Password",
+  }[mode];
+
+  const descByMode = {
+    login: "Sign in to continue your journey",
+    signup: "Start your AI Life Coach experience",
+    forgot: "Enter your email — we'll send a 6-digit code",
+    "verify-otp": `Enter the 6-digit code we sent to ${email}`,
+    "set-password": "Choose a new password for your account",
+  }[mode];
+
   return (
     <div className="flex min-h-screen items-center justify-center bg-gradient-to-br from-background via-background to-primary/5 p-4">
       <div className="absolute inset-0 bg-[radial-gradient(ellipse_at_top,_var(--tw-gradient-stops))] from-primary/10 via-transparent to-transparent pointer-events-none" />
@@ -165,24 +214,47 @@ export const Auth = () => {
       <Card className="w-full max-w-md relative backdrop-blur-sm border-primary/10 shadow-2xl">
         <CardHeader className="text-center space-y-4">
           <div className="mx-auto w-16 h-16 rounded-full bg-primary/10 flex items-center justify-center">
-            <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+            {mode === "verify-otp" ? (
+              <KeyRound className="h-8 w-8 text-primary" />
+            ) : (
+              <Sparkles className="h-8 w-8 text-primary animate-pulse" />
+            )}
           </div>
           <div>
             <CardTitle className="text-2xl font-bold">
-              {mode === "login" ? "Welcome Back" : mode === "signup" ? "Create Account" : "Reset Password"}
+              {titleByMode}
             </CardTitle>
-            <CardDescription className="mt-2">
-              {mode === "login" 
-                ? "Sign in to continue your journey" 
-                : mode === "signup" 
-                  ? "Start your AI Life Coach experience" 
-                  : "Enter your email to reset password"}
-            </CardDescription>
+            <CardDescription className="mt-2 break-all">{descByMode}</CardDescription>
           </div>
         </CardHeader>
 
         <CardContent>
           <form onSubmit={handleAuth} className="space-y-4">
+            {mode === "verify-otp" && (
+              <div className="space-y-3 flex flex-col items-center">
+                <InputOTP maxLength={6} value={otp} onChange={setOtp}>
+                  <InputOTPGroup>
+                    <InputOTPSlot index={0} />
+                    <InputOTPSlot index={1} />
+                    <InputOTPSlot index={2} />
+                    <InputOTPSlot index={3} />
+                    <InputOTPSlot index={4} />
+                    <InputOTPSlot index={5} />
+                  </InputOTPGroup>
+                </InputOTP>
+                <button
+                  type="button"
+                  onClick={async () => {
+                    await supabase.auth.signInWithOtp({ email: email.trim(), options: { shouldCreateUser: false } });
+                    toast({ title: "Code resent" });
+                  }}
+                  className="text-xs text-primary hover:underline"
+                >
+                  Didn't get it? Resend code
+                </button>
+              </div>
+            )}
+
             {mode === "signup" && (
               <div className="space-y-2">
                 <Label htmlFor="name" className="text-sm font-medium">Full Name</Label>
@@ -202,6 +274,7 @@ export const Auth = () => {
               </div>
             )}
 
+            {(mode === "login" || mode === "signup" || mode === "forgot") && (
             <div className="space-y-2">
               <Label htmlFor="email" className="text-sm font-medium">Email Address</Label>
               <div className="relative">
@@ -218,10 +291,13 @@ export const Auth = () => {
                 />
               </div>
             </div>
+            )}
 
-            {mode !== "forgot" && (
+            {(mode === "login" || mode === "signup" || mode === "set-password") && (
               <div className="space-y-2">
-                <Label htmlFor="password" className="text-sm font-medium">Password</Label>
+                <Label htmlFor="password" className="text-sm font-medium">
+                  {mode === "set-password" ? "New Password" : "Password"}
+                </Label>
                 <div className="relative">
                   <Lock className="absolute left-3 top-1/2 -translate-y-1/2 h-4 w-4 text-muted-foreground" />
                   <Input
@@ -243,7 +319,7 @@ export const Auth = () => {
                   </button>
                 </div>
                 
-                {mode === "signup" && password && (
+                {(mode === "signup" || mode === "set-password") && password && (
                   <div className="space-y-1">
                     <div className="flex justify-between text-xs">
                       <span className="text-muted-foreground">Password strength</span>
@@ -265,7 +341,7 @@ export const Auth = () => {
               </div>
             )}
 
-            {mode === "signup" && (
+            {(mode === "signup" || mode === "set-password") && (
               <div className="space-y-2">
                 <Label htmlFor="confirmPassword" className="text-sm font-medium">Confirm Password</Label>
                 <div className="relative">
@@ -306,7 +382,7 @@ export const Auth = () => {
             <Button 
               type="submit" 
               className="w-full h-11 text-base font-medium"
-              disabled={loading}
+              disabled={loading || (mode === "verify-otp" && otp.length !== 6)}
             >
               {loading ? (
                 <Loader2 className="h-5 w-5 animate-spin" />
@@ -314,8 +390,12 @@ export const Auth = () => {
                 "Sign In"
               ) : mode === "signup" ? (
                 "Create Account"
+              ) : mode === "forgot" ? (
+                "Send 6-Digit Code"
+              ) : mode === "verify-otp" ? (
+                "Verify Code"
               ) : (
-                "Send Reset Link"
+                "Update Password"
               )}
             </Button>
           </form>
@@ -328,7 +408,11 @@ export const Auth = () => {
             </div>
             <div className="relative flex justify-center text-xs uppercase">
               <span className="bg-card px-2 text-muted-foreground">
-                {mode === "forgot" ? "Remember your password?" : mode === "login" ? "New here?" : "Already have an account?"}
+                {mode === "forgot" || mode === "verify-otp" || mode === "set-password"
+                  ? "Remember your password?"
+                  : mode === "login"
+                    ? "New here?"
+                    : "Already have an account?"}
               </span>
             </div>
           </div>
@@ -338,11 +422,15 @@ export const Auth = () => {
             variant="outline"
             className="w-full"
             onClick={() => {
-              if (mode === "forgot") setMode("login");
+              if (mode === "forgot" || mode === "verify-otp" || mode === "set-password") setMode("login");
               else setMode(mode === "login" ? "signup" : "login");
             }}
           >
-            {mode === "forgot" ? "Back to Sign In" : mode === "login" ? "Create an Account" : "Sign In Instead"}
+            {mode === "forgot" || mode === "verify-otp" || mode === "set-password"
+              ? "Back to Sign In"
+              : mode === "login"
+                ? "Create an Account"
+                : "Sign In Instead"}
           </Button>
         </CardFooter>
       </Card>

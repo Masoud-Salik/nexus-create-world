@@ -173,7 +173,7 @@ export function FocusCockpit({
   // Idle state — show PreFlight
   if (!isActive && !primer) {
     return (
-      <div className="relative w-full flex flex-col items-center gap-4 py-4">
+      <div className="relative w-full max-w-full overflow-hidden flex flex-col items-center gap-4 py-4">
         <AuroraBackground running={false} tint={tint} />
         <FocusStatsStrip
           streak={streak}
@@ -215,7 +215,7 @@ export function FocusCockpit({
   // Active session
   return (
     <div className={cn(
-      "relative w-full flex flex-col items-center gap-4 py-4 transition-all",
+      "relative w-full max-w-full overflow-x-hidden flex flex-col items-center gap-4 py-4 transition-all",
       theater && "fixed inset-0 z-50 bg-background pt-8 overflow-y-auto"
     )}>
       <AuroraBackground running={isRunning} tint={isBreak ? "rain" : tint} />

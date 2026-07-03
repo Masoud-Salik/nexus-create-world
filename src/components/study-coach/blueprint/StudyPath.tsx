@@ -24,11 +24,12 @@ interface Props {
 export function StudyPath({ tasks, onStart, onMarkDone, onSkip }: Props) {
   const [openTask, setOpenTask] = useState<StudyTaskData | null>(null);
 
-  // Build node layout: 6 nodes/row, zig-zag horizontally
-  const NODE_SIZE = 64;
-  const ROW_H = 110;
-  const COL_W = 84;
-  const COLS = 5;
+  // Build node layout using PERCENTAGE x-positions so the path scales with the container.
+  // On mobile this prevents horizontal overflow that used to require side-scrolling.
+  const NODE_SIZE = 56;
+  const ROW_H = 96;
+  const COLS = 4;
+  const VB_W = 400; // viewBox width; node x uses this coordinate space
 
   const positioned = useMemo(() => {
     return tasks.map((t, i) => {
@@ -36,22 +37,26 @@ export function StudyPath({ tasks, onStart, onMarkDone, onSkip }: Props) {
       const colInRow = i % COLS;
       const leftToRight = row % 2 === 0;
       const col = leftToRight ? colInRow : COLS - 1 - colInRow;
-      const x = 40 + col * COL_W + (row % 2 ? 16 : 0);
-      const y = 30 + row * ROW_H;
-      return { t, x, y, i };
+      // Distribute nodes evenly across the viewBox width with side padding.
+      const pad = 30;
+      const step = (VB_W - pad * 2 - NODE_SIZE) / (COLS - 1);
+      const x = pad + col * step + (row % 2 ? 10 : 0);
+      const y = 20 + row * ROW_H;
+      const xPct = ((x + NODE_SIZE / 2) / VB_W) * 100; // center %
+      return { t, x, y, xPct, i };
     });
   }, [tasks]);
 
   // Find active index = first non-completed
   const activeIdx = tasks.findIndex((t) => t.status !== "completed" && t.status !== "skipped");
 
-  const totalHeight = positioned.length ? positioned[positioned.length - 1].y + NODE_SIZE + 40 : 200;
+  const totalHeight = positioned.length ? positioned[positioned.length - 1].y + NODE_SIZE + 30 : 200;
 
   return (
     <>
-      <div className="relative w-full mx-auto" style={{ height: totalHeight, maxWidth: 480 }}>
+      <div className="relative w-full mx-auto overflow-hidden" style={{ height: totalHeight, maxWidth: 480 }}>
         {/* Dotted path connectors */}
-        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 480 ${totalHeight}`} preserveAspectRatio="none">
+        <svg className="absolute inset-0 w-full h-full pointer-events-none" viewBox={`0 0 ${VB_W} ${totalHeight}`} preserveAspectRatio="none">
           <defs>
             <linearGradient id="pathGrad" x1="0" y1="0" x2="0" y2="1">
               <stop offset="0%" stopColor="hsl(var(--primary))" stopOpacity="0.4" />
@@ -88,6 +93,7 @@ export function StudyPath({ tasks, onStart, onMarkDone, onSkip }: Props) {
           const isActive = i === activeIdx;
           const isLocked = !isDone && !isActive && !isSkipped;
           const ring = diffRing[t.difficulty] || diffRing.medium;
+          const p = positioned[i];
           return (
             <button
               key={t.id}
@@ -96,7 +102,7 @@ export function StudyPath({ tasks, onStart, onMarkDone, onSkip }: Props) {
                 "absolute flex flex-col items-center group transition-transform tap-effect active:scale-95",
                 isActive && "z-20 animate-bounce-slow",
               )}
-              style={{ left: x, top: y, width: NODE_SIZE }}
+              style={{ left: `calc(${p.xPct}% - ${NODE_SIZE / 2}px)`, top: y, width: NODE_SIZE }}
               aria-label={`${t.subject_name}: ${t.topic}`}
             >
               {isActive && (
@@ -104,7 +110,7 @@ export function StudyPath({ tasks, onStart, onMarkDone, onSkip }: Props) {
               )}
               <div
                 className={cn(
-                  "relative h-16 w-16 rounded-2xl flex items-center justify-center shadow-lg transition-all ring-4",
+                  "relative h-14 w-14 rounded-2xl flex items-center justify-center shadow-lg transition-all ring-4",
                   ring,
                   isDone && "bg-primary",
                   isSkipped && "bg-muted opacity-50",
@@ -114,15 +120,15 @@ export function StudyPath({ tasks, onStart, onMarkDone, onSkip }: Props) {
                 style={!isDone && !isSkipped && !isLocked ? { backgroundColor: `${t.color}22` } : undefined}
               >
                 {isDone ? (
-                  <Check className="h-7 w-7 text-primary-foreground" strokeWidth={3} />
+                  <Check className="h-6 w-6 text-primary-foreground" strokeWidth={3} />
                 ) : isLocked ? (
                   <Lock className="h-5 w-5 text-muted-foreground" />
                 ) : (
-                  <Icon className="h-7 w-7" style={{ color: isActive ? t.color : t.color + "aa" }} />
+                  <Icon className="h-6 w-6" style={{ color: isActive ? t.color : t.color + "aa" }} />
                 )}
               </div>
               <span className={cn(
-                "mt-1 text-[10px] font-semibold text-center leading-tight max-w-[80px] truncate",
+                "mt-1 text-[10px] font-semibold text-center leading-tight max-w-[70px] truncate",
                 isLocked ? "text-muted-foreground/60" : "text-foreground/80",
               )}>
                 {t.duration_minutes}m

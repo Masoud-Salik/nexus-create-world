@@ -547,8 +547,8 @@ export default function StudyCoach() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20 md:pb-6">
-      <div className="max-w-lg mx-auto px-4 py-4 flex flex-col min-h-[calc(100vh-80px)]">
+    <div className="min-h-screen bg-background pb-20 md:pb-6 overflow-x-hidden">
+      <div className="max-w-lg mx-auto px-4 py-4 flex flex-col min-h-[calc(100vh-80px)] w-full max-w-full">
         
         {/* Header — date + streak + music */}
         <div className="flex items-center justify-between mb-3">
