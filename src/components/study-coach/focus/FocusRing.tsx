@@ -1,4 +1,5 @@
 import { cn } from "@/lib/utils";
+import { useEffect, useState } from "react";
 
 interface Props {
   size?: number;
@@ -27,8 +28,23 @@ export function FocusRing({
   variant = "focus",
   children,
 }: Props) {
-  const r1 = (size - stroke) / 2;
-  const r2 = r1 - stroke - 4;
+  // Responsive: clamp to viewport width on mobile so the ring never overflows.
+  const [effectiveSize, setEffectiveSize] = useState(size);
+  useEffect(() => {
+    const compute = () => {
+      const vw = typeof window !== "undefined" ? window.innerWidth : size;
+      // leave 32px of horizontal breathing room on each side
+      const max = Math.max(200, Math.min(size, vw - 48));
+      setEffectiveSize(max);
+    };
+    compute();
+    window.addEventListener("resize", compute);
+    return () => window.removeEventListener("resize", compute);
+  }, [size]);
+  const s = effectiveSize;
+  const effStroke = s < 260 ? 12 : stroke;
+  const r1 = (s - effStroke) / 2;
+  const r2 = r1 - effStroke - 4;
   const c1 = 2 * Math.PI * r1;
   const c2 = 2 * Math.PI * r2;
   const off1 = c1 - Math.min(1, progress) * c1;
@@ -37,7 +53,7 @@ export function FocusRing({
   const dim = distractions > 0 ? Math.max(0.4, 1 - distractions * 0.08) : 1;
 
   return (
-    <div className="relative flex items-center justify-center select-none" style={{ width: size, height: size }}>
+    <div className="relative flex items-center justify-center select-none max-w-full" style={{ width: s, height: s }}>
       <svg width={0} height={0}>
         <defs>
           <linearGradient id="fr-grad" x1="0%" y1="0%" x2="100%" y2="100%">
@@ -47,8 +63,8 @@ export function FocusRing({
         </defs>
       </svg>
       <svg
-        width={size}
-        height={size}
+        width={s}
+        height={s}
         className="transform -rotate-90 motion-reduce:transition-none"
         style={{
           opacity: dim,
@@ -56,19 +72,19 @@ export function FocusRing({
         }}
       >
         {/* outer track */}
-        <circle cx={size / 2} cy={size / 2} r={r1} fill="none" stroke="hsl(var(--muted))" strokeWidth={stroke} opacity={0.3} />
+        <circle cx={s / 2} cy={s / 2} r={r1} fill="none" stroke="hsl(var(--muted))" strokeWidth={effStroke} opacity={0.3} />
         {/* outer progress */}
         <circle
-          cx={size / 2} cy={size / 2} r={r1} fill="none"
-          stroke="url(#fr-grad)" strokeWidth={stroke} strokeLinecap="round"
+          cx={s / 2} cy={s / 2} r={r1} fill="none"
+          stroke="url(#fr-grad)" strokeWidth={effStroke} strokeLinecap="round"
           strokeDasharray={c1} strokeDashoffset={off1}
           className="transition-all duration-1000 ease-linear"
         />
         {/* inner goal track */}
-        <circle cx={size / 2} cy={size / 2} r={r2} fill="none" stroke="hsl(var(--muted))" strokeWidth={4} opacity={0.35} />
+        <circle cx={s / 2} cy={s / 2} r={r2} fill="none" stroke="hsl(var(--muted))" strokeWidth={4} opacity={0.35} />
         {/* inner goal */}
         <circle
-          cx={size / 2} cy={size / 2} r={r2} fill="none"
+          cx={s / 2} cy={s / 2} r={r2} fill="none"
           stroke="hsl(var(--primary) / 0.6)" strokeWidth={4} strokeLinecap="round"
           strokeDasharray={c2} strokeDashoffset={off2}
           className="transition-all duration-1000 ease-linear"
