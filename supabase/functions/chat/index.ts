@@ -6,15 +6,18 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
+// Model order: cheapest+fastest first, then progressively stronger fallbacks.
 const MODELS = [
+  "google/gemini-3.1-flash-lite",
   "google/gemini-3-flash-preview",
   "google/gemini-2.5-flash",
   "google/gemini-2.5-flash-lite",
 ];
 
 // Fast model used when the request looks like simple chat (no tools needed).
-const FAST_MODEL = "google/gemini-2.5-flash-lite";
-// Default model when tool calls are needed.
+// gemini-3.1-flash-lite is the lowest-latency multimodal Gemini available.
+const FAST_MODEL = "google/gemini-3.1-flash-lite";
+// Default model when tool calls are needed (needs stronger reasoning + JSON schema).
 const TOOL_MODEL = "google/gemini-3-flash-preview";
 
 // Sliding window for conversation history.
