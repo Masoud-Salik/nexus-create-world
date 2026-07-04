@@ -79,7 +79,7 @@ Assistant: ${assistantMessage?.slice(0, 200) || ""}`;
   } catch (e) {
     console.error("Error:", e);
     return new Response(
-      JSON.stringify({ title: null, error: e instanceof Error ? e.message : "Unknown error" }),
+      JSON.stringify({ title: null, error: "Internal server error" }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
