@@ -6,8 +6,10 @@
 import { auth, defineMcp } from "npm:@lovable.dev/mcp-js@0.20.0";
 
 // src/lib/mcp/tools/list-subjects.ts
-import { createClient } from "npm:@supabase/supabase-js@^2.75.0";
 import { defineTool } from "npm:@lovable.dev/mcp-js@0.20.0";
+
+// src/lib/mcp/tools/_client.ts
+import { createClient } from "npm:@supabase/supabase-js@^2.75.0";
 function sb(ctx) {
   return createClient(
     process.env.SUPABASE_URL,
@@ -18,6 +20,8 @@ function sb(ctx) {
     }
   );
 }
+
+// src/lib/mcp/tools/list-subjects.ts
 var list_subjects_default = defineTool({
   name: "list_subjects",
   title: "List study subjects",
@@ -36,19 +40,8 @@ var list_subjects_default = defineTool({
 });
 
 // src/lib/mcp/tools/list-tasks.ts
-import { createClient as createClient2 } from "npm:@supabase/supabase-js@^2.75.0";
 import { defineTool as defineTool2 } from "npm:@lovable.dev/mcp-js@0.20.0";
 import { z } from "npm:zod@^3.25.76";
-function sb2(ctx) {
-  return createClient2(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY,
-    {
-      global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-      auth: { persistSession: false, autoRefreshToken: false }
-    }
-  );
-}
 var list_tasks_default = defineTool2({
   name: "list_tasks",
   title: "List study tasks",
@@ -61,7 +54,7 @@ var list_tasks_default = defineTool2({
   annotations: { readOnlyHint: true, idempotentHint: true, openWorldHint: false },
   handler: async ({ status, date, limit }, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    let q = sb2(ctx).from("study_tasks").select("id, topic, subject_id, task_date, status, difficulty, duration_minutes, started_at, completed_at").order("task_date", { ascending: false }).limit(limit ?? 50);
+    let q = sb(ctx).from("study_tasks").select("id, topic, subject_id, task_date, status, difficulty, duration_minutes, started_at, completed_at").order("task_date", { ascending: false }).limit(limit ?? 50);
     if (status) q = q.eq("status", status);
     if (date) q = q.eq("task_date", date);
     const { data, error } = await q;
@@ -74,19 +67,8 @@ var list_tasks_default = defineTool2({
 });
 
 // src/lib/mcp/tools/create-task.ts
-import { createClient as createClient3 } from "npm:@supabase/supabase-js@^2.75.0";
 import { defineTool as defineTool3 } from "npm:@lovable.dev/mcp-js@0.20.0";
 import { z as z2 } from "npm:zod@^3.25.76";
-function sb3(ctx) {
-  return createClient3(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY,
-    {
-      global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-      auth: { persistSession: false, autoRefreshToken: false }
-    }
-  );
-}
 var create_task_default = defineTool3({
   name: "create_task",
   title: "Create study task",
@@ -101,7 +83,7 @@ var create_task_default = defineTool3({
   annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   handler: async (input, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const { data, error } = await sb3(ctx).from("study_tasks").insert({
+    const { data, error } = await sb(ctx).from("study_tasks").insert({
       user_id: ctx.getUserId(),
       topic: input.topic,
       subject_id: input.subject_id ?? null,
@@ -119,19 +101,8 @@ var create_task_default = defineTool3({
 });
 
 // src/lib/mcp/tools/log-session.ts
-import { createClient as createClient4 } from "npm:@supabase/supabase-js@^2.75.0";
 import { defineTool as defineTool4 } from "npm:@lovable.dev/mcp-js@0.20.0";
 import { z as z3 } from "npm:zod@^3.25.76";
-function sb4(ctx) {
-  return createClient4(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY,
-    {
-      global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-      auth: { persistSession: false, autoRefreshToken: false }
-    }
-  );
-}
 var log_session_default = defineTool4({
   name: "log_study_session",
   title: "Log a completed study session",
@@ -147,7 +118,7 @@ var log_session_default = defineTool4({
   annotations: { readOnlyHint: false, destructiveHint: false, openWorldHint: false },
   handler: async (input, ctx) => {
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
-    const { data, error } = await sb4(ctx).from("study_sessions").insert({
+    const { data, error } = await sb(ctx).from("study_sessions").insert({
       user_id: ctx.getUserId(),
       topic: input.topic,
       time_spent_minutes: input.time_spent_minutes,
@@ -165,19 +136,8 @@ var log_session_default = defineTool4({
 });
 
 // src/lib/mcp/tools/study-stats.ts
-import { createClient as createClient5 } from "npm:@supabase/supabase-js@^2.75.0";
 import { defineTool as defineTool5 } from "npm:@lovable.dev/mcp-js@0.20.0";
 import { z as z4 } from "npm:zod@^3.25.76";
-function sb5(ctx) {
-  return createClient5(
-    process.env.SUPABASE_URL,
-    process.env.SUPABASE_PUBLISHABLE_KEY ?? process.env.SUPABASE_ANON_KEY,
-    {
-      global: { headers: { Authorization: `Bearer ${ctx.getToken()}` } },
-      auth: { persistSession: false, autoRefreshToken: false }
-    }
-  );
-}
 var study_stats_default = defineTool5({
   name: "get_study_stats",
   title: "Get study statistics",
@@ -190,7 +150,7 @@ var study_stats_default = defineTool5({
     if (!ctx.isAuthenticated()) return { content: [{ type: "text", text: "Not authenticated" }], isError: true };
     const window = days ?? 7;
     const since = new Date(Date.now() - window * 864e5).toISOString().slice(0, 10);
-    const client = sb5(ctx);
+    const client = sb(ctx);
     const [{ data: sessions, error: sErr }, { data: subjects }] = await Promise.all([
       client.from("study_sessions").select("time_spent_minutes, subject_id, topic, session_date").gte("session_date", since),
       client.from("study_subjects").select("id, subject_name")
