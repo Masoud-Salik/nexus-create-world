@@ -25,6 +25,7 @@ const NotFound = lazy(() => import("./pages/NotFound"));
 const About = lazy(() => import("./pages/About"));
 const Landing = lazy(() => import("./pages/Landing"));
 const AITraining = lazy(() => import("./pages/AITraining"));
+const OAuthConsent = lazy(() => import("./pages/OAuthConsent"));
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -103,6 +104,7 @@ const App = () => (
               <BrowserRouter>
                 <Routes>
                   <Route path="/landing" element={<Suspense fallback={null}><Landing /></Suspense>} />
+                  <Route path="/.lovable/oauth/consent" element={<Suspense fallback={null}><OAuthConsent /></Suspense>} />
                   <Route path="*" element={<AppLayout />} />
                 </Routes>
               </BrowserRouter>
