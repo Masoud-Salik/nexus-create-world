@@ -723,14 +723,14 @@ export default function StudyCoach() {
                 />
               ) : cachedTasks.length === 0 && isToday ? (
             /* Empty State - No Tasks */
-            <div className="text-center py-8">
-                  <div className="w-20 h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-6">
-                    <Sparkles className="h-10 w-10 text-primary" />
+            <div className="text-center py-6">
+                  <div className="w-14 h-14 sm:w-20 sm:h-20 rounded-3xl bg-primary/10 flex items-center justify-center mx-auto mb-4">
+                    <Sparkles className="h-7 w-7 sm:h-10 sm:w-10 text-primary" />
                   </div>
-                  <h3 className="text-xl font-bold text-foreground mb-2">
+                  <h3 className="text-lg sm:text-xl font-bold text-foreground mb-2">
                     Ready to study?
                   </h3>
-                  <p className="text-muted-foreground text-sm mb-6 max-w-xs mx-auto">
+                  <p className="text-muted-foreground text-xs sm:text-sm mb-5 max-w-xs mx-auto">
                     {subjects.length === 0 ?
                 "Add your subjects first, then generate an AI study plan" :
                 "Generate an AI-powered study plan tailored to your goals"
@@ -757,23 +757,23 @@ export default function StudyCoach() {
                 </div>
               ) : isToday && pendingTasks.length === 0 ? (
             /* All Tasks Completed — Break The Rules */
-            <div className="text-center py-6 space-y-5">
-                  <div className="text-6xl mb-2">🏆</div>
-                  <h3 className="text-xl font-bold text-foreground">
+            <div className="text-center py-4 space-y-3">
+                  <div className="text-5xl mb-1">🏆</div>
+                  <h3 className="text-lg font-bold text-foreground">
                     You crushed it!
                   </h3>
-                  <p className="text-sm text-muted-foreground">All tasks done. But legends don't stop here.</p>
-                  <div className="rounded-2xl border-2 border-dashed border-primary/40 bg-gradient-to-br from-primary/5 to-primary/10 p-5 mx-auto max-w-xs">
-                    <div className="flex items-center justify-center gap-2 mb-3">
-                      <Zap className="h-6 w-6 text-primary" />
-                      <p className="font-bold text-lg text-foreground">Break The Rules</p>
-                      <Zap className="h-6 w-6 text-primary" />
+                  <p className="text-xs text-muted-foreground">All tasks done. But legends don't stop here.</p>
+                  <div className="rounded-2xl border-2 border-dashed border-primary/40 bg-gradient-to-br from-primary/5 to-primary/10 p-4 mx-auto max-w-xs">
+                    <div className="flex items-center justify-center gap-1.5 mb-2">
+                      <Zap className="h-4 w-4 text-primary" />
+                      <p className="font-bold text-sm text-foreground">Break The Rules</p>
+                      <Zap className="h-4 w-4 text-primary" />
                     </div>
-                    <p className="text-xs text-muted-foreground mb-4">Go beyond your plan for <span className="font-bold text-primary text-sm">1.5x XP!</span></p>
-                    <div className="flex gap-2.5 justify-center">
+                    <p className="text-[11px] text-muted-foreground mb-3">Beyond plan = <span className="font-bold text-primary">1.5x XP</span></p>
+                    <div className="flex gap-2 justify-center">
                       {[15, 25, 45].map(mins => (
                         <button key={mins}
-                          className="flex flex-col items-center gap-1 px-4 py-3 rounded-xl border border-primary/30 bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all"
+                          className="flex flex-col items-center gap-0.5 px-3 py-2 rounded-lg border border-primary/30 bg-primary/10 hover:bg-primary/20 active:scale-95 transition-all"
                           onClick={() => {
                             if (isGuest) { toast({ title: "Sign up for bonus rounds", variant: "destructive" }); return; }
                             if (!userId) return;
