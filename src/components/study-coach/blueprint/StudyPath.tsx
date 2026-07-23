@@ -3,6 +3,7 @@ import { cn } from "@/lib/utils";
 import { StudyTaskData } from "@/components/study-coach/TaskCard";
 import { Book, BookOpen, Calculator, Atom, Globe, Music as MusicIcon, Pen, Check, Play, Lock, Sparkles } from "lucide-react";
 import { Sheet, SheetContent } from "@/components/ui/sheet";
+import { useIsMobile } from "@/hooks/use-mobile";
 
 const iconMap: Record<string, any> = {
   book: Book, "book-open": BookOpen, calculator: Calculator, atom: Atom, flask: Atom, globe: Globe, music: MusicIcon, pen: Pen,
@@ -23,11 +24,12 @@ interface Props {
 
 export function StudyPath({ tasks, onStart, onMarkDone, onSkip }: Props) {
   const [openTask, setOpenTask] = useState<StudyTaskData | null>(null);
+  const isMobile = useIsMobile();
 
   // Build node layout using PERCENTAGE x-positions so the path scales with the container.
   // On mobile this prevents horizontal overflow that used to require side-scrolling.
-  const NODE_SIZE = 56;
-  const ROW_H = 96;
+  const NODE_SIZE = isMobile ? 46 : 56;
+  const ROW_H = isMobile ? 78 : 96;
   const COLS = 4;
   const VB_W = 400; // viewBox width; node x uses this coordinate space
 

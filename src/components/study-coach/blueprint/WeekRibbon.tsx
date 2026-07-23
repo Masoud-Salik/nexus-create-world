@@ -16,7 +16,7 @@ export function WeekRibbon({ selectedDate, onSelect, perDay }: Props) {
   const map = new Map(perDay.map((d) => [d.date, d]));
 
   return (
-    <div className="flex gap-1.5 overflow-x-auto py-1 -mx-1 px-1 scrollbar-none">
+    <div className="flex gap-1 overflow-x-auto py-1 -mx-1 px-1 scrollbar-none">
       {days.map((d) => {
         const ds = format(d, "yyyy-MM-dd");
         const isToday = isSameDay(d, today);
@@ -30,7 +30,7 @@ export function WeekRibbon({ selectedDate, onSelect, perDay }: Props) {
             key={ds}
             onClick={() => { navigator.vibrate?.(10); onSelect(ds); }}
             className={cn(
-              "flex-1 min-w-[44px] flex flex-col items-center py-2 rounded-xl border transition-all tap-effect",
+              "flex-1 min-w-[38px] flex flex-col items-center py-1.5 rounded-lg border transition-all tap-effect",
               isSelected ? "bg-primary text-primary-foreground border-primary shadow"
                 : isToday ? "bg-primary/10 border-primary/40 text-foreground"
                 : "bg-card border-border text-muted-foreground",
@@ -38,8 +38,8 @@ export function WeekRibbon({ selectedDate, onSelect, perDay }: Props) {
             )}
           >
             <span className="text-[9px] font-bold uppercase tracking-wide">{format(d, "EEE")}</span>
-            <span className={cn("text-base font-black leading-none mt-0.5", isSelected && "text-primary-foreground")}>{format(d, "d")}</span>
-            <div className="flex gap-0.5 mt-1.5 h-1">
+            <span className={cn("text-sm font-black leading-none mt-0.5", isSelected && "text-primary-foreground")}>{format(d, "d")}</span>
+            <div className="flex gap-0.5 mt-1 h-1">
               {total === 0 ? (
                 <span className={cn("h-1 w-1 rounded-full", isSelected ? "bg-primary-foreground/40" : "bg-muted-foreground/30")} />
               ) : Array.from({ length: Math.min(total, 5) }).map((_, i) => (

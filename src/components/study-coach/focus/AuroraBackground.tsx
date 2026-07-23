@@ -25,7 +25,7 @@ export function AuroraBackground({ running, tint = "primary" }: Props) {
     >
       <div
         className={cn(
-          "absolute -inset-[20%] blur-3xl opacity-90",
+          "absolute -inset-[10%] sm:-inset-[20%] blur-2xl sm:blur-3xl opacity-90",
           running ? "animate-aurora-spin" : "opacity-60",
         )}
         style={{
