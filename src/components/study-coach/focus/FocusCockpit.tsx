@@ -173,7 +173,7 @@ export function FocusCockpit({
   // Idle state — show PreFlight
   if (!isActive && !primer) {
     return (
-      <div className="relative w-full max-w-full overflow-hidden flex flex-col items-center gap-4 py-4">
+      <div className="relative w-full max-w-full overflow-hidden flex flex-col items-center gap-3 py-3">
         <AuroraBackground running={false} tint={tint} />
         <FocusStatsStrip
           streak={streak}
@@ -189,7 +189,7 @@ export function FocusCockpit({
           defaultSoundscape={sound.active}
           onLaunch={launchFromPreFlight}
         />
-        <p className="text-[10px] text-muted-foreground/70 italic">
+        <p className="hidden sm:block text-[10px] text-muted-foreground/70 italic">
           Tip: Space = pause · F = theater · M = mute
         </p>
       </div>
@@ -215,7 +215,7 @@ export function FocusCockpit({
   // Active session
   return (
     <div className={cn(
-      "relative w-full max-w-full overflow-x-hidden flex flex-col items-center gap-4 py-4 transition-all",
+      "relative w-full max-w-full overflow-x-hidden flex flex-col items-center gap-3 py-3 px-1 transition-all",
       theater && "fixed inset-0 z-50 bg-background pt-8 overflow-y-auto"
     )}>
       <AuroraBackground running={isRunning} tint={isBreak ? "rain" : tint} />
@@ -277,10 +277,10 @@ export function FocusCockpit({
 
       {/* Secondary controls */}
       {!debriefShown && (
-        <div className="flex items-center gap-2">
+        <div className="flex items-center gap-1.5">
           <button
             onClick={handleReset}
-            className="h-10 w-10 rounded-full flex items-center justify-center bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors tap-effect"
+            className="h-9 w-9 rounded-full flex items-center justify-center bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors tap-effect"
             aria-label="Reset"
             title="Reset (R)"
           >
@@ -291,7 +291,7 @@ export function FocusCockpit({
           <Sheet>
             <SheetTrigger asChild>
               <button
-                className="h-10 px-3 rounded-full flex items-center gap-1.5 bg-card border border-border text-xs font-semibold hover:border-primary/40 transition-colors tap-effect"
+                className="h-9 px-3 rounded-full flex items-center gap-1.5 bg-card border border-border text-xs font-semibold hover:border-primary/40 transition-colors tap-effect"
                 aria-label="Soundscape mixer"
               >
                 <span className="text-base leading-none">
@@ -349,7 +349,7 @@ export function FocusCockpit({
 
           <button
             onClick={() => setTheater((t) => !t)}
-            className="h-10 w-10 rounded-full flex items-center justify-center bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors tap-effect"
+            className="h-9 w-9 rounded-full flex items-center justify-center bg-card border border-border text-muted-foreground hover:text-foreground hover:border-primary/40 transition-colors tap-effect"
             aria-label="Theater mode"
             title="Theater (F)"
           >
@@ -376,7 +376,7 @@ export function FocusCockpit({
       )}
 
       {!debriefShown && isRunning && !isBreak && distractions === 0 && (
-        <p className="text-[11px] text-muted-foreground italic max-w-[260px] text-center animate-fade-in">
+        <p className="hidden sm:block text-[11px] text-muted-foreground italic max-w-[260px] text-center animate-fade-in">
           🌱 Deep work is being deposited.
         </p>
       )}
