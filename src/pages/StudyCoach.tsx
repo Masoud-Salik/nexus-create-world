@@ -548,7 +548,7 @@ export default function StudyCoach() {
 
   return (
     <div className="min-h-screen bg-background pb-20 md:pb-6 overflow-x-hidden">
-      <div className="max-w-lg mx-auto px-4 py-4 flex flex-col min-h-[calc(100vh-80px)] w-full max-w-full">
+      <div className="max-w-lg mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-col min-h-[calc(100vh-80px)] w-full min-w-0">
         
         {/* Header — date + streak + music */}
         <div className="flex items-center justify-between mb-3">
@@ -675,21 +675,8 @@ export default function StudyCoach() {
 
         {/* Plan Mode Content — Full-screen overlay on mobile */}
         {!activeTask && studyMode === "plan" &&
-       <div className="fixed inset-0 bottom-[56px] z-40 bg-background md:relative md:inset-auto md:bottom-auto md:z-auto md:flex-1 flex flex-col overflow-y-auto">
-            {/* Mobile header with back button */}
-            <div className="flex items-center justify-between px-4 py-3 border-b border-border md:hidden">
-              <h2 className="text-lg font-bold text-foreground">📅 Blueprint</h2>
-              <Button
-                variant="ghost"
-                size="sm"
-                onClick={() => setStudyMode("timer")}
-                className="text-muted-foreground"
-              >
-                ✕ Close
-              </Button>
-            </div>
-
-            <div className="flex-1 flex flex-col px-4 py-4 md:px-0 md:py-0 max-w-lg mx-auto w-full">
+       <div className="flex-1 flex flex-col w-full min-w-0">
+            <div className="flex-1 flex flex-col w-full min-w-0">
 
             {/* Life Progress (XP / level / quests / heatmap) */}
             {!isGuest && <LifeProgress progress={progress} streak={streak} />}
