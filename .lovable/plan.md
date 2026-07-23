@@ -1,51 +1,78 @@
-# Mobile fixes, smarter/faster AI, OTP reset, new study music
+## Goal
+Make Focus Hub and Blueprint feel tidy, native, and viewport-locked on mobile — no horizontal overflow, no visual noise, no overlap with the bottom nav or floating chat. Desktop stays untouched.
 
-## 1. Mobile viewport fixes — Focus Hub & Blueprint
-Both pages currently overflow horizontally on mobile (user has to scroll left/right). Root cause is typically fixed widths, large `min-w-*`, absolute-positioned decor, and dense multi-column grids in:
-- `src/components/study-coach/focus/FocusCockpit.tsx`, `FocusRing.tsx`, `FocusStatsStrip.tsx`, `AuroraBackground.tsx`, `PreFlight.tsx`, `SmartBreakCard.tsx`, `SessionDebrief.tsx`
-- `src/components/study-coach/blueprint/StudyPath.tsx`, `WeekRibbon.tsx`, `LifeProgress.tsx`, `PlanAdjusterSheet.tsx`
-- `src/pages/StudyCoach.tsx` container
+## Focus Hub — mobile cleanup
 
-Changes:
-- Add `overflow-x-hidden` + `max-w-full` on page containers; wrap horizontally-scrolling ribbons in explicit `overflow-x-auto` scrollers that don't leak.
-- Convert desktop 2–3 column grids to `grid-cols-1 md:grid-cols-2` on mobile.
-- Shrink Focus Ring radius/stroke on `<sm` (use `useIsMobile`) so the SVG fits within `100vw - padding`.
-- Reduce padding, font sizes, and pill counts on mobile; hide non-essential decorative elements (aurora blobs clipped to container).
-- Blueprint WeekRibbon becomes horizontal-snap scroller inside a bounded wrapper; StudyPath nodes stack vertically on mobile with reduced spacing.
-- Verify: run Playwright at 390×844, screenshot Focus & Blueprint, confirm no horizontal scroll.
+1. **Compact the stats strip** (`FocusStatsStrip`)
+   - Collapse into a single-row pill: `🔥streak · Lvl · XP mini-bar · today/goal`, tabular numbers, `text-[11px]`.
+   - Hide any secondary labels below `sm` breakpoint.
 
-## 2. Smarter AI persona
-Update the NEXUS system prompt in `supabase/functions/chat/index.ts` (and `study-coach` if it has its own persona):
-- Add: human-tutor voice, playful, respectful, occasionally cracks a light joke, Socratic nudges, celebrates wins.
-- Keep the existing "1–3 sentence, **Answer** — Reasoning — Actionable tip. Confidence: X% 🎯" format from project memory.
-- Add tutor heuristics: ask one probing question when the user is stuck; use analogies; adapt tone to detected mood.
+2. **Slim the Pre-Flight card** (`PreFlight.tsx`)
+   - Group Intent + Energy in one card, Duration + Soundscape in a second card (rounded-2xl bg-card).
+   - Duration chips: shrink to `px-3 py-1.5 text-[11px]`, snap-x scroll, remove horizontal padding leak with `-mx-4 px-4 snap-x`.
+   - Energy + Soundscape grids: reduce vertical padding, drop the emoji size on mobile.
+   - Move the "60s breathing primer" from a full-width card into a small inline toggle row above the Launch button.
+   - Launch button: sticky at the bottom of the PreFlight (not the page) with subtle shadow, so it's always reachable on short phones.
 
-## 3. 6-digit OTP password reset
-Replace `resetPasswordForEmail` link-based flow with Supabase OTP:
-- `Auth.tsx` "forgot" mode → `supabase.auth.signInWithOtp({ email, options: { shouldCreateUser: false } })` (sends 6-digit code via existing template).
-- Add a new "verify" step: 6-digit `InputOTP` (already in `src/components/ui/input-otp.tsx`) → `supabase.auth.verifyOtp({ email, token, type: 'email' })` → on success the user is signed in; then optionally prompt to set a new password using `supabase.auth.updateUser({ password })`.
-- Update the recovery email template (`supabase/functions/_shared/email-templates/recovery.tsx` if scaffolded, otherwise use default) to prominently show `{{ .Token }}` as a 6-digit code and drop the "resent"/magic link that currently deep-links to lovable sign-in.
-- No route change needed — flow stays inside `/auth`.
+3. **Active session (`FocusCockpit`)**
+   - Ring size responsive: `min(300, 78vw)` on mobile (currently fixed 300 clips on 360px screens with padding).
+   - Secondary controls row: reduce to 3 icon-buttons (reset · sound · theater), each `h-9 w-9`, gap-1.5, centered.
+   - Sound sheet trigger: emoji-only on mobile (label already hidden), fine.
+   - Remove the "🌱 Deep work is being deposited" caption on mobile (it eats space and adds noise); keep on `sm+`.
+   - Theater X: keep, already correct.
 
-## 4. Swap study music
-- Upload the user's mp3 (`موسیقی_بی_کلام_ایرانی...528هرتز`) to Lovable Assets via `lovable-assets create` and get a CDN URL.
-- Update `MUSIC_SRC` in `src/contexts/GlobalMusicContext.tsx` from `/audio/study-music.mp3` to the new asset URL.
-- Update label in `BackgroundMusicPlayer.tsx` from "Lo-fi • Ghibli" to "Persian Ambient • 528 Hz".
-- Leave `useSoundscape` (silence/brown/rain/binaural 14 Hz) untouched.
+4. **Container hygiene**
+   - Wrap FocusCockpit root in `w-full max-w-full overflow-x-hidden` (already partial) and add `px-1` so ring shadow doesn't clip.
+   - Ensure `AuroraBackground` uses `overflow-hidden` on parent so blurred blobs never trigger horizontal scroll (verify current `-inset-[20%] blur-3xl` doesn't leak on 360px — clamp to `-inset-[10%]` on mobile).
 
-## 5. Make AI feel instant
-- Switch chat model default from `google/gemini-3-flash-preview` to `google/gemini-3.1-flash-lite` for lower latency on the main `chat` edge function (keep pro model available as fallback).
-- Enable priority `service_tier` where model supports it (OpenAI models only — set on the fallback path).
-- Confirm streaming (SSE) is on end-to-end: `chat/index.ts` already uses `chatStream`; ensure the client renders tokens as they arrive without buffering (check `src/pages/Index.tsx` reader loop — flush per chunk, no `await` batching).
-- Reduce first-token latency: trim system prompt bloat, cap conversation history sent to last N=20 turns, and drop redundant memory blocks when total tokens > 4k.
-- Pre-warm the edge function on app mount (fire a tiny GET to `/functions/v1/chat?ping=1`).
-- Skip title-generation blocking; run `generate-chat-title` fire-and-forget after first assistant token.
+5. **Mid-session Floating AI**
+   - Anchor to a safe spot below the ring on mobile (avoid the ring/control overlap) and above the bottom nav (`bottom: calc(56px + env(safe-area-inset-bottom) + 12px)`).
 
-## Technical notes
-- OTP type for password-reset-style flow: use `type: 'email'` with `signInWithOtp` (magic-link code). Supabase's `recovery` OTP also works with `verifyOtp({ type: 'recovery' })` and preserves reset intent — will use `recovery` so users land signed-in with a "set new password" screen.
-- `emailRedirectTo` will be omitted so no magic link is embedded (code-only email).
-- Playwright verification: mobile 390×844 for #1; console + network capture during OTP verify for #3; time-to-first-token measurement before/after for #5.
+## Blueprint — mobile cleanup
 
-## Out of scope
-- No changes to Soundscape, leaderboard, or unrelated pages.
-- No new tables (feedback/roles infra already exists).
+1. **Remove the fixed full-screen overlay pattern**
+   - Current: Blueprint uses `fixed inset-0 bottom-[56px] z-40` on mobile with its own header/close button. This creates a second page-inside-a-page that competes with the top segmented control.
+   - Change: render Blueprint inline like Focus and Stats — same segmented control stays visible; drop the mobile-only header/close.
+
+2. **Tighten LifeProgress + WeekRibbon**
+   - LifeProgress: reduce to 2 rows (Level + XP bar row / quests pips row), collapse heatmap into a single 7-day strip.
+   - WeekRibbon: shrink day cells to `w-9 h-11`, `text-[10px]` label, use gap-1.
+
+3. **StudyPath tidy-up**
+   - Reduce `NODE_SIZE` from 56 → 48 on mobile; `ROW_H` 96 → 80; recompute total height.
+   - Cap `maxWidth: 100%` (already there) and set container `px-1` to keep ring shadows in-frame.
+   - Label under each node: keep only duration on mobile (subject shown in sheet).
+
+4. **Day header + Adjust button**
+   - Stack on a single row with `text-xs`; move "Adjust" into a small icon+text chip already; keep.
+
+5. **"Break The Rules" card**
+   - Reduce padding (`p-4`) and button size (`px-3 py-2`), keep the celebratory feel but stop it from pushing content off-screen.
+
+6. **Empty state**
+   - Shrink the 20×20 sparkle circle to `h-14 w-14` on mobile, `text-lg` heading.
+
+## Global mobile safeguards (StudyCoach page shell)
+
+- Add `overflow-x-hidden` to the outer wrapper (already present) and to each mode's inner wrapper.
+- Ensure `max-w-lg mx-auto` container has `w-full min-w-0` so flex children can shrink.
+- Guarantee bottom padding accounts for `MobileBottomNav` (56px) + safe-area on every mode content.
+- FloatingAIChat: pass a `bottomOffset` prop so both Focus and Blueprint place it above nav without overlapping the "Break The Rules" card or the ring controls.
+
+## Files to edit
+
+- `src/pages/StudyCoach.tsx` — remove Blueprint fixed overlay, unify mode rendering, tighten paddings.
+- `src/components/study-coach/focus/FocusCockpit.tsx` — responsive ring size, compact controls row, mobile caption gating.
+- `src/components/study-coach/focus/PreFlight.tsx` — grouped cards, inline breathing toggle, smaller chips.
+- `src/components/study-coach/focus/FocusStatsStrip.tsx` — single-row compact pill.
+- `src/components/study-coach/focus/AuroraBackground.tsx` — clamp inset on mobile.
+- `src/components/study-coach/focus/FocusRing.tsx` — accept responsive size or clamp internally.
+- `src/components/study-coach/blueprint/StudyPath.tsx` — smaller node/row on mobile.
+- `src/components/study-coach/blueprint/LifeProgress.tsx` — condense rows.
+- `src/components/study-coach/blueprint/WeekRibbon.tsx` — smaller cells.
+- `src/components/study-coach/FloatingAIChat.tsx` — respect bottom nav offset.
+
+## Non-goals
+- No backend or logic changes.
+- No new features; visual/layout only.
+- Desktop layout untouched (all changes gated by mobile breakpoints where they'd differ).

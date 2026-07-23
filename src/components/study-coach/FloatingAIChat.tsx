@@ -123,22 +123,28 @@ export function FloatingAIChat({
     anchor === "ring"
       ? "fixed top-[88px] right-3 z-50"
       : anchor === "blueprint"
-      ? "fixed right-3 bottom-[80px] z-50"
+      ? "fixed right-3 z-50"
       : anchor === "focus-active"
-      ? "fixed bottom-24 right-3 z-50"
-      : "fixed bottom-20 right-3 z-50";
+      ? "fixed right-3 z-50"
+      : "fixed right-3 z-50";
+  const buttonWrapperStyle: React.CSSProperties | undefined =
+    anchor === "ring"
+      ? undefined
+      : { bottom: "calc(64px + env(safe-area-inset-bottom, 0px) + 12px)" };
 
   const overlayCls =
     anchor === "ring"
       ? "fixed top-[140px] right-3 left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
-      : anchor === "focus-active"
-      ? "fixed right-3 bottom-[150px] left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200"
-      : "fixed right-3 bottom-[140px] left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200";
+      : "fixed right-3 left-3 sm:left-auto z-50 sm:max-w-sm sm:ml-auto animate-in fade-in-0 zoom-in-95 duration-200";
+  const overlayStyle: React.CSSProperties | undefined =
+    anchor === "ring"
+      ? undefined
+      : { bottom: "calc(64px + env(safe-area-inset-bottom, 0px) + 60px)" };
 
   return (
     <>
       {/* Floating Button */}
-      <div className={buttonWrapperCls}>
+      <div className={buttonWrapperCls} style={buttonWrapperStyle}>
         <button
           onClick={() => { setIsOpen(prev => !prev); navigator.vibrate?.(10); }}
           className={cn(
@@ -154,7 +160,7 @@ export function FloatingAIChat({
 
       {/* Chat Overlay */}
       {isOpen && (
-        <div className={overlayCls}>
+        <div className={overlayCls} style={overlayStyle}>
           <div className="rounded-2xl border border-border/50 bg-background/80 backdrop-blur-xl shadow-2xl overflow-hidden">
             {/* Mini header */}
             <div className="flex items-center justify-between px-3 py-2 border-b border-border/30">
