@@ -50,6 +50,66 @@ export type Database = {
         }
         Relationships: []
       }
+      account_exports: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          error_message: string | null
+          file_path: string | null
+          id: string
+          status: string
+          user_id: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_path?: string | null
+          id?: string
+          status?: string
+          user_id: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          error_message?: string | null
+          file_path?: string | null
+          id?: string
+          status?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
+      admin_access_log: {
+        Row: {
+          action: string
+          admin_user_id: string
+          created_at: string
+          id: string
+          subject_id: string | null
+          subject_type: string
+          trace_id: string | null
+        }
+        Insert: {
+          action: string
+          admin_user_id: string
+          created_at?: string
+          id?: string
+          subject_id?: string | null
+          subject_type: string
+          trace_id?: string | null
+        }
+        Update: {
+          action?: string
+          admin_user_id?: string
+          created_at?: string
+          id?: string
+          subject_id?: string | null
+          subject_type?: string
+          trace_id?: string | null
+        }
+        Relationships: []
+      }
       ai_knowledge_chunks: {
         Row: {
           chunk_index: number
@@ -295,6 +355,33 @@ export type Database = {
             referencedColumns: ["id"]
           },
         ]
+      }
+      anon_sessions: {
+        Row: {
+          claimed_at: string | null
+          claimed_by: string | null
+          created_at: string
+          expires_at: string
+          id: string
+          token_hash: string
+        }
+        Insert: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token_hash: string
+        }
+        Update: {
+          claimed_at?: string | null
+          claimed_by?: string | null
+          created_at?: string
+          expires_at?: string
+          id?: string
+          token_hash?: string
+        }
+        Relationships: []
       }
       conversations: {
         Row: {
