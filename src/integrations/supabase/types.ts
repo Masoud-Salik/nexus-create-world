@@ -361,6 +361,7 @@ export type Database = {
           claimed_at: string | null
           claimed_by: string | null
           created_at: string
+          created_ip: string | null
           expires_at: string
           id: string
           token_hash: string
@@ -369,6 +370,7 @@ export type Database = {
           claimed_at?: string | null
           claimed_by?: string | null
           created_at?: string
+          created_ip?: string | null
           expires_at?: string
           id?: string
           token_hash: string
@@ -377,6 +379,7 @@ export type Database = {
           claimed_at?: string | null
           claimed_by?: string | null
           created_at?: string
+          created_ip?: string | null
           expires_at?: string
           id?: string
           token_hash?: string
@@ -1644,6 +1647,7 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      gc_anon_sessions: { Args: never; Returns: number }
       has_role: {
         Args: {
           _role: Database["public"]["Enums"]["app_role"]
