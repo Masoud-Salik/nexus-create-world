@@ -871,6 +871,54 @@ export type Database = {
         }
         Relationships: []
       }
+      jobs: {
+        Row: {
+          attempts: number
+          created_at: string
+          id: string
+          key: string
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          max_attempts: number
+          next_run_at: string
+          payload: Json
+          status: Database["public"]["Enums"]["job_status"]
+          trace_id: string | null
+          updated_at: string
+        }
+        Insert: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          key: string
+          kind: string
+          last_error?: string | null
+          lease_until?: string | null
+          max_attempts?: number
+          next_run_at?: string
+          payload?: Json
+          status?: Database["public"]["Enums"]["job_status"]
+          trace_id?: string | null
+          updated_at?: string
+        }
+        Update: {
+          attempts?: number
+          created_at?: string
+          id?: string
+          key?: string
+          kind?: string
+          last_error?: string | null
+          lease_until?: string | null
+          max_attempts?: number
+          next_run_at?: string
+          payload?: Json
+          status?: Database["public"]["Enums"]["job_status"]
+          trace_id?: string | null
+          updated_at?: string
+        }
+        Relationships: []
+      }
       leaderboard_opt_ins: {
         Row: {
           country: string | null
@@ -1647,6 +1695,46 @@ export type Database = {
       [_ in never]: never
     }
     Functions: {
+      claim_jobs: {
+        Args: { _kind: string; _lease_seconds?: number; _n?: number }
+        Returns: {
+          attempts: number
+          created_at: string
+          id: string
+          key: string
+          kind: string
+          last_error: string | null
+          lease_until: string | null
+          max_attempts: number
+          next_run_at: string
+          payload: Json
+          status: Database["public"]["Enums"]["job_status"]
+          trace_id: string | null
+          updated_at: string
+        }[]
+        SetofOptions: {
+          from: "*"
+          to: "jobs"
+          isOneToOne: false
+          isSetofReturn: true
+        }
+      }
+      complete_job: { Args: { _id: string }; Returns: undefined }
+      enqueue_job: {
+        Args: {
+          _key: string
+          _kind: string
+          _max_attempts?: number
+          _payload?: Json
+          _run_at?: string
+          _trace_id?: string
+        }
+        Returns: string
+      }
+      fail_job: {
+        Args: { _error: string; _id: string }
+        Returns: Database["public"]["Enums"]["job_status"]
+      }
       gc_anon_sessions: { Args: never; Returns: number }
       has_role: {
         Args: {
@@ -1665,9 +1753,19 @@ export type Database = {
           similarity: number
         }[]
       }
+      outbox_enqueue: {
+        Args: {
+          _key: string
+          _kind: string
+          _payload?: Json
+          _trace_id?: string
+        }
+        Returns: string
+      }
     }
     Enums: {
       app_role: "admin" | "user"
+      job_status: "pending" | "running" | "done" | "failed" | "dead"
     }
     CompositeTypes: {
       [_ in never]: never
@@ -1796,6 +1894,7 @@ export const Constants = {
   public: {
     Enums: {
       app_role: ["admin", "user"],
+      job_status: ["pending", "running", "done", "failed", "dead"],
     },
   },
 } as const
