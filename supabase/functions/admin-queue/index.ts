@@ -52,9 +52,10 @@ Deno.serve(
       .limit(50);
 
     await svc.from("admin_access_log").insert({
-      admin_id: adminId,
+      admin_user_id: adminId,
+      subject_type: "jobs",
       action: "queue.read",
-      detail: { trace_id: ctx.traceId },
+      trace_id: ctx.traceId,
     });
 
     log.info("admin.queue_read", { kinds: Object.keys(byKindStatus).length });
