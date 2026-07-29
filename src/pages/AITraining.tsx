@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import { useNavigate } from "react-router-dom";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
-import { Brain, BookOpen, MessageSquareHeart, Sparkles } from "lucide-react";
+import { Brain, BookOpen, MessageSquareHeart, Sparkles, ListChecks } from "lucide-react";
 import { usePageMeta } from "@/hooks/usePageMeta";
 import KnowledgeTab from "@/components/ai-training/KnowledgeTab";
 import PromptStudioTab from "@/components/ai-training/PromptStudioTab";
 import FeedbackTab from "@/components/ai-training/FeedbackTab";
+import QueueTab from "@/components/ai-training/QueueTab";
 import { Skeleton } from "@/components/ui/skeleton";
 
 export default function AITraining() {
@@ -46,14 +47,16 @@ export default function AITraining() {
         </header>
 
         <Tabs defaultValue="knowledge" className="w-full">
-          <TabsList className="grid w-full grid-cols-3 h-12">
+          <TabsList className="grid w-full grid-cols-4 h-12">
             <TabsTrigger value="knowledge" className="gap-2"><BookOpen className="h-4 w-4" />Knowledge</TabsTrigger>
             <TabsTrigger value="prompt" className="gap-2"><Sparkles className="h-4 w-4" />Prompt Studio</TabsTrigger>
             <TabsTrigger value="feedback" className="gap-2"><MessageSquareHeart className="h-4 w-4" />Feedback</TabsTrigger>
+            <TabsTrigger value="queue" className="gap-2"><ListChecks className="h-4 w-4" />Queue</TabsTrigger>
           </TabsList>
           <TabsContent value="knowledge" className="mt-6"><KnowledgeTab /></TabsContent>
           <TabsContent value="prompt" className="mt-6"><PromptStudioTab /></TabsContent>
           <TabsContent value="feedback" className="mt-6"><FeedbackTab /></TabsContent>
+          <TabsContent value="queue" className="mt-6"><QueueTab /></TabsContent>
         </Tabs>
       </div>
     </div>
