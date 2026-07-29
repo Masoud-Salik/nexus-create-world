@@ -32,3 +32,10 @@ verify_jwt = false
 
 [functions.ai-training]
 verify_jwt = true
+
+# E2 — the worker authenticates itself with the service role key, not a user JWT.
+[functions.worker]
+verify_jwt = false
+
+[functions.admin-queue]
+verify_jwt = true
