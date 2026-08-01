@@ -550,47 +550,36 @@ export default function StudyCoach() {
     <div className="min-h-screen bg-background pb-20 md:pb-6 overflow-x-hidden">
       <div className="max-w-lg mx-auto px-3 sm:px-4 py-3 sm:py-4 flex flex-col min-h-[calc(100vh-80px)] w-full min-w-0">
         
-        {/* Header — date + streak + music */}
-        <div className="flex items-center justify-between mb-3">
-          <div className="flex items-center gap-2">
-            <span className="text-sm font-semibold text-foreground">{format(new Date(), "EEEE, MMMM d")}</span>
-            {streak > 0 && (
-              <span className="inline-flex items-center gap-0.5 text-xs font-bold text-orange-500">
-                🔥 {streak}
-              </span>
-            )}
+        {/* Header — day + date/streak, with labelled action pair */}
+        <div className="flex items-center justify-between mb-2.5">
+          <div className="min-w-0">
+            <div className="text-base font-bold text-foreground leading-tight truncate">
+              {format(new Date(), "EEEE")}
+            </div>
+            <div className="text-[11px] text-muted-foreground leading-tight truncate">
+              {format(new Date(), "MMMM d")}
+              {streak > 0 && (
+                <span className="text-orange-500 font-semibold"> · 🔥 {streak} day streak</span>
+              )}
+            </div>
           </div>
-          <div className="flex items-center gap-1">
-            {/* Background Music */}
-            <BackgroundMusicPlayer compact />
-            {/* Only show management buttons in plan mode */}
-            {studyMode === "plan" && <>
-                <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10"
-                onClick={() => setSubjectsOpen(true)}>
-                
-                  <BookOpen className="h-5 w-5" />
-                </Button>
-                
-                {cachedTasks.length > 0 &&
-              <Button
-                variant="ghost"
-                size="icon"
-                className="h-10 w-10"
-                onClick={() => setAdjustOpen(true)}
-                disabled={adjusting}>
-                
-                    {adjusting ?
-                <RefreshCw className="h-5 w-5 animate-spin" /> :
-
-                <Sliders className="h-5 w-5" />
-                }
-                  </Button>
-              }
-              </>
-            }
+          <div className="flex items-center gap-1.5 shrink-0">
+            <div
+              aria-label="Study music"
+              className="h-9 w-9 rounded-full border border-border bg-card flex items-center justify-center"
+            >
+              <BackgroundMusicPlayer compact />
+            </div>
+            {studyMode === "plan" && (
+              <button
+                type="button"
+                aria-label="Subjects"
+                onClick={() => setSubjectsOpen(true)}
+                className="h-9 w-9 rounded-full border border-border bg-card flex items-center justify-center tap-effect hover:border-primary/40 transition-colors"
+              >
+                <BookOpen className="h-4 w-4 text-foreground" />
+              </button>
+            )}
           </div>
         </div>
 
