@@ -110,6 +110,60 @@ export type Database = {
         }
         Relationships: []
       }
+      ai_calls: {
+        Row: {
+          cache_hit: boolean
+          cost_usd: number
+          created_at: string
+          id: string
+          latency_ms: number
+          model: string
+          owner_id: string | null
+          prompt_version: string | null
+          provider: string
+          schema_retries: number
+          status: string
+          task: string
+          tokens_input: number
+          tokens_output: number
+          trace_id: string | null
+        }
+        Insert: {
+          cache_hit?: boolean
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          latency_ms?: number
+          model: string
+          owner_id?: string | null
+          prompt_version?: string | null
+          provider?: string
+          schema_retries?: number
+          status?: string
+          task: string
+          tokens_input?: number
+          tokens_output?: number
+          trace_id?: string | null
+        }
+        Update: {
+          cache_hit?: boolean
+          cost_usd?: number
+          created_at?: string
+          id?: string
+          latency_ms?: number
+          model?: string
+          owner_id?: string | null
+          prompt_version?: string | null
+          provider?: string
+          schema_retries?: number
+          status?: string
+          task?: string
+          tokens_input?: number
+          tokens_output?: number
+          trace_id?: string | null
+        }
+        Relationships: []
+      }
       ai_knowledge_chunks: {
         Row: {
           chunk_index: number
@@ -284,6 +338,7 @@ export type Database = {
           name: string
           persona: string | null
           system_prompt: string
+          task: string | null
           temperature: number
           tool_aggressiveness: string
           updated_at: string
@@ -298,6 +353,7 @@ export type Database = {
           name: string
           persona?: string | null
           system_prompt: string
+          task?: string | null
           temperature?: number
           tool_aggressiveness?: string
           updated_at?: string
@@ -312,6 +368,7 @@ export type Database = {
           name?: string
           persona?: string | null
           system_prompt?: string
+          task?: string | null
           temperature?: number
           tool_aggressiveness?: string
           updated_at?: string
