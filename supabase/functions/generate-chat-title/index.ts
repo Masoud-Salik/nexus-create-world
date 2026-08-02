@@ -1,15 +1,25 @@
+// E3 / M3.4 — migrated onto the shared AI boundary. No direct provider calls.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { AiLimitError, callModel } from "../_shared/ai/call.ts";
+import { serviceClient } from "../_shared/owner.ts";
+import { createLogger, traceIdFrom } from "../_shared/logging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-trace-id",
 };
+
+const SYSTEM_PROMPT =
+  "You generate short, creative chat titles. Max 5 words. Be concise and catchy.";
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const traceId = traceIdFrom(req);
+  const log = createLogger("generate-chat-title", traceId);
 
   try {
     const authHeader = req.headers.get("authorization");
@@ -34,52 +44,48 @@ serve(async (req) => {
     const userMessage = typeof body?.userMessage === "string" ? body.userMessage.slice(0, 2000) : "";
     const assistantMessage = typeof body?.assistantMessage === "string" ? body.assistantMessage.slice(0, 2000) : "";
 
-    const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-    if (!LOVABLE_API_KEY) {
-      throw new Error("LOVABLE_API_KEY is not configured");
-    }
-
     const prompt = `Based on this conversation, generate a short, catchy title (max 5 words) that captures the topic. Return ONLY the title, nothing else.
 
 User: ${userMessage}
 Assistant: ${assistantMessage?.slice(0, 200) || ""}`;
 
-    const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${LOVABLE_API_KEY}`,
-        "Content-Type": "application/json",
-      },
-      body: JSON.stringify({
-        model: "google/gemini-2.5-flash-lite",
-        messages: [
-          { role: "system", content: "You generate short, creative chat titles. Max 5 words. Be concise and catchy." },
-          { role: "user", content: prompt }
-        ],
-        max_tokens: 20,
-      }),
-    });
+    const ctx = { supabase: serviceClient(), ownerId: user.id, traceId, log };
+    const prompted = await import("../_shared/ai/call.ts").then((m) =>
+      m.resolvePrompt(ctx, "generate_chat_title", SYSTEM_PROMPT)
+    );
 
-    if (!response.ok) {
-      const errorText = await response.text();
-      console.error("AI error:", response.status, errorText);
+    try {
+      // Deterministic: identical conversations reuse the cached title.
+      const result = await callModel("generate_chat_title", {
+        messages: [
+          { role: "system", content: prompted.systemPrompt ?? SYSTEM_PROMPT },
+          { role: "user", content: prompt },
+        ],
+        cacheInput: { userMessage, assistantMessage: assistantMessage.slice(0, 200) },
+        extraBody: { prompt_version: prompted.promptVersion },
+      }, ctx);
+
+      const title = result.text.trim().replace(/^["']|["']$/g, "") || null;
+      return new Response(JSON.stringify({ title }), {
+        headers: { ...corsHeaders, "Content-Type": "application/json", "X-Trace-Id": traceId },
+      });
+    } catch (e) {
+      if (e instanceof AiLimitError) {
+        return new Response(
+          JSON.stringify({ title: null, code: "rate_limited", message: "Too many requests. Try again shortly.", trace_id: traceId }),
+          { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+        );
+      }
+      log.error("title.failed", { detail: String(e) });
       return new Response(
         JSON.stringify({ title: null, error: "Failed to generate title" }),
-        { headers: { ...corsHeaders, "Content-Type": "application/json" } }
+        { headers: { ...corsHeaders, "Content-Type": "application/json" } },
       );
     }
-
-    const data = await response.json();
-    const title = data.choices?.[0]?.message?.content?.trim()?.replace(/^["']|["']$/g, '') || null;
-
-    return new Response(
-      JSON.stringify({ title }),
-      { headers: { ...corsHeaders, "Content-Type": "application/json" } }
-    );
   } catch (e) {
-    console.error("Error:", e);
+    log.error("request.failed", { detail: String(e) });
     return new Response(
-      JSON.stringify({ title: null, error: "Internal server error" }),
+      JSON.stringify({ title: null, code: "internal", message: "Something went wrong on our side.", trace_id: traceId }),
       { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } }
     );
   }
