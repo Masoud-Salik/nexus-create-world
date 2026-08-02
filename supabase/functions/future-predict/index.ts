@@ -16,7 +16,8 @@ const corsHeaders = {
   "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-trace-id",
 };
 
-const aiFailure = (e: unknown, traceId: string, log: { error: (m: string, f?: Record<string, unknown>) => void }) => {
+/** Maps boundary failures onto the standard error envelope. */
+function aiFailure(e: unknown, traceId: string): Response | null {
   if (e instanceof AiLimitError) {
     return new Response(
       JSON.stringify({ code: "rate_limited", message: "Too many requests. Try again shortly.", trace_id: traceId }),
@@ -24,14 +25,13 @@ const aiFailure = (e: unknown, traceId: string, log: { error: (m: string, f?: Re
     );
   }
   if (e instanceof SchemaRejected) {
-    log("ai.schema_rejected" as never);
     return new Response(
       JSON.stringify({ code: "ai_schema", message: "Could not read the model output.", trace_id: traceId }),
       { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
     );
   }
   return null;
-};
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
