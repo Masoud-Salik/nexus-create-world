@@ -266,9 +266,6 @@ Return JSON:
     }
 
     if (action === "generate-weekly-report") {
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
       const systemPrompt = `You are an analytical AI study coach specializing in behavioral pattern analysis and performance optimization.
 
 ANALYSIS FRAMEWORK:
@@ -308,26 +305,25 @@ Return JSON:
   "compared_to_high_performers": "Honest comparison with specifics"
 }`;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+      const prompted = await resolvePrompt(aiCtx, "future_weekly_report", systemPrompt);
+      let report: Record<string, any>;
+      try {
+        const result = await callModel<Record<string, any>>("future_weekly_report", {
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: prompted.systemPrompt ?? systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          response_format: { type: "json_object" },
-        }),
-      });
-
-      if (!response.ok) throw new Error("AI Gateway error");
-
-      const aiData = await response.json();
-      const report = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
+          extraBody: {
+            prompt_version: prompted.promptVersion,
+            response_format: { type: "json_object" },
+          },
+        }, aiCtx);
+        report = result.parsed ?? {};
+      } catch (e) {
+        const mapped = aiFailure(e, traceId);
+        if (mapped) return mapped;
+        throw e;
+      }
 
       const now = new Date();
       const weekStart = new Date(now);
