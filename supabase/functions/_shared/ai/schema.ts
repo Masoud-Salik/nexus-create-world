@@ -49,11 +49,58 @@ export const studyPlanSchema = z.object({
   ),
 });
 
+/**
+ * The planner has always emitted a bare JSON array of tasks. Fields stay loose
+ * because the edge function clamps and remaps them before writing.
+ */
+export const studyPlanTasksSchema = z.array(
+  z.object({
+    date: z.string().optional().nullable(),
+    subject_name: z.string().optional().nullable(),
+    topic: z.string().optional().nullable(),
+    duration_minutes: z.number().optional().nullable(),
+    difficulty: z.string().optional().nullable(),
+  }),
+).min(1);
+
+export const futureScenariosSchema = z.object({
+  scenarios: z.array(
+    z.object({
+      scenario_type: z.string(),
+      title: z.string(),
+      description: z.string(),
+      skills_gained: z.array(z.string()).optional().nullable(),
+      opportunities: z.array(z.string()).optional().nullable(),
+      risks: z.array(z.string()).optional().nullable(),
+      recommendations: z.array(z.string()).optional().nullable(),
+      probability_score: z.number().optional().nullable(),
+    }),
+  ),
+});
+
+export const weeklyReportSchema = z.object({
+  progress_trend: z.enum(["improving", "stable", "declining"]).optional().nullable(),
+  summary: z.string().optional().nullable(),
+  main_reason: z.string().optional().nullable(),
+  action_items: z.array(z.string()).optional().nullable(),
+  compared_to_high_performers: z.string().optional().nullable(),
+});
+
+export const dailyCoachSchema = z.object({
+  priority_focus: z.string().optional().nullable(),
+  warning_message: z.string().optional().nullable(),
+  motivation_level: z.enum(["low", "medium", "high"]).optional().nullable(),
+});
+
 export const chatTitleSchema = z.object({ title: z.string().min(1).max(120) });
 
 export const SCHEMAS: Record<string, z.ZodTypeAny> = {
   extract_memory: extractMemorySchema,
   study_plan: studyPlanSchema,
+  study_plan_tasks: studyPlanTasksSchema,
+  future_scenarios: futureScenariosSchema,
+  weekly_report: weeklyReportSchema,
+  daily_coach: dailyCoachSchema,
   chat_title: chatTitleSchema,
 };
 
