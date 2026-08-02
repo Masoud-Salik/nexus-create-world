@@ -1,7 +1,7 @@
 // E3 / M3.4 — migrated onto the shared AI boundary. No direct provider calls.
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { AiLimitError, callModel } from "../_shared/ai/call.ts";
+import { AiLimitError, callModel, resolvePrompt } from "../_shared/ai/call.ts";
 import { serviceClient } from "../_shared/owner.ts";
 import { createLogger, traceIdFrom } from "../_shared/logging.ts";
 
@@ -50,9 +50,7 @@ User: ${userMessage}
 Assistant: ${assistantMessage?.slice(0, 200) || ""}`;
 
     const ctx = { supabase: serviceClient(), ownerId: user.id, traceId, log };
-    const prompted = await import("../_shared/ai/call.ts").then((m) =>
-      m.resolvePrompt(ctx, "generate_chat_title", SYSTEM_PROMPT)
-    );
+    const prompted = await resolvePrompt(ctx, "generate_chat_title", SYSTEM_PROMPT);
 
     try {
       // Deterministic: identical conversations reuse the cached title.
