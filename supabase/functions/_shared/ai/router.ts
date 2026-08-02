@@ -46,6 +46,11 @@ export function endpointFor(provider: Provider, kind: TaskConfig["kind"]): strin
   return `${base}/chat/completions`;
 }
 
+/** Base URL for a provider. The only place provider hosts are named. */
+export function providerBase(provider: Provider): string {
+  return provider === "openai" ? OPENAI_BASE : LOVABLE_BASE;
+}
+
 /** Retryable transport/provider statuses. Everything else is terminal. */
 export function isRetryableStatus(status: number): boolean {
   return status === 408 || status === 429 || status === 425 || status >= 500;
