@@ -7,7 +7,15 @@
  */
 import { TaskName, getTask } from "./tasks.ts";
 
-const FORBIDDEN: TaskName[] = ["chat", "future_predict", "study_coach", "text_to_speech"];
+const FORBIDDEN: TaskName[] = [
+  "chat",
+  "future_scenarios",
+  "future_weekly_report",
+  "future_daily_coach",
+  "study_coach",
+  "session_debrief",
+  "text_to_speech",
+];
 
 export function isCacheable(task: TaskName): boolean {
   if (FORBIDDEN.includes(task)) return false;
