@@ -8,7 +8,14 @@
  * backoff, redaction, schema validation, metering and the `ai_calls` ledger.
  */
 import { getTask, Provider, TaskName } from "./tasks.ts";
-import { ProviderError, Route, endpointFor, resolveRoute, runWithFallback } from "./router.ts";
+import {
+  ProviderError,
+  Route,
+  endpointFor,
+  providerBase,
+  resolveRoute,
+  runWithFallback,
+} from "./router.ts";
 import { SchemaRejected, validateWithRepair } from "./schema.ts";
 import { Meter, computeCostUsd, estimateTokens, extractUsage } from "./meter.ts";
 import { checkLimit, supabaseUsageCounter } from "./limits.ts";
@@ -17,6 +24,26 @@ import { cacheGet, cacheKey, cacheSet, isCacheable } from "./cache.ts";
 import { redact } from "./redact.ts";
 
 export { ProviderError, SchemaRejected };
+
+/**
+ * Credential verification for a BYO provider key. This is not a model call, but
+ * it is still a provider call, so it lives behind the boundary like the rest.
+ */
+export async function verifyProviderKey(
+  provider: Provider,
+  apiKey: string,
+  traceId: string,
+): Promise<{ ok: boolean; status: number; models: string[] }> {
+  const res = await fetch(`${providerBase(provider)}/models`, {
+    headers: { Authorization: `Bearer ${apiKey}`, "X-Trace-Id": traceId },
+  });
+  if (!res.ok) return { ok: false, status: res.status, models: [] };
+  const body = await res.json().catch(() => ({ data: [] }));
+  const models: string[] = (body?.data ?? [])
+    .map((m: { id?: unknown }) => m?.id)
+    .filter((id: unknown): id is string => typeof id === "string");
+  return { ok: true, status: res.status, models };
+}
 export { UNTRUSTED_GUARD, fenceData, fenceToolResult, untrustedMessage } from "./untrusted.ts";
 export { redact, redactDeep } from "./redact.ts";
 
