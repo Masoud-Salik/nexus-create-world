@@ -215,37 +215,24 @@ Return JSON:
   ]
 }`;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+      const prompted = await resolvePrompt(aiCtx, "future_scenarios", systemPrompt);
+      let scenarios: { scenarios?: any[] };
+      try {
+        const result = await callModel<{ scenarios: any[] }>("future_scenarios", {
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: prompted.systemPrompt ?? systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          response_format: { type: "json_object" },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("AI Gateway error:", errorText);
-        throw new Error(`AI Gateway error: ${response.status}`);
-      }
-
-      const aiData = await response.json();
-      const content = aiData.choices?.[0]?.message?.content;
-      
-      let scenarios;
-      try {
-        scenarios = JSON.parse(content);
+          extraBody: {
+            prompt_version: prompted.promptVersion,
+            response_format: { type: "json_object" },
+          },
+        }, aiCtx);
+        scenarios = result.parsed ?? { scenarios: [] };
       } catch (e) {
-        console.error("Failed to parse AI response:", content);
-        throw new Error("Failed to parse AI response");
+        const mapped = aiFailure(e, traceId);
+        if (mapped) return mapped;
+        throw e;
       }
 
       const scenariosToInsert = (scenarios.scenarios || []).map((s: any) => ({
