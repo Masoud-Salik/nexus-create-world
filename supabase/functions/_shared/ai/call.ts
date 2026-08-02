@@ -54,6 +54,11 @@ export interface ChatInput {
   schemaKey?: string;
   /** Extra provider body fields the task legitimately needs. */
   extraBody?: Record<string, unknown>;
+  /**
+   * Ask the router for a specific model inside this task's chain (intent
+   * routing in chat). Models outside the chain are only honoured for BYO.
+   */
+  preferModel?: string;
   /** Cache identity for deterministic tasks. Defaults to the messages. */
   cacheInput?: unknown;
 }
@@ -200,7 +205,7 @@ export async function callModel<T = unknown>(
   await guard(ctx, task);
 
   const route: Route = resolveRoute(task, {
-    preferModel: ctx.byo?.provider === config.provider ? ctx.byo.model : undefined,
+    preferModel: ctx.byo ? ctx.byo.model : input.preferModel,
     provider: ctx.byo?.provider,
   });
   const meter = new Meter();
@@ -362,7 +367,7 @@ export async function streamModel(
   await guard(ctx, task);
 
   const route = resolveRoute(task, {
-    preferModel: ctx.byo ? ctx.byo.model : undefined,
+    preferModel: ctx.byo ? ctx.byo.model : input.preferModel,
     provider: ctx.byo?.provider,
   });
   const messages = sanitizeMessages(input.messages);
