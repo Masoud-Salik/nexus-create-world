@@ -1,16 +1,28 @@
+// E3 / M3.4 — migrated onto the shared AI boundary. No direct provider calls.
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  AiLimitError,
+  callModel,
+  fenceData,
+  resolvePrompt,
+  SchemaRejected,
+} from "../_shared/ai/call.ts";
+import { createLogger, traceIdFrom } from "../_shared/logging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-trace-id",
 };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const traceId = traceIdFrom(req);
+  const log = createLogger("study-coach", traceId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -38,7 +50,8 @@ serve(async (req) => {
 
     const { action, mode, duration = "daily", payload } = await req.json();
 
-    console.log(`Study Coach action: ${action} for user: ${userId}, duration: ${duration}`);
+    const aiCtx = { supabase, ownerId: userId, traceId, log };
+    log.info("request", { action, duration });
 
     if (action === "generate-daily-plan") {
       // Get user's subjects with priorities
@@ -108,8 +121,6 @@ serve(async (req) => {
       const daysToGenerate = duration === "monthly" ? 30 : duration === "weekly" ? 7 : 1;
       const tasksPerDay = Math.max(2, Math.min(5, Math.ceil(avgStudyTime / 30)));
 
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      
       const subjectInfo = subjects.map((s) => ({
         name: s.subject_name,
         weeklyTargetMinutes: s.weekly_target_minutes || 180,
@@ -152,18 +163,19 @@ MULTI-DAY PLANNING:
 • Progressive difficulty over the time period
 • Include buffer/catch-up days for longer plans`;
 
+      // Subject names, topics and goals are user-authored: fenced as data.
       const userPrompt = `Create an optimized ${duration} study plan starting from today (${dayOfWeek}).
 
 SUBJECTS (in priority order):
-${JSON.stringify(subjectInfo, null, 2)}
+${fenceData("subjects", JSON.stringify(subjectInfo, null, 2))}
 
 WEAK AREAS REQUIRING ATTENTION:
-${weakTopics.length > 0 ? weakTopics.join("\n") : "No significant weak spots detected yet"}
+${weakTopics.length > 0 ? fenceData("weak_topics", weakTopics.join("\n")) : "No significant weak spots detected yet"}
 
 USER STATE:
 • Average energy level: ${avgEnergy.toFixed(1)}/5
 • Typical daily study time: ${Math.round(avgStudyTime)} minutes
-• Goals: ${goals?.map(g => g.goal_title).join(", ") || "None specified"}
+• Goals: ${goals?.length ? fenceData("goals", goals.map(g => g.goal_title).join(", ")) : "None specified"}
 
 REQUIREMENTS:
 1. Generate tasks for ${daysToGenerate} day(s)
@@ -188,31 +200,28 @@ Return ONLY a JSON array:
   }
 ]`;
 
-      const aiResponse = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+      const prompted = await resolvePrompt(aiCtx, "study_coach", systemPrompt);
+
+      let tasksToCreate: any[] = [];
+      try {
+        const result = await callModel<any[]>("study_coach", {
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: prompted.systemPrompt ?? systemPrompt },
             { role: "user", content: userPrompt },
           ],
-        }),
-      });
-
-      const aiData = await aiResponse.json();
-      const content = aiData.choices?.[0]?.message?.content || "[]";
-      
-      let tasksToCreate;
-      try {
-        const jsonMatch = content.match(/\[[\s\S]*\]/);
-        tasksToCreate = jsonMatch ? JSON.parse(jsonMatch[0]) : [];
+          extraBody: { prompt_version: prompted.promptVersion },
+        }, aiCtx);
+        tasksToCreate = result.parsed ?? [];
       } catch (e) {
-        console.error("Failed to parse AI response:", content);
-        // Fallback: create balanced tasks for all dates
+        if (e instanceof AiLimitError) {
+          return new Response(
+            JSON.stringify({ code: "rate_limited", message: "Too many requests. Try again shortly.", trace_id: traceId }),
+            { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+          );
+        }
+        if (!(e instanceof SchemaRejected)) throw e;
+        // Deterministic fallback: a balanced plan is better than no plan.
+        log.warn("plan.schema_rejected_fallback", { retries: e.retries });
         tasksToCreate = [];
         dates.forEach((date, dayIndex) => {
           subjects.forEach((s, i) => {
@@ -267,7 +276,7 @@ Return ONLY a JSON array:
       const { error: insertError } = await supabase.from("study_tasks").insert(newTasks);
 
       if (insertError) {
-        console.error("Insert error:", insertError);
+        log.error("plan.insert_failed", { detail: insertError.message });
         throw insertError;
       }
 
@@ -378,26 +387,28 @@ Return ONLY a JSON array:
 
     if (action === "debrief-session") {
       const { elapsed = 0, planned = 0, distractions = 0, intent = "", rating = 2, score = 0 } = payload || {};
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
       const minutes = Math.round(elapsed / 60);
       let tip = `Solid ${minutes}m block. Try the same length next session.`;
+      const debriefSystem =
+        "You are a focus coach. Reply in ONE sentence (max 22 words) with a concrete, science-backed calibration tip for the next session. No preface.";
       try {
-        const r = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${LOVABLE_API_KEY}`, "Content-Type": "application/json" },
-          body: JSON.stringify({
-            model: "google/gemini-2.5-flash",
-            messages: [
-              { role: "system", content: "You are a focus coach. Reply in ONE sentence (max 22 words) with a concrete, science-backed calibration tip for the next session. No preface." },
-              { role: "user", content: `Just finished ${minutes}m on "${intent}" (planned ${Math.round(planned/60)}m). Focus score ${score}/100. ${distractions} distractions. Self-rating ${rating}/3. What should I do next?` },
-            ],
-          }),
-        });
-        const d = await r.json();
-        const c = d.choices?.[0]?.message?.content;
-        if (c) tip = String(c).trim().slice(0, 220);
+        const prompted = await resolvePrompt(aiCtx, "session_debrief", debriefSystem);
+        const result = await callModel("session_debrief", {
+          messages: [
+            { role: "system", content: prompted.systemPrompt ?? debriefSystem },
+            {
+              role: "user",
+              content: `Just finished ${minutes}m on ${fenceData("intent", String(intent))} (planned ${
+                Math.round(planned / 60)
+              }m). Focus score ${score}/100. ${distractions} distractions. Self-rating ${rating}/3. What should I do next?`,
+            },
+          ],
+          extraBody: { prompt_version: prompted.promptVersion },
+        }, aiCtx);
+        if (result.text) tip = result.text.trim().slice(0, 220);
       } catch (e) {
-        console.error("debrief AI fail", e);
+        // The deterministic tip above is a valid answer; never fail the debrief.
+        log.warn("debrief.ai_failed", { detail: String(e) });
       }
       return new Response(JSON.stringify({ tip }), {
         headers: { ...corsHeaders, "Content-Type": "application/json" },
@@ -406,8 +417,8 @@ Return ONLY a JSON array:
 
     throw new Error(`Unknown action: ${action}`);
   } catch (error) {
-    console.error("Study Coach error:", error);
-    return new Response(JSON.stringify({ error: "Internal server error" }), {
+    log.error("request.failed", { detail: String(error) });
+    return new Response(JSON.stringify({ code: "internal", message: "Something went wrong on our side.", trace_id: traceId }), {
       status: 500,
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

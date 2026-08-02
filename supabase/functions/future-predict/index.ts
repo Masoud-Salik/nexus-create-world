@@ -1,16 +1,45 @@
+// E3 / M3.4 — migrated onto the shared AI boundary. No direct provider calls.
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  AiLimitError,
+  callModel,
+  fenceData,
+  resolvePrompt,
+  SchemaRejected,
+} from "../_shared/ai/call.ts";
+import { createLogger, traceIdFrom } from "../_shared/logging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-trace-id",
 };
+
+/** Maps boundary failures onto the standard error envelope. */
+function aiFailure(e: unknown, traceId: string): Response | null {
+  if (e instanceof AiLimitError) {
+    return new Response(
+      JSON.stringify({ code: "rate_limited", message: "Too many requests. Try again shortly.", trace_id: traceId }),
+      { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  if (e instanceof SchemaRejected) {
+    return new Response(
+      JSON.stringify({ code: "ai_schema", message: "Could not read the model output.", trace_id: traceId }),
+      { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  return null;
+}
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const traceId = traceIdFrom(req);
+  const log = createLogger("future-predict", traceId);
 
   try {
     // Authenticate user via JWT
@@ -81,13 +110,14 @@ serve(async (req) => {
     const olderAvgStudy = olderCheckins.length > 0 ? olderCheckins.reduce((sum, c) => sum + (c.study_minutes || 0), 0) / olderCheckins.length : 0;
     const studyTrend = olderAvgStudy > 0 ? ((recentAvgStudy - olderAvgStudy) / olderAvgStudy * 100).toFixed(1) : "0";
 
-    // Memory insights
-    const memoryInsights = memories.map(m => `[${m.category}] ${m.content}`).join("\n");
+    // Memory insights — user-authored content, so it is fenced as untrusted data.
+    const memoryInsights = memories.length
+      ? fenceData("user_memories", memories.map(m => `[${m.category}] ${m.content}`).join("\n"))
+      : "";
+
+    const aiCtx = { supabase, ownerId: userId, traceId, log };
 
     if (action === "generate-scenarios") {
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
       const userContext = `
 ═══ COMPREHENSIVE USER PROFILE ═══
 
@@ -185,37 +215,24 @@ Return JSON:
   ]
 }`;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+      const prompted = await resolvePrompt(aiCtx, "future_scenarios", systemPrompt);
+      let scenarios: { scenarios?: any[] };
+      try {
+        const result = await callModel<{ scenarios: any[] }>("future_scenarios", {
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: prompted.systemPrompt ?? systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          response_format: { type: "json_object" },
-        }),
-      });
-
-      if (!response.ok) {
-        const errorText = await response.text();
-        console.error("AI Gateway error:", errorText);
-        throw new Error(`AI Gateway error: ${response.status}`);
-      }
-
-      const aiData = await response.json();
-      const content = aiData.choices?.[0]?.message?.content;
-      
-      let scenarios;
-      try {
-        scenarios = JSON.parse(content);
+          extraBody: {
+            prompt_version: prompted.promptVersion,
+            response_format: { type: "json_object" },
+          },
+        }, aiCtx);
+        scenarios = result.parsed ?? { scenarios: [] };
       } catch (e) {
-        console.error("Failed to parse AI response:", content);
-        throw new Error("Failed to parse AI response");
+        const mapped = aiFailure(e, traceId);
+        if (mapped) return mapped;
+        throw e;
       }
 
       const scenariosToInsert = (scenarios.scenarios || []).map((s: any) => ({
@@ -249,9 +266,6 @@ Return JSON:
     }
 
     if (action === "generate-weekly-report") {
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
       const systemPrompt = `You are an analytical AI study coach specializing in behavioral pattern analysis and performance optimization.
 
 ANALYSIS FRAMEWORK:
@@ -291,26 +305,25 @@ Return JSON:
   "compared_to_high_performers": "Honest comparison with specifics"
 }`;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+      const prompted = await resolvePrompt(aiCtx, "future_weekly_report", systemPrompt);
+      let report: Record<string, any>;
+      try {
+        const result = await callModel<Record<string, any>>("future_weekly_report", {
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: prompted.systemPrompt ?? systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          response_format: { type: "json_object" },
-        }),
-      });
-
-      if (!response.ok) throw new Error("AI Gateway error");
-
-      const aiData = await response.json();
-      const report = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
+          extraBody: {
+            prompt_version: prompted.promptVersion,
+            response_format: { type: "json_object" },
+          },
+        }, aiCtx);
+        report = result.parsed ?? {};
+      } catch (e) {
+        const mapped = aiFailure(e, traceId);
+        if (mapped) return mapped;
+        throw e;
+      }
 
       const now = new Date();
       const weekStart = new Date(now);
@@ -341,9 +354,6 @@ Return JSON:
     }
 
     if (action === "generate-daily-coach") {
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
       const todayCheckin = checkins.find(c => c.checkin_date === new Date().toISOString().split("T")[0]);
       const dayOfWeek = new Date().toLocaleDateString('en-US', { weekday: 'long' });
       
@@ -378,26 +388,25 @@ Return JSON:
   "motivation_level": "low" | "medium" | "high"
 }`;
 
-      const response = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${LOVABLE_API_KEY}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: "google/gemini-2.5-flash",
+      const prompted = await resolvePrompt(aiCtx, "future_daily_coach", systemPrompt);
+      let coach: Record<string, any>;
+      try {
+        const result = await callModel<Record<string, any>>("future_daily_coach", {
           messages: [
-            { role: "system", content: systemPrompt },
+            { role: "system", content: prompted.systemPrompt ?? systemPrompt },
             { role: "user", content: userPrompt },
           ],
-          response_format: { type: "json_object" },
-        }),
-      });
-
-      if (!response.ok) throw new Error("AI Gateway error");
-
-      const aiData = await response.json();
-      const coach = JSON.parse(aiData.choices?.[0]?.message?.content || "{}");
+          extraBody: {
+            prompt_version: prompted.promptVersion,
+            response_format: { type: "json_object" },
+          },
+        }, aiCtx);
+        coach = result.parsed ?? {};
+      } catch (e) {
+        const mapped = aiFailure(e, traceId);
+        if (mapped) return mapped;
+        throw e;
+      }
 
       const today = new Date().toISOString().split("T")[0];
       const coachData = {

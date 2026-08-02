@@ -9,8 +9,11 @@
 export type TaskName =
   | "chat"
   | "extract_memory"
-  | "future_predict"
+  | "future_scenarios"
+  | "future_weekly_report"
+  | "future_daily_coach"
   | "study_coach"
+  | "session_debrief"
   | "generate_chat_title"
   | "embeddings"
   | "text_to_speech";
@@ -68,13 +71,42 @@ export const TASKS: Record<TaskName, TaskConfig> = {
     windowLimit: 200,
     windowSeconds: 3600,
   },
-  future_predict: {
-    task: "future_predict",
+  future_scenarios: {
+    task: "future_scenarios",
+    primaryModel: "google/gemini-2.5-flash",
+    fallbackModels: ["google/gemini-2.5-flash-lite"],
+    maxTokens: 4096,
+    temperature: 0.6,
+    promptKey: "future_scenarios.v1",
+    outputSchema: "future_scenarios",
+    provider: "lovable",
+    kind: "chat",
+    cacheable: false,
+    windowLimit: 20,
+    windowSeconds: 3600,
+  },
+  future_weekly_report: {
+    task: "future_weekly_report",
     primaryModel: "google/gemini-2.5-flash",
     fallbackModels: ["google/gemini-2.5-flash-lite"],
     maxTokens: 2048,
     temperature: 0.6,
-    promptKey: "future_predict.v1",
+    promptKey: "future_weekly_report.v1",
+    outputSchema: "weekly_report",
+    provider: "lovable",
+    kind: "chat",
+    cacheable: false,
+    windowLimit: 20,
+    windowSeconds: 3600,
+  },
+  future_daily_coach: {
+    task: "future_daily_coach",
+    primaryModel: "google/gemini-2.5-flash",
+    fallbackModels: ["google/gemini-2.5-flash-lite"],
+    maxTokens: 1024,
+    temperature: 0.6,
+    promptKey: "future_daily_coach.v1",
+    outputSchema: "daily_coach",
     provider: "lovable",
     kind: "chat",
     cacheable: false,
@@ -88,10 +120,24 @@ export const TASKS: Record<TaskName, TaskConfig> = {
     maxTokens: 4096,
     temperature: 0.5,
     promptKey: "study_coach.v1",
+    outputSchema: "study_plan_tasks",
     provider: "lovable",
     kind: "chat",
     cacheable: false,
     windowLimit: 40,
+    windowSeconds: 3600,
+  },
+  session_debrief: {
+    task: "session_debrief",
+    primaryModel: "google/gemini-2.5-flash",
+    fallbackModels: ["google/gemini-2.5-flash-lite"],
+    maxTokens: 128,
+    temperature: 0.5,
+    promptKey: "session_debrief.v1",
+    provider: "lovable",
+    kind: "chat",
+    cacheable: false,
+    windowLimit: 60,
     windowSeconds: 3600,
   },
   generate_chat_title: {

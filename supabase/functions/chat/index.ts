@@ -1,18 +1,21 @@
+// E3 / M3.4 — migrated onto the shared AI boundary. No direct provider calls.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  AiContext,
+  AiLimitError,
+  callModel,
+  embed,
+  fenceToolResult,
+  ProviderError,
+  streamModel,
+} from "../_shared/ai/call.ts";
+import { createLogger, traceIdFrom } from "../_shared/logging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
-
-// Model order: cheapest+fastest first, then progressively stronger fallbacks.
-const MODELS = [
-  "google/gemini-3.1-flash-lite",
-  "google/gemini-3-flash-preview",
-  "google/gemini-2.5-flash",
-  "google/gemini-2.5-flash-lite",
-];
 
 // Fast model used when the request looks like simple chat (no tools needed).
 // gemini-3.1-flash-lite is the lowest-latency multimodal Gemini available.
@@ -225,7 +228,13 @@ const tools = [
 ];
 
 // Execute tool calls
-async function executeTool(supabase: any, userId: string, name: string, args: any): Promise<string> {
+async function executeTool(
+  supabase: any,
+  userId: string,
+  name: string,
+  args: any,
+  aiCtx: AiContext,
+): Promise<string> {
   const today = new Date().toISOString().split("T")[0];
 
   switch (name) {
@@ -385,15 +394,7 @@ async function executeTool(supabase: any, userId: string, name: string, args: an
         const query = String(args.query || "").slice(0, 1000);
         if (!query) return JSON.stringify({ error: "query required" });
         const topK = Math.min(Math.max(Number(args.top_k) || 4, 1), 8);
-        const apiKey = Deno.env.get("LOVABLE_API_KEY")!;
-        const embedRes = await fetch("https://ai.gateway.lovable.dev/v1/embeddings", {
-          method: "POST",
-          headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-          body: JSON.stringify({ model: "google/gemini-embedding-001", input: query, dimensions: 768 }),
-        });
-        if (!embedRes.ok) return JSON.stringify({ error: "embed failed", chunks: [] });
-        const ej = await embedRes.json();
-        const vec = ej.data?.[0]?.embedding;
+        const [vec] = await embed(query, aiCtx, 768);
         if (!vec) return JSON.stringify({ chunks: [] });
         const { data, error } = await supabase.rpc("match_knowledge", {
           query_embedding: vec, match_count: topK,
@@ -426,55 +427,43 @@ function getMonday(d: Date): Date {
   return date;
 }
 
-async function callAIWithFallback(
-  apiKey: string,
-  messages: any[],
-  includeTools: boolean,
-  preferredModel?: string,
-  toolSubset?: any[],
-): Promise<Response> {
-  // Build the model order: caller-preferred model first, then the rest as fallback.
-  const order = preferredModel
-    ? [preferredModel, ...MODELS.filter((m) => m !== preferredModel)]
-    : MODELS;
-
-  for (let i = 0; i < order.length; i++) {
-    const model = order[i];
-    try {
-      const body: any = { model, messages, stream: !includeTools };
-      if (includeTools) body.tools = toolSubset && toolSubset.length ? toolSubset : tools;
-
-      const res = await fetch("https://ai.gateway.lovable.dev/v1/chat/completions", {
-        method: "POST",
-        headers: { Authorization: `Bearer ${apiKey}`, "Content-Type": "application/json" },
-        body: JSON.stringify(body),
-      });
-
-      if (res.status === 429 && i < order.length - 1) {
-        console.log(`Rate limited on ${model}, falling back to ${order[i + 1]}`);
-        continue;
-      }
-      return res;
-    } catch (err) {
-      if (i < order.length - 1) {
-        console.log(`Error on ${model}, falling back: ${err}`);
-        continue;
-      }
-      throw err;
+/** Boundary failures -> the app's error envelope. Rate limits stay 429. */
+function aiErrorResponse(e: unknown, traceId: string): Response {
+  if (e instanceof AiLimitError) {
+    return new Response(
+      JSON.stringify({ code: "rate_limited", message: "Rate limit exceeded. Please try again shortly.", trace_id: traceId }),
+      { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  if (e instanceof ProviderError) {
+    if (e.status === 429) {
+      return new Response(
+        JSON.stringify({ code: "rate_limited", message: "Rate limit exceeded. Please try again shortly.", trace_id: traceId }),
+        { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
+    }
+    if (e.status === 402) {
+      return new Response(
+        JSON.stringify({ code: "payment_required", message: "AI credits exhausted.", trace_id: traceId }),
+        { status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+      );
     }
   }
-  throw new Error("All models failed");
+  return new Response(
+    JSON.stringify({ code: "internal", message: "Something went wrong on our side.", trace_id: traceId }),
+    { status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+  );
 }
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
 
+  const traceId = traceIdFrom(req);
+  const log = createLogger("chat", traceId);
+
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
     const supabaseServiceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY")!;
-    const apiKey = Deno.env.get("LOVABLE_API_KEY");
-    if (!apiKey) throw new Error("LOVABLE_API_KEY not configured");
-
     const supabase = createClient(supabaseUrl, supabaseServiceKey);
 
     // Auth
@@ -606,29 +595,22 @@ Deno.serve(async (req) => {
     // If user's OpenAI is the default, bypass tool-calling and stream directly from OpenAI.
     // (Tools remain available only for the default NEXUS path to keep app integrations intact.)
     if (useUserOpenAI && userOpenAIKey) {
-      const openaiRes = await fetch("https://api.openai.com/v1/chat/completions", {
-        method: "POST",
-        headers: {
-          Authorization: `Bearer ${userOpenAIKey}`,
-          "Content-Type": "application/json",
-        },
-        body: JSON.stringify({
-          model: userOpenAIModel,
-          messages: aiMessages,
-          stream: true,
-        }),
-      });
-
-      if (!openaiRes.ok) {
-        const errText = await openaiRes.text();
-        console.error("User OpenAI error:", openaiRes.status, errText);
-        // Fall back to default NEXUS path on auth/quota failures
-      } else {
-        return new Response(openaiRes.body, {
-          headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      try {
+        const byoCtx: AiContext = {
+          supabase, ownerId: user.id, traceId, log,
+          byo: { provider: "openai", apiKey: userOpenAIKey, model: userOpenAIModel },
+        };
+        const stream = await streamModel("chat", { messages: aiMessages }, byoCtx);
+        return new Response(stream.body, {
+          headers: { ...corsHeaders, "Content-Type": "text/event-stream", "X-Trace-Id": traceId },
         });
+      } catch (e) {
+        // Fall back to the default NEXUS path on auth/quota failures.
+        log.warn("byo.stream_failed", { detail: String(e) });
       }
     }
+
+    const aiCtx: AiContext = { supabase, ownerId: user.id, traceId, log };
 
     // Pick model + tool subset from the routed intent.
     // - "chat" intent: small fast model, no tools, single shot stream.
@@ -638,24 +620,15 @@ Deno.serve(async (req) => {
 
     if (intent === "chat") {
       // Skip the tool-calling loop entirely for plain chat — direct stream.
-      const fastRes = await callAIWithFallback(apiKey, aiMessages, false, routedModel);
-      if (!fastRes.ok) {
-        const status = fastRes.status;
-        const text = await fastRes.text();
-        console.error("Fast stream error:", status, text);
-        if (status === 429) {
-          return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again shortly." }), {
-            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        if (status === 402) {
-          return new Response(JSON.stringify({ error: "Payment required" }), {
-            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        return new Response(JSON.stringify({ error: "AI streaming error" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      let fastStream;
+      try {
+        fastStream = await streamModel("chat", {
+          messages: aiMessages,
+          preferModel: routedModel,
+          extraBody: activePromptId ? { prompt_version: activePromptId } : undefined,
+        }, aiCtx);
+      } catch (e) {
+        return aiErrorResponse(e, traceId);
       }
       // Fire-and-forget perf log (don't block the stream).
       logPerf(supabase, {
@@ -665,39 +638,30 @@ Deno.serve(async (req) => {
         total_ms: Date.now() - startedAt,
         cache_hit: false,
       });
-      return new Response(fastRes.body, {
+      return new Response(fastStream.body, {
         headers: {
           ...corsHeaders,
           "Content-Type": "text/event-stream",
           "X-Prompt-Version": activePromptId || "default",
+          "X-Trace-Id": traceId,
         },
       });
     }
 
     // Tool-calling loop (up to 5 rounds)
     for (let round = 0; round < 5; round++) {
-      const res = await callAIWithFallback(apiKey, aiMessages, true, routedModel);
-
-      if (!res.ok) {
-        const status = res.status;
-        const text = await res.text();
-        console.error(`AI error (round ${round}):`, status, text);
-        if (status === 429) {
-          return new Response(JSON.stringify({ error: "Rate limit exceeded. Please try again shortly." }), {
-            status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        if (status === 402) {
-          return new Response(JSON.stringify({ error: "Payment required" }), {
-            status: 402, headers: { ...corsHeaders, "Content-Type": "application/json" },
-          });
-        }
-        return new Response(JSON.stringify({ error: "AI error" }), {
-          status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-        });
+      let data: any;
+      try {
+        const result = await callModel("chat", {
+          messages: aiMessages,
+          tools,
+          preferModel: routedModel,
+          extraBody: activePromptId ? { prompt_version: activePromptId } : undefined,
+        }, aiCtx);
+        data = result.raw;
+      } catch (e) {
+        return aiErrorResponse(e, traceId);
       }
-
-      const data = await res.json();
       const choice = data.choices?.[0];
 
       if (!choice) break;
@@ -712,8 +676,9 @@ Deno.serve(async (req) => {
           choice.message.tool_calls.map(async (tc: any) => {
             let args = {};
             try { args = JSON.parse(tc.function.arguments || "{}"); } catch {}
-            const result = await executeTool(supabase, user.id, tc.function.name, args);
-            return { id: tc.id, content: result };
+            const result = await executeTool(supabase, user.id, tc.function.name, args, aiCtx);
+            // Tool output is untrusted data, never instructions.
+            return { id: tc.id, content: fenceToolResult(tc.function.name, result) };
           })
         );
         for (const r of settled) {
@@ -727,14 +692,15 @@ Deno.serve(async (req) => {
     }
 
     // Final streaming response — once tools have settled, the small fast model is enough to verbalize.
-    const streamRes = await callAIWithFallback(apiKey, aiMessages, false, FAST_MODEL);
-
-    if (!streamRes.ok) {
-      const text = await streamRes.text();
-      console.error("Stream error:", streamRes.status, text);
-      return new Response(JSON.stringify({ error: "AI streaming error" }), {
-        status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
-      });
+    let streamRes;
+    try {
+      streamRes = await streamModel("chat", {
+        messages: aiMessages,
+        preferModel: FAST_MODEL,
+        extraBody: activePromptId ? { prompt_version: activePromptId } : undefined,
+      }, aiCtx);
+    } catch (e) {
+      return aiErrorResponse(e, traceId);
     }
 
     logPerf(supabase, {
@@ -746,11 +712,16 @@ Deno.serve(async (req) => {
     });
 
     return new Response(streamRes.body, {
-      headers: { ...corsHeaders, "Content-Type": "text/event-stream" },
+      headers: {
+        ...corsHeaders,
+        "Content-Type": "text/event-stream",
+        "X-Prompt-Version": activePromptId || "default",
+        "X-Trace-Id": traceId,
+      },
     });
   } catch (e) {
-    console.error("Chat function error:", e);
-    return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
+    log.error("request.failed", { detail: String(e) });
+    return new Response(JSON.stringify({ code: "internal", message: "Something went wrong on our side.", trace_id: traceId }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   }
