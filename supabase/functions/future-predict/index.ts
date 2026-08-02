@@ -1,16 +1,45 @@
+// E3 / M3.4 — migrated onto the shared AI boundary. No direct provider calls.
 import "https://deno.land/x/xhr@0.1.0/mod.ts";
 import { serve } from "https://deno.land/std@0.168.0/http/server.ts";
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import {
+  AiLimitError,
+  callModel,
+  fenceData,
+  resolvePrompt,
+  SchemaRejected,
+} from "../_shared/ai/call.ts";
+import { createLogger, traceIdFrom } from "../_shared/logging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
-  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type, x-trace-id",
+};
+
+const aiFailure = (e: unknown, traceId: string, log: { error: (m: string, f?: Record<string, unknown>) => void }) => {
+  if (e instanceof AiLimitError) {
+    return new Response(
+      JSON.stringify({ code: "rate_limited", message: "Too many requests. Try again shortly.", trace_id: traceId }),
+      { status: 429, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  if (e instanceof SchemaRejected) {
+    log("ai.schema_rejected" as never);
+    return new Response(
+      JSON.stringify({ code: "ai_schema", message: "Could not read the model output.", trace_id: traceId }),
+      { status: 502, headers: { ...corsHeaders, "Content-Type": "application/json" } },
+    );
+  }
+  return null;
 };
 
 serve(async (req) => {
   if (req.method === "OPTIONS") {
     return new Response(null, { headers: corsHeaders });
   }
+
+  const traceId = traceIdFrom(req);
+  const log = createLogger("future-predict", traceId);
 
   try {
     // Authenticate user via JWT
