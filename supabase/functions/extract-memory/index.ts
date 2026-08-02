@@ -102,7 +102,7 @@ serve(async (req) => {
       const result = await callModel<ExtractedMemory>("extract_memory", {
         messages: [
           { role: "system", content: prompted.systemPrompt ?? SYSTEM_PROMPT },
-          untrustedMessage(message, "user message"),
+          untrustedMessage([{ name: "user_message", content: message }])!,
         ],
         extraBody: {
           prompt_version: prompted.promptVersion,
