@@ -110,13 +110,14 @@ serve(async (req) => {
     const olderAvgStudy = olderCheckins.length > 0 ? olderCheckins.reduce((sum, c) => sum + (c.study_minutes || 0), 0) / olderCheckins.length : 0;
     const studyTrend = olderAvgStudy > 0 ? ((recentAvgStudy - olderAvgStudy) / olderAvgStudy * 100).toFixed(1) : "0";
 
-    // Memory insights
-    const memoryInsights = memories.map(m => `[${m.category}] ${m.content}`).join("\n");
+    // Memory insights — user-authored content, so it is fenced as untrusted data.
+    const memoryInsights = memories.length
+      ? fenceData("user_memories", memories.map(m => `[${m.category}] ${m.content}`).join("\n"))
+      : "";
+
+    const aiCtx = { supabase, ownerId: userId, traceId, log };
 
     if (action === "generate-scenarios") {
-      const LOVABLE_API_KEY = Deno.env.get("LOVABLE_API_KEY");
-      if (!LOVABLE_API_KEY) throw new Error("LOVABLE_API_KEY not configured");
-
       const userContext = `
 ═══ COMPREHENSIVE USER PROFILE ═══
 
