@@ -1,14 +1,17 @@
 /**
- * E2 / M2.2 — the handler registry.
+ * E2 / M2.2 — the handler registry. E4 registers the ingestion pipeline.
  *
- * Deliberately empty for E2: the queue ships with no consumers. E4 (ingestion)
- * and E5 (item generation) register `parse`, `ocr`, `chunk`, `embed` and
- * `generate` here. Every handler must be idempotent — see `_shared/queue.ts`.
+ * Pipeline: the client extracts and uploads pages, then enqueues `ocr` (scanned
+ * pages) or `chunk` directly; `chunk` enqueues `embed`. Every handler must be
+ * idempotent — see `_shared/queue.ts`.
  *
  * `__noop` exists only so the concurrency, backoff and dead-letter tests have a
  * handler to drive; it does nothing to product state.
  */
 import { Job, JobContext, JobHandler } from "../_shared/queue.ts";
+import { ocrHandler } from "./handlers/ocr.ts";
+import { chunkHandler } from "./handlers/chunk.ts";
+import { embedHandler } from "./handlers/embed.ts";
 
 const noop: JobHandler = async (job: Job, ctx: JobContext) => {
   // Test-only kinds. `__fail` always throws so the poison-message path is exercisable.
@@ -19,6 +22,9 @@ const noop: JobHandler = async (job: Job, ctx: JobContext) => {
 export const handlers: Record<string, JobHandler> = {
   __noop: noop,
   __fail: noop,
+  ocr: ocrHandler,
+  chunk: chunkHandler,
+  embed: embedHandler,
 };
 
 export const registeredKinds = () => Object.keys(handlers);
