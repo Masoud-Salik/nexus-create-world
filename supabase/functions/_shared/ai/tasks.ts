@@ -16,6 +16,8 @@ export type TaskName =
   | "session_debrief"
   | "generate_chat_title"
   | "embeddings"
+  | "doc_embeddings"
+  | "ocr_page"
   | "text_to_speech";
 
 export type Provider = "lovable" | "openai";
@@ -163,6 +165,38 @@ export const TASKS: Record<TaskName, TaskConfig> = {
     provider: "lovable",
     kind: "embedding",
     cacheable: true,
+    windowLimit: 600,
+    windowSeconds: 3600,
+  },
+  /**
+   * E4 / M4.4 — user document embeddings. 1536-dim per Architecture v1, which
+   * `document_chunks.embedding` and its HNSW index are sized for. Deliberately
+   * separate from `embeddings` so the admin corpus (768-dim) is untouched.
+   */
+  doc_embeddings: {
+    task: "doc_embeddings",
+    primaryModel: "openai/text-embedding-3-small",
+    fallbackModels: [],
+    maxTokens: 0,
+    temperature: 0,
+    promptKey: "doc_embeddings.v1",
+    provider: "lovable",
+    kind: "embedding",
+    cacheable: true,
+    windowLimit: 2000,
+    windowSeconds: 3600,
+  },
+  /** E4 / M4.3 — transcribe one rasterised page image. */
+  ocr_page: {
+    task: "ocr_page",
+    primaryModel: "google/gemini-2.5-flash",
+    fallbackModels: ["google/gemini-2.5-flash-lite"],
+    maxTokens: 4096,
+    temperature: 0,
+    promptKey: "ocr_page.v1",
+    provider: "lovable",
+    kind: "chat",
+    cacheable: false,
     windowLimit: 600,
     windowSeconds: 3600,
   },
