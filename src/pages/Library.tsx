@@ -11,10 +11,11 @@ import { Search, Library as LibraryIcon } from "lucide-react";
 const WORKING = ["queued", "extracting", "needs_ocr", "ocr", "chunking", "embedding"];
 
 export default function Library() {
-  usePageMeta(
-    "Library — StudyTime",
-    "Upload PDFs, notes and images. StudyTime reads them on your device and turns them into searchable study material.",
-  );
+  usePageMeta({
+    title: "Library",
+    description:
+      "Upload PDFs, notes and images. StudyTime reads them on your device and turns them into searchable study material.",
+  });
 
   const { toast } = useToast();
   const [userId, setUserId] = useState<string | null>(null);
