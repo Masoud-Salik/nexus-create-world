@@ -39,3 +39,7 @@ verify_jwt = false
 
 [functions.admin-queue]
 verify_jwt = true
+
+# E4 — ingestion control plane; requires a real account.
+[functions.ingest]
+verify_jwt = true
