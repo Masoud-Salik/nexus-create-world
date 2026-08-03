@@ -463,8 +463,8 @@ export async function embed(
   input: string | string[],
   ctx: AiContext,
   dimensions = 768,
+  task: TaskName = "embeddings",
 ): Promise<number[][]> {
-  const task: TaskName = "embeddings";
   const config = getTask(task);
   await guard(ctx, task);
 
@@ -478,10 +478,14 @@ export async function embed(
     const outcome = await runWithFallback<any>({
       route,
       attempt: async (m) => {
+        // `dimensions` is only accepted by the OpenAI embedding models; the
+        // Google ids reject it outright.
+        const body: Record<string, unknown> = { model: m, input: payloadInput };
+        if (m.startsWith("openai/") || m.startsWith("text-embedding-")) body.dimensions = dimensions;
         const res = await fetch(endpointFor(route.provider, "embedding"), {
           method: "POST",
           headers: headersFor(route.provider, ctx),
-          body: JSON.stringify({ model: m, input: payloadInput, dimensions }),
+          body: JSON.stringify(body),
         });
         if (!res.ok) return { ok: false, status: res.status, error: await res.text().catch(() => "") };
         return { ok: true, status: res.status, value: await res.json() };
@@ -489,7 +493,10 @@ export async function embed(
     });
     model = outcome.model;
     meter.add(model, extractUsage(outcome.value));
-    return (outcome.value.data ?? []).map((d: { embedding: number[] }) => d.embedding);
+    // Order by `index` — providers do not guarantee response order for batches.
+    const rows = [...((outcome.value.data ?? []) as Array<{ embedding: number[]; index?: number }>)];
+    rows.sort((a, b) => (a.index ?? 0) - (b.index ?? 0));
+    return rows.map((d) => d.embedding);
   } catch (err) {
     status = err instanceof ProviderError ? `provider_${err.status}` : "error";
     throw err;

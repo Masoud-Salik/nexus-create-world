@@ -1,4 +1,4 @@
-import { MessageSquare, GraduationCap, Settings, Info, Brain } from "lucide-react";
+import { MessageSquare, GraduationCap, Settings, Info, Brain, Library } from "lucide-react";
 import { NavLink } from "react-router-dom";
 import { useIsAdmin } from "@/hooks/useIsAdmin";
 import {
@@ -15,6 +15,7 @@ import {
 const items = [
 { title: "AI Chat", url: "/chat", icon: MessageSquare },
 { title: "Focus Hub", url: "/", icon: GraduationCap },
+{ title: "Library", url: "/library", icon: Library },
 { title: "Settings", url: "/settings", icon: Settings },
 { title: "About", url: "/about", icon: Info }];
 

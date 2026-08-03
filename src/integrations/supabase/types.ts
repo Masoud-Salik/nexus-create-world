@@ -632,6 +632,157 @@ export type Database = {
         }
         Relationships: []
       }
+      document_chunks: {
+        Row: {
+          char_end: number
+          char_start: number
+          chunk_index: number
+          content: string
+          created_at: string
+          document_id: string
+          embedding: string | null
+          id: string
+          model_version: string | null
+          page_no: number | null
+          token_count: number
+          user_id: string
+        }
+        Insert: {
+          char_end?: number
+          char_start?: number
+          chunk_index: number
+          content: string
+          created_at?: string
+          document_id: string
+          embedding?: string | null
+          id?: string
+          model_version?: string | null
+          page_no?: number | null
+          token_count?: number
+          user_id: string
+        }
+        Update: {
+          char_end?: number
+          char_start?: number
+          chunk_index?: number
+          content?: string
+          created_at?: string
+          document_id?: string
+          embedding?: string | null
+          id?: string
+          model_version?: string | null
+          page_no?: number | null
+          token_count?: number
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_chunks_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      document_pages: {
+        Row: {
+          created_at: string
+          document_id: string
+          has_text_layer: boolean
+          id: string
+          needs_ocr: boolean
+          ocr_confidence: number | null
+          page_no: number
+          text: string
+          user_id: string
+        }
+        Insert: {
+          created_at?: string
+          document_id: string
+          has_text_layer?: boolean
+          id?: string
+          needs_ocr?: boolean
+          ocr_confidence?: number | null
+          page_no: number
+          text?: string
+          user_id: string
+        }
+        Update: {
+          created_at?: string
+          document_id?: string
+          has_text_layer?: boolean
+          id?: string
+          needs_ocr?: boolean
+          ocr_confidence?: number | null
+          page_no?: number
+          text?: string
+          user_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "document_pages_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      documents: {
+        Row: {
+          bytes: number
+          chunk_count: number
+          created_at: string
+          error: string | null
+          id: string
+          mime: string
+          page_count: number
+          pages_extracted: number
+          sha256: string
+          source: string
+          status: string
+          storage_path: string
+          title: string
+          updated_at: string
+          user_id: string
+        }
+        Insert: {
+          bytes?: number
+          chunk_count?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          mime: string
+          page_count?: number
+          pages_extracted?: number
+          sha256: string
+          source?: string
+          status?: string
+          storage_path: string
+          title: string
+          updated_at?: string
+          user_id: string
+        }
+        Update: {
+          bytes?: number
+          chunk_count?: number
+          created_at?: string
+          error?: string | null
+          id?: string
+          mime?: string
+          page_count?: number
+          pages_extracted?: number
+          sha256?: string
+          source?: string
+          status?: string
+          storage_path?: string
+          title?: string
+          updated_at?: string
+          user_id?: string
+        }
+        Relationships: []
+      }
       feedback: {
         Row: {
           category: string
@@ -1807,6 +1958,17 @@ export type Database = {
           doc_id: string
           doc_title: string
           id: string
+          similarity: number
+        }[]
+      }
+      match_user_chunks: {
+        Args: { match_count?: number; query_embedding: string }
+        Returns: {
+          content: string
+          doc_title: string
+          document_id: string
+          id: string
+          page_no: number
           similarity: number
         }[]
       }
