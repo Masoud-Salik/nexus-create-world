@@ -89,7 +89,7 @@ export async function extractPdf(
     onProgress?.(n, pageCount);
   }
 
-  await doc.destroy();
+  await doc.cleanup();
   return { pages, pageCount };
 }
 
