@@ -33,6 +33,42 @@ async function failDocument(svc: SupabaseClient, id: string, message: string): P
   throw new AppError("validation_failed", message);
 }
 
+const ALLOWED_MIME = new Set([
+  "application/pdf",
+  "image/png",
+  "image/jpeg",
+  "image/jpg",
+  "image/webp",
+  "text/plain",
+  "text/markdown",
+]);
+
+/**
+ * The client uploads straight to storage, so the browser's own size/type checks
+ * are advisory. Re-verify the stored object here — before any paid work is
+ * enqueued — so a crafted client cannot buy itself unlimited OCR.
+ */
+async function verifySource(
+  svc: SupabaseClient,
+  userId: string,
+  documentId: string,
+  maxBytes: number,
+): Promise<void> {
+  const { data } = await svc.storage
+    .from(BUCKET)
+    .list(`${userId}/${documentId}`, { limit: 1, search: "source" });
+  const source = data?.find((f) => f.name === "source");
+  if (!source) return; // absence is handled by the retry recovery path
+  const size = Number(source.metadata?.size ?? 0);
+  const mime = String(source.metadata?.mimetype ?? "");
+  if (size > maxBytes) {
+    await failDocument(svc, documentId, `Files are limited to ${humanBytes(maxBytes)}.`);
+  }
+  if (mime && !ALLOWED_MIME.has(mime)) {
+    await failDocument(svc, documentId, "That file type is not supported.");
+  }
+}
+
 Deno.serve(
   serve("ingest", async (ctx) => {
     const { req, traceId, log } = ctx;
@@ -105,6 +141,7 @@ Deno.serve(
           `This file has ${doc.page_count} pages. The limit is ${limits.maxPages}.`,
         );
       }
+      await verifySource(svc, userId, documentId, limits.maxBytes);
 
       if (action === "retry") {
         // A retry must either recover or fail cleanly — never loop forever.
@@ -181,6 +218,14 @@ Deno.serve(
         .eq("needs_ocr", true);
 
       const kind = (ocrPages ?? 0) > 0 ? "ocr" : "chunk";
+
+      if ((ocrPages ?? 0) > limits.maxOcrPages) {
+        await failDocument(
+          svc,
+          documentId,
+          `This file needs text recognition on ${ocrPages} pages; the limit is ${limits.maxOcrPages}.`,
+        );
+      }
 
       if (action === "retry") {
         // A retry must be able to re-run a key that already completed or died.
