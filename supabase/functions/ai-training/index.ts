@@ -1,29 +1,12 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
-import { aiGateway, corsHeaders } from "../_shared/ai-gateway.ts";
+import { embed } from "../_shared/ai/call.ts";
+import { chunkPages } from "../_shared/ingest/chunk.ts";
 
-// Chunking: ~800 chars with 100-char overlap. Good middle ground for 768-dim embeddings.
-function chunkText(text: string, size = 800, overlap = 100): string[] {
-  const clean = text.replace(/\r\n/g, "\n").replace(/\n{3,}/g, "\n\n").trim();
-  if (clean.length <= size) return [clean];
-  const chunks: string[] = [];
-  let i = 0;
-  while (i < clean.length) {
-    const end = Math.min(i + size, clean.length);
-    // Try to break on paragraph/sentence boundary near the end
-    let cut = end;
-    if (end < clean.length) {
-      const tail = clean.slice(i, end);
-      const para = tail.lastIndexOf("\n\n");
-      const sent = tail.lastIndexOf(". ");
-      if (para > size * 0.5) cut = i + para;
-      else if (sent > size * 0.5) cut = i + sent + 1;
-    }
-    chunks.push(clean.slice(i, cut).trim());
-    i = cut - overlap;
-    if (i < 0) i = 0;
-  }
-  return chunks.filter((c) => c.length > 20);
-}
+const corsHeaders = {
+  "Access-Control-Allow-Origin": "*",
+  "Access-Control-Allow-Headers": "authorization, x-client-info, apikey, content-type",
+  "Access-Control-Allow-Methods": "POST, GET, OPTIONS",
+};
 
 async function requireAdmin(supabase: ReturnType<typeof createClient>, token: string) {
   const { data: { user }, error } = await supabase.auth.getUser(token);
@@ -51,6 +34,9 @@ Deno.serve(async (req) => {
     }
     const user = gate.user;
 
+    const traceId = req.headers.get("X-Trace-Id") || crypto.randomUUID();
+    const aiCtx = { supabase, ownerId: user.id, traceId };
+
     const { action, ...payload } = await req.json();
 
     if (action === "ingest_doc") {
@@ -77,25 +63,25 @@ Deno.serve(async (req) => {
         });
       }
 
-      const chunks = chunkText(content);
+      const chunks = chunkPages([{ page_no: 0, text: content }]);
       try {
-        const gw = aiGateway();
-        // Batch embed in groups of 16 for throughput.
         const rows: any[] = [];
         for (let i = 0; i < chunks.length; i += 16) {
           const batch = chunks.slice(i, i + 16);
-          const vecs = await gw.embed(batch);
+          const vecs = await embed(batch.map((c) => c.content), aiCtx, 768, "embeddings");
+          if (vecs.length !== batch.length) {
+            throw new Error(`embed: provider returned ${vecs.length} vectors for ${batch.length} inputs`);
+          }
           batch.forEach((c, idx) => {
             rows.push({
               doc_id: doc.id,
               chunk_index: i + idx,
-              content: c,
+              content: c.content,
               embedding: vecs[idx],
-              token_count: Math.ceil(c.length / 4),
+              token_count: c.token_count,
             });
           });
         }
-        // Insert chunks in 100-row batches
         for (let i = 0; i < rows.length; i += 100) {
           const { error } = await supabase.from("ai_knowledge_chunks").insert(rows.slice(i, i + 100));
           if (error) throw error;
@@ -131,8 +117,7 @@ Deno.serve(async (req) => {
     if (action === "test_search") {
       const query = String(payload.query || "").slice(0, 500);
       if (!query) return new Response("missing query", { status: 400, headers: corsHeaders });
-      const gw = aiGateway();
-      const [vec] = await gw.embed(query);
+      const [vec] = await embed(query, aiCtx, 768, "embeddings");
       const { data, error } = await supabase.rpc("match_knowledge", {
         query_embedding: vec, match_count: payload.top_k || 5,
       });
