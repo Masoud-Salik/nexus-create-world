@@ -739,6 +739,7 @@ export type Database = {
           mime: string
           page_count: number
           pages_extracted: number
+          retry_count: number
           sha256: string
           source: string
           status: string
@@ -756,6 +757,7 @@ export type Database = {
           mime: string
           page_count?: number
           pages_extracted?: number
+          retry_count?: number
           sha256: string
           source?: string
           status?: string
@@ -773,6 +775,7 @@ export type Database = {
           mime?: string
           page_count?: number
           pages_extracted?: number
+          retry_count?: number
           sha256?: string
           source?: string
           status?: string
@@ -1980,6 +1983,20 @@ export type Database = {
           _trace_id?: string
         }
         Returns: string
+      }
+      purge_jobs: {
+        Args: { _dead_retention?: string; _done_retention?: string }
+        Returns: {
+          dead_purged: number
+          done_purged: number
+        }[]
+      }
+      reconcile_stuck_documents: {
+        Args: { _stale?: string }
+        Returns: {
+          dead_reconciled: number
+          stale_failed: number
+        }[]
       }
     }
     Enums: {

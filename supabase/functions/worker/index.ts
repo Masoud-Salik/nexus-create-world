@@ -5,9 +5,12 @@
  * Safe to run concurrently — `claim_jobs` uses FOR UPDATE SKIP LOCKED plus a
  * lease, so two drains can never take the same row.
  *
- * Invoked by the `queue-drain` cron (every minute) or manually with the service
- * role key. There are no consumers in E2; the handler registry is empty.
+ * Invoked by the `queue-drain` cron every minute (see
+ * docs/runbooks/ingestion-schedules.md) or manually with the service role key.
+ * When a job dies for good, the document it belongs to is marked `failed` in the
+ * same pass so the Library never spins forever.
  */
+import { SupabaseClient } from "npm:@supabase/supabase-js@2";
 import { serve } from "../_shared/handler.ts";
 import { AppError, json } from "../_shared/errors.ts";
 import { serviceClient } from "../_shared/owner.ts";
@@ -19,11 +22,42 @@ const DRAIN_BUDGET_MS = 45_000;
 const LEASE_SECONDS = 120;
 const BATCH_SIZE = 10;
 
+/**
+ * Two callers: an operator holding the service role key, and the cron schedule,
+ * which cannot read that key and presents `WORKER_SCHEDULER_TOKEN` instead.
+ */
 function authorize(req: Request) {
-  const expected = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
+  const serviceKey = Deno.env.get("SUPABASE_SERVICE_ROLE_KEY");
   const header = req.headers.get("Authorization") ?? "";
-  const token = header.toLowerCase().startsWith("bearer ") ? header.slice(7) : "";
-  if (!expected || token !== expected) throw new AppError("unauthorized");
+  const bearer = header.toLowerCase().startsWith("bearer ") ? header.slice(7) : "";
+  if (serviceKey && bearer === serviceKey) return;
+
+  const cronToken = Deno.env.get("WORKER_SCHEDULER_TOKEN");
+  const presented = req.headers.get("x-worker-token") ?? "";
+  if (cronToken && presented === cronToken) return;
+
+  throw new AppError("unauthorized");
+}
+
+/** User-safe copy for a permanently failed ingestion stage. */
+const DEAD_MESSAGE: Record<string, string> = {
+  ocr: "We could not read the text in this file. Try uploading a clearer copy.",
+  chunk: "We could not organise this document. Try again, or upload it once more.",
+  embed: "We could not finish indexing this document. Try again in a few minutes.",
+};
+
+/**
+ * Dead job → failed document. Idempotent, and never overwrites a document that
+ * already reached a terminal state.
+ */
+async function reconcileDeadJob(svc: SupabaseClient, job: Job): Promise<void> {
+  const message = DEAD_MESSAGE[job.kind];
+  const documentId = String(job.payload?.document_id ?? "");
+  if (!message || !documentId) return;
+  await svc.from("documents")
+    .update({ status: "failed", error: message })
+    .eq("id", documentId)
+    .not("status", "in", "(failed,ready)");
 }
 
 Deno.serve(
@@ -54,6 +88,7 @@ Deno.serve(
           failed++;
           if (status === "dead") {
             deadLettered++;
+            await reconcileDeadJob(svc, job);
             jobLog.error("job.dead_lettered", { reason: "no_handler", job_trace_id: traceId });
           } else {
             jobLog.warn("job.failed", { reason: "no_handler", job_trace_id: traceId });
@@ -72,6 +107,7 @@ Deno.serve(
           failed++;
           if (status === "dead") {
             deadLettered++;
+            await reconcileDeadJob(svc, job);
             jobLog.error("job.dead_lettered", { detail: message, job_trace_id: traceId });
           } else {
             jobLog.warn("job.failed", { detail: message, job_trace_id: traceId });

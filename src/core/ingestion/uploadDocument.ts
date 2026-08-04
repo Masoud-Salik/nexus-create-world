@@ -10,6 +10,23 @@ import { ACCEPTED_MIME, MAX_BYTES, extractFile, sha256Hex } from "./extract";
 
 export const BUCKET = "user-documents";
 
+/** The server owns the real limits; surface its message verbatim. */
+async function invokeIngest(body: Record<string, unknown>): Promise<void> {
+  const { error } = await supabase.functions.invoke("ingest", { body });
+  if (!error) return;
+  let message = error.message;
+  const ctx = (error as { context?: Response }).context;
+  if (ctx && typeof ctx.text === "function") {
+    try {
+      const parsed = JSON.parse(await ctx.text());
+      if (parsed?.message) message = parsed.message;
+    } catch {
+      // keep the generic message
+    }
+  }
+  throw new Error(message);
+}
+
 export type UploadPhase = "hashing" | "extracting" | "uploading" | "queued";
 
 export interface UploadProgress {
@@ -47,6 +64,15 @@ export async function uploadDocument(
   const { pages, pageCount } = await extractFile(file, (done, total) =>
     onProgress?.({ phase: "extracting", done, total }),
   );
+
+  // Quota + size gate before anything is written, so a rejected upload leaves
+  // no row and no storage object behind.
+  await invokeIngest({
+    action: "preflight",
+    bytes: file.size,
+    page_count: pageCount,
+    ocr_pages: pages.filter((p) => p.needs_ocr).length,
+  });
 
   const title = file.name.replace(/\.[^.]+$/, "").slice(0, 200) || "Untitled";
   const { data: doc, error: insertErr } = await supabase
@@ -114,10 +140,7 @@ export async function uploadDocument(
       pages_extracted: pages.filter((p) => p.text.length > 0).length,
     }).eq("id", documentId);
 
-    const { error: fnErr } = await supabase.functions.invoke("ingest", {
-      body: { action: "process", document_id: documentId },
-    });
-    if (fnErr) throw new Error(fnErr.message);
+    await invokeIngest({ action: "process", document_id: documentId });
 
     onProgress?.({ phase: "queued", done: 1, total: 1 });
     return documentId;
@@ -131,17 +154,30 @@ export async function uploadDocument(
 }
 
 export async function retryDocument(documentId: string): Promise<void> {
-  const { error } = await supabase.functions.invoke("ingest", {
-    body: { action: "retry", document_id: documentId },
-  });
-  if (error) throw new Error(error.message);
+  await invokeIngest({ action: "retry", document_id: documentId });
+}
+
+/**
+ * `list` returns at most 100 objects by default, so a scanned document with
+ * hundreds of page images would leak storage. Page through the whole prefix.
+ */
+export async function listDocumentObjects(documentId: string, userId: string): Promise<string[]> {
+  const prefix = `${userId}/${documentId}`;
+  const paths: string[] = [];
+  for (let offset = 0; ; offset += 1000) {
+    const { data, error } = await supabase.storage.from(BUCKET).list(prefix, { limit: 1000, offset });
+    if (error || !data?.length) break;
+    paths.push(...data.map((f) => `${prefix}/${f.name}`));
+    if (data.length < 1000) break;
+  }
+  return paths;
 }
 
 export async function deleteDocument(documentId: string, userId: string): Promise<void> {
-  const prefix = `${userId}/${documentId}`;
-  const { data: files } = await supabase.storage.from(BUCKET).list(prefix);
-  if (files?.length) {
-    await supabase.storage.from(BUCKET).remove(files.map((f) => `${prefix}/${f.name}`));
+  const paths = await listDocumentObjects(documentId, userId);
+  for (let i = 0; i < paths.length; i += 500) {
+    const { error } = await supabase.storage.from(BUCKET).remove(paths.slice(i, i + 500));
+    if (error) throw new Error(error.message);
   }
   const { error } = await supabase.from("documents").delete().eq("id", documentId);
   if (error) throw new Error(error.message);
