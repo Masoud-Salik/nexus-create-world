@@ -1,0 +1,3 @@
+DROP EXTENSION IF EXISTS pg_net;
+CREATE EXTENSION pg_net WITH SCHEMA extensions;
+REVOKE ALL ON SCHEMA net FROM anon, authenticated;
