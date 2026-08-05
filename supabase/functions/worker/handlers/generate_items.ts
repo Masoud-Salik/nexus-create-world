@@ -6,7 +6,7 @@
  * skipping chunks that already have items linked to them.
  */
 import { Job, JobContext } from "../../_shared/queue.ts";
-import { callModel, fenceData } from "../../_shared/ai/call.ts";
+import { callModel, fenceData, resolvePrompt } from "../../_shared/ai/call.ts";
 
 const CHUNKS_PER_BATCH = 6;
 
@@ -82,6 +82,8 @@ export async function generateItemsHandler(job: Job, ctx: JobContext): Promise<v
 
   const aiCtx = { supabase: svc, ownerId: doc.user_id, traceId, log };
 
+  const { systemPrompt, promptVersion } = await resolvePrompt(aiCtx, "generate_items", SYSTEM_PROMPT);
+
   const { data: existing } = await svc
     .from("study_items")
     .select("chunk_id")
@@ -119,10 +121,11 @@ export async function generateItemsHandler(job: Job, ctx: JobContext): Promise<v
         "generate_items",
         {
           messages: [
-            { role: "system", content: SYSTEM_PROMPT },
+            { role: "system", content: systemPrompt ?? SYSTEM_PROMPT },
             { role: "user", content: userContent },
           ],
           schemaKey: "study_items",
+          extraBody: { prompt_version: promptVersion },
         },
         aiCtx,
       );
