@@ -4,7 +4,7 @@
  * Only rows with a NULL embedding are processed, so a reclaimed lease resumes
  * where the previous attempt stopped instead of re-paying for finished work.
  */
-import { Job, JobContext } from "../../_shared/queue.ts";
+import { Job, JobContext, enqueue } from "../../_shared/queue.ts";
 import { embed } from "../../_shared/ai/call.ts";
 
 const BATCH = 64;
@@ -48,5 +48,12 @@ export async function embedHandler(job: Job, ctx: JobContext): Promise<void> {
   }
 
   await svc.from("documents").update({ status: "ready", error: null }).eq("id", documentId);
+
+  await enqueue(svc, "generate_items", {
+    key: `genitems:${documentId}`,
+    payload: { document_id: documentId },
+    traceId,
+  });
+
   log.info("embed.done", { document_id: documentId });
 }

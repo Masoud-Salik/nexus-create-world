@@ -18,7 +18,8 @@ export type TaskName =
   | "embeddings"
   | "doc_embeddings"
   | "ocr_page"
-  | "text_to_speech";
+  | "text_to_speech"
+  | "generate_items";
 
 export type Provider = "lovable" | "openai";
 export type TaskKind = "chat" | "embedding" | "tts";
@@ -211,6 +212,21 @@ export const TASKS: Record<TaskName, TaskConfig> = {
     kind: "tts",
     cacheable: false,
     windowLimit: 60,
+    windowSeconds: 3600,
+  },
+  /** E5.1 — generate study items from document chunks. */
+  generate_items: {
+    task: "generate_items",
+    primaryModel: "google/gemini-2.5-flash",
+    fallbackModels: ["google/gemini-2.5-flash-lite"],
+    maxTokens: 4096,
+    temperature: 0.3,
+    promptKey: "generate_items.v1",
+    outputSchema: "study_items",
+    provider: "lovable",
+    kind: "chat",
+    cacheable: false,
+    windowLimit: 100,
     windowSeconds: 3600,
   },
 };

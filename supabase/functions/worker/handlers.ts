@@ -12,6 +12,7 @@ import { Job, JobContext, JobHandler } from "../_shared/queue.ts";
 import { ocrHandler } from "./handlers/ocr.ts";
 import { chunkHandler } from "./handlers/chunk.ts";
 import { embedHandler } from "./handlers/embed.ts";
+import { generateItemsHandler } from "./handlers/generate_items.ts";
 
 const noop: JobHandler = async (job: Job, ctx: JobContext) => {
   // Test-only kinds. `__fail` always throws so the poison-message path is exercisable.
@@ -25,6 +26,7 @@ export const handlers: Record<string, JobHandler> = {
   ocr: ocrHandler,
   chunk: chunkHandler,
   embed: embedHandler,
+  generate_items: generateItemsHandler,
 };
 
 export const registeredKinds = () => Object.keys(handlers);

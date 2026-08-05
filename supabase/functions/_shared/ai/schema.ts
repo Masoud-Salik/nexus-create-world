@@ -94,6 +94,26 @@ export const dailyCoachSchema = z.object({
 
 export const chatTitleSchema = z.object({ title: z.string().min(1).max(120) });
 
+const mcqOptionSchema = z.object({
+  text: z.string(),
+  is_correct: z.boolean(),
+});
+
+const studyItemSchema = z.object({
+  type: z.enum(["flashcard", "mcq", "true_false", "fill_blank", "short_answer"]),
+  question: z.string().min(1).max(2000),
+  answer: z.string().max(4000).nullable().optional(),
+  options: z.array(mcqOptionSchema).min(2).max(6).nullable().optional(),
+  correct_answer: z.string().max(1000).nullable().optional(),
+  explanation: z.string().max(4000).nullable().optional(),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  chunk_index: z.number().int().nullable().optional(),
+});
+
+export const studyItemsSchema = z.object({
+  items: z.array(studyItemSchema).min(1).max(40),
+});
+
 export const SCHEMAS: Record<string, z.ZodTypeAny> = {
   extract_memory: extractMemorySchema,
   study_plan: studyPlanSchema,
@@ -102,6 +122,7 @@ export const SCHEMAS: Record<string, z.ZodTypeAny> = {
   weekly_report: weeklyReportSchema,
   daily_coach: dailyCoachSchema,
   chat_title: chatTitleSchema,
+  study_items: studyItemsSchema,
 };
 
 export function getSchema(key: string): z.ZodTypeAny {
