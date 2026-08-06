@@ -786,6 +786,54 @@ export type Database = {
         }
         Relationships: []
       }
+      domain_events: {
+        Row: {
+          aggregate_id: string | null
+          aggregate_type: string
+          causation_id: string | null
+          correlation_id: string | null
+          dispatched_at: string | null
+          event_type: string
+          id: string
+          occurred_at: string
+          owner_id: string | null
+          owner_kind: string
+          payload: Json
+          schema_version: number
+          trace_id: string | null
+        }
+        Insert: {
+          aggregate_id?: string | null
+          aggregate_type: string
+          causation_id?: string | null
+          correlation_id?: string | null
+          dispatched_at?: string | null
+          event_type: string
+          id?: string
+          occurred_at?: string
+          owner_id?: string | null
+          owner_kind?: string
+          payload?: Json
+          schema_version?: number
+          trace_id?: string | null
+        }
+        Update: {
+          aggregate_id?: string | null
+          aggregate_type?: string
+          causation_id?: string | null
+          correlation_id?: string | null
+          dispatched_at?: string | null
+          event_type?: string
+          id?: string
+          occurred_at?: string
+          owner_id?: string | null
+          owner_kind?: string
+          payload?: Json
+          schema_version?: number
+          trace_id?: string | null
+        }
+        Relationships: []
+      }
       feedback: {
         Row: {
           category: string
@@ -920,6 +968,75 @@ export type Database = {
           user_id?: string
         }
         Relationships: []
+      }
+      generation_requests: {
+        Row: {
+          completed_at: string | null
+          cost_cap_usd: number
+          created_at: string
+          document_id: string | null
+          id: string
+          item_type: string | null
+          knowledge_unit_id: string | null
+          language: string
+          owner_id: string
+          owner_kind: string
+          policy_version: string
+          probe_goal: string | null
+          reason: string
+          requested_count: number
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          cost_cap_usd?: number
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          item_type?: string | null
+          knowledge_unit_id?: string | null
+          language?: string
+          owner_id: string
+          owner_kind?: string
+          policy_version?: string
+          probe_goal?: string | null
+          reason: string
+          requested_count?: number
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          cost_cap_usd?: number
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          item_type?: string | null
+          knowledge_unit_id?: string | null
+          language?: string
+          owner_id?: string
+          owner_kind?: string
+          policy_version?: string
+          probe_goal?: string | null
+          reason?: string
+          requested_count?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "generation_requests_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "generation_requests_knowledge_unit_id_fkey"
+            columns: ["knowledge_unit_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_units"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       goals: {
         Row: {
@@ -1082,53 +1199,480 @@ export type Database = {
         }
         Relationships: []
       }
+      item_candidates: {
+        Row: {
+          content_hash: string
+          created_at: string
+          document_id: string | null
+          expires_at: string
+          generator_model: string | null
+          id: string
+          item_type: string
+          knowledge_unit_id: string | null
+          owner_id: string
+          owner_kind: string
+          payload: Json
+          prompt_version: string | null
+          rejection_reason: string | null
+          request_id: string | null
+          source_version: number
+          status: string
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          document_id?: string | null
+          expires_at?: string
+          generator_model?: string | null
+          id?: string
+          item_type: string
+          knowledge_unit_id?: string | null
+          owner_id: string
+          owner_kind?: string
+          payload: Json
+          prompt_version?: string | null
+          rejection_reason?: string | null
+          request_id?: string | null
+          source_version?: number
+          status?: string
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          document_id?: string | null
+          expires_at?: string
+          generator_model?: string | null
+          id?: string
+          item_type?: string
+          knowledge_unit_id?: string | null
+          owner_id?: string
+          owner_kind?: string
+          payload?: Json
+          prompt_version?: string | null
+          rejection_reason?: string | null
+          request_id?: string | null
+          source_version?: number
+          status?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_candidates_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_candidates_knowledge_unit_id_fkey"
+            columns: ["knowledge_unit_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_candidates_request_id_fkey"
+            columns: ["request_id"]
+            isOneToOne: false
+            referencedRelation: "generation_requests"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      item_version_spans: {
+        Row: {
+          char_end: number
+          char_start: number
+          chunk_id: string | null
+          created_at: string
+          document_id: string | null
+          id: string
+          item_version_id: string
+          owner_id: string
+          page_no: number | null
+          quote: string
+          role: string
+        }
+        Insert: {
+          char_end?: number
+          char_start?: number
+          chunk_id?: string | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          item_version_id: string
+          owner_id: string
+          page_no?: number | null
+          quote: string
+          role?: string
+        }
+        Update: {
+          char_end?: number
+          char_start?: number
+          chunk_id?: string | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          item_version_id?: string
+          owner_id?: string
+          page_no?: number | null
+          quote?: string
+          role?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_version_spans_chunk_id_fkey"
+            columns: ["chunk_id"]
+            isOneToOne: false
+            referencedRelation: "document_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_version_spans_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "item_version_spans_item_version_id_fkey"
+            columns: ["item_version_id"]
+            isOneToOne: false
+            referencedRelation: "item_versions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      item_versions: {
+        Row: {
+          answer: Json
+          created_at: string
+          explanation: string | null
+          grade_method: string
+          id: string
+          item_id: string
+          item_type: string
+          owner_id: string
+          policy_version: string
+          prompt: string
+          rubric: Json | null
+          version: number
+        }
+        Insert: {
+          answer: Json
+          created_at?: string
+          explanation?: string | null
+          grade_method?: string
+          id?: string
+          item_id: string
+          item_type: string
+          owner_id: string
+          policy_version?: string
+          prompt: string
+          rubric?: Json | null
+          version?: number
+        }
+        Update: {
+          answer?: Json
+          created_at?: string
+          explanation?: string | null
+          grade_method?: string
+          id?: string
+          item_id?: string
+          item_type?: string
+          owner_id?: string
+          policy_version?: string
+          prompt?: string
+          rubric?: Json | null
+          version?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "item_versions_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      items: {
+        Row: {
+          active_version: number
+          created_at: string
+          document_id: string | null
+          id: string
+          knowledge_unit_id: string | null
+          lifecycle: string
+          owner_id: string
+          owner_kind: string
+          updated_at: string
+        }
+        Insert: {
+          active_version?: number
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          knowledge_unit_id?: string | null
+          lifecycle?: string
+          owner_id: string
+          owner_kind?: string
+          updated_at?: string
+        }
+        Update: {
+          active_version?: number
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          knowledge_unit_id?: string | null
+          lifecycle?: string
+          owner_id?: string
+          owner_kind?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "items_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "items_knowledge_unit_id_fkey"
+            columns: ["knowledge_unit_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       jobs: {
         Row: {
           attempts: number
+          cancelled_at: string | null
+          cost_estimate_usd: number
           created_at: string
           id: string
           key: string
           kind: string
+          lane: string
           last_error: string | null
           lease_until: string | null
           max_attempts: number
           next_run_at: string
+          owner_id: string | null
           payload: Json
+          priority: number
           status: Database["public"]["Enums"]["job_status"]
           trace_id: string | null
           updated_at: string
         }
         Insert: {
           attempts?: number
+          cancelled_at?: string | null
+          cost_estimate_usd?: number
           created_at?: string
           id?: string
           key: string
           kind: string
+          lane?: string
           last_error?: string | null
           lease_until?: string | null
           max_attempts?: number
           next_run_at?: string
+          owner_id?: string | null
           payload?: Json
+          priority?: number
           status?: Database["public"]["Enums"]["job_status"]
           trace_id?: string | null
           updated_at?: string
         }
         Update: {
           attempts?: number
+          cancelled_at?: string | null
+          cost_estimate_usd?: number
           created_at?: string
           id?: string
           key?: string
           kind?: string
+          lane?: string
           last_error?: string | null
           lease_until?: string | null
           max_attempts?: number
           next_run_at?: string
+          owner_id?: string | null
           payload?: Json
+          priority?: number
           status?: Database["public"]["Enums"]["job_status"]
           trace_id?: string | null
           updated_at?: string
         }
         Relationships: []
+      }
+      knowledge_edges: {
+        Row: {
+          confidence: number | null
+          created_at: string
+          derivation_version: string
+          edge_type: string
+          from_unit_id: string
+          id: string
+          owner_id: string
+          to_unit_id: string
+        }
+        Insert: {
+          confidence?: number | null
+          created_at?: string
+          derivation_version?: string
+          edge_type: string
+          from_unit_id: string
+          id?: string
+          owner_id: string
+          to_unit_id: string
+        }
+        Update: {
+          confidence?: number | null
+          created_at?: string
+          derivation_version?: string
+          edge_type?: string
+          from_unit_id?: string
+          id?: string
+          owner_id?: string
+          to_unit_id?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_edges_from_unit_id_fkey"
+            columns: ["from_unit_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_units"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_edges_to_unit_id_fkey"
+            columns: ["to_unit_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_unit_spans: {
+        Row: {
+          char_end: number
+          char_start: number
+          chunk_id: string | null
+          created_at: string
+          document_id: string | null
+          id: string
+          knowledge_unit_id: string
+          owner_id: string
+          page_no: number | null
+          quote: string
+        }
+        Insert: {
+          char_end?: number
+          char_start?: number
+          chunk_id?: string | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          knowledge_unit_id: string
+          owner_id: string
+          page_no?: number | null
+          quote: string
+        }
+        Update: {
+          char_end?: number
+          char_start?: number
+          chunk_id?: string | null
+          created_at?: string
+          document_id?: string | null
+          id?: string
+          knowledge_unit_id?: string
+          owner_id?: string
+          page_no?: number | null
+          quote?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_unit_spans_chunk_id_fkey"
+            columns: ["chunk_id"]
+            isOneToOne: false
+            referencedRelation: "document_chunks"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_unit_spans_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "knowledge_unit_spans_knowledge_unit_id_fkey"
+            columns: ["knowledge_unit_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      knowledge_units: {
+        Row: {
+          content_hash: string
+          created_at: string
+          derivation_version: string
+          document_id: string | null
+          id: string
+          kind: string
+          language: string
+          lifecycle: string
+          owner_id: string
+          owner_kind: string
+          source_version: number
+          statement: string
+          updated_at: string
+        }
+        Insert: {
+          content_hash: string
+          created_at?: string
+          derivation_version?: string
+          document_id?: string | null
+          id?: string
+          kind?: string
+          language?: string
+          lifecycle?: string
+          owner_id: string
+          owner_kind?: string
+          source_version?: number
+          statement: string
+          updated_at?: string
+        }
+        Update: {
+          content_hash?: string
+          created_at?: string
+          derivation_version?: string
+          document_id?: string | null
+          id?: string
+          kind?: string
+          language?: string
+          lifecycle?: string
+          owner_id?: string
+          owner_kind?: string
+          source_version?: number
+          statement?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "knowledge_units_document_id_fkey"
+            columns: ["document_id"]
+            isOneToOne: false
+            referencedRelation: "documents"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       leaderboard_opt_ins: {
         Row: {
@@ -1160,6 +1704,42 @@ export type Database = {
           opted_in_at?: string
           show_avatar?: boolean
           user_id?: string
+        }
+        Relationships: []
+      }
+      mastery_snapshots: {
+        Row: {
+          as_of: string
+          id: string
+          owner_id: string
+          predicted_recall: number | null
+          projection_version: string
+          retained_items: number
+          scope: Json
+          units_fragile: number
+          units_secure: number
+        }
+        Insert: {
+          as_of?: string
+          id?: string
+          owner_id: string
+          predicted_recall?: number | null
+          projection_version?: string
+          retained_items?: number
+          scope?: Json
+          units_fragile?: number
+          units_secure?: number
+        }
+        Update: {
+          as_of?: string
+          id?: string
+          owner_id?: string
+          predicted_recall?: number | null
+          projection_version?: string
+          retained_items?: number
+          scope?: Json
+          units_fragile?: number
+          units_secure?: number
         }
         Relationships: []
       }
@@ -1377,6 +1957,235 @@ export type Database = {
           updated_at?: string | null
         }
         Relationships: []
+      }
+      review_attempts: {
+        Row: {
+          client_occurred_at: string | null
+          device_id: string | null
+          id: string
+          idempotency_key: string
+          item_id: string
+          item_version_id: string
+          latency_ms: number | null
+          owner_id: string
+          owner_kind: string
+          response: Json
+          response_mode: string
+          self_confidence: number | null
+          server_received_at: string
+          session_id: string | null
+        }
+        Insert: {
+          client_occurred_at?: string | null
+          device_id?: string | null
+          id?: string
+          idempotency_key: string
+          item_id: string
+          item_version_id: string
+          latency_ms?: number | null
+          owner_id: string
+          owner_kind?: string
+          response: Json
+          response_mode?: string
+          self_confidence?: number | null
+          server_received_at?: string
+          session_id?: string | null
+        }
+        Update: {
+          client_occurred_at?: string | null
+          device_id?: string | null
+          id?: string
+          idempotency_key?: string
+          item_id?: string
+          item_version_id?: string
+          latency_ms?: number | null
+          owner_id?: string
+          owner_kind?: string
+          response?: Json
+          response_mode?: string
+          self_confidence?: number | null
+          server_received_at?: string
+          session_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_attempts_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_attempts_item_version_id_fkey"
+            columns: ["item_version_id"]
+            isOneToOne: false
+            referencedRelation: "item_versions"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_attempts_session_id_fkey"
+            columns: ["session_id"]
+            isOneToOne: false
+            referencedRelation: "review_sessions"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_grades: {
+        Row: {
+          attempt_id: string
+          created_at: string
+          feedback: string | null
+          grade_method: string
+          grader_version: string
+          id: string
+          is_correct: boolean
+          owner_id: string
+          rubric_version: string | null
+          score: number
+          supersedes_grade_id: string | null
+        }
+        Insert: {
+          attempt_id: string
+          created_at?: string
+          feedback?: string | null
+          grade_method: string
+          grader_version?: string
+          id?: string
+          is_correct: boolean
+          owner_id: string
+          rubric_version?: string | null
+          score?: number
+          supersedes_grade_id?: string | null
+        }
+        Update: {
+          attempt_id?: string
+          created_at?: string
+          feedback?: string | null
+          grade_method?: string
+          grader_version?: string
+          id?: string
+          is_correct?: boolean
+          owner_id?: string
+          rubric_version?: string | null
+          score?: number
+          supersedes_grade_id?: string | null
+        }
+        Relationships: [
+          {
+            foreignKeyName: "review_grades_attempt_id_fkey"
+            columns: ["attempt_id"]
+            isOneToOne: false
+            referencedRelation: "review_attempts"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "review_grades_supersedes_grade_id_fkey"
+            columns: ["supersedes_grade_id"]
+            isOneToOne: false
+            referencedRelation: "review_grades"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      review_sessions: {
+        Row: {
+          completed_at: string | null
+          created_at: string
+          id: string
+          item_count: number
+          owner_id: string
+          owner_kind: string
+          planner_version: string
+          requested_minutes: number
+          scheduler_version: string
+          scope: Json
+          status: string
+        }
+        Insert: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          item_count?: number
+          owner_id: string
+          owner_kind?: string
+          planner_version?: string
+          requested_minutes?: number
+          scheduler_version?: string
+          scope?: Json
+          status?: string
+        }
+        Update: {
+          completed_at?: string | null
+          created_at?: string
+          id?: string
+          item_count?: number
+          owner_id?: string
+          owner_kind?: string
+          planner_version?: string
+          requested_minutes?: number
+          scheduler_version?: string
+          scope?: Json
+          status?: string
+        }
+        Relationships: []
+      }
+      scheduling_events: {
+        Row: {
+          created_at: string
+          due_at: string
+          grade_id: string | null
+          id: string
+          item_id: string
+          next_state: Json
+          owner_id: string
+          parameter_version: string
+          prior_state: Json | null
+          rating: number
+          scheduler_version: string
+        }
+        Insert: {
+          created_at?: string
+          due_at: string
+          grade_id?: string | null
+          id?: string
+          item_id: string
+          next_state: Json
+          owner_id: string
+          parameter_version?: string
+          prior_state?: Json | null
+          rating: number
+          scheduler_version?: string
+        }
+        Update: {
+          created_at?: string
+          due_at?: string
+          grade_id?: string | null
+          id?: string
+          item_id?: string
+          next_state?: Json
+          owner_id?: string
+          parameter_version?: string
+          prior_state?: Json | null
+          rating?: number
+          scheduler_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "scheduling_events_grade_id_fkey"
+            columns: ["grade_id"]
+            isOneToOne: true
+            referencedRelation: "review_grades"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "scheduling_events_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       situation_photos: {
         Row: {
@@ -1748,6 +2557,131 @@ export type Database = {
         }
         Relationships: []
       }
+      user_item_state: {
+        Row: {
+          difficulty: number
+          due_at: string
+          id: string
+          item_id: string
+          lapses: number
+          last_event_id: string | null
+          last_reviewed_at: string | null
+          owner_id: string
+          owner_kind: string
+          repetitions: number
+          scheduler_version: string
+          stability: number
+          state: string
+          updated_at: string
+        }
+        Insert: {
+          difficulty?: number
+          due_at?: string
+          id?: string
+          item_id: string
+          lapses?: number
+          last_event_id?: string | null
+          last_reviewed_at?: string | null
+          owner_id: string
+          owner_kind?: string
+          repetitions?: number
+          scheduler_version?: string
+          stability?: number
+          state?: string
+          updated_at?: string
+        }
+        Update: {
+          difficulty?: number
+          due_at?: string
+          id?: string
+          item_id?: string
+          lapses?: number
+          last_event_id?: string | null
+          last_reviewed_at?: string | null
+          owner_id?: string
+          owner_kind?: string
+          repetitions?: number
+          scheduler_version?: string
+          stability?: number
+          state?: string
+          updated_at?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_item_state_item_id_fkey"
+            columns: ["item_id"]
+            isOneToOne: false
+            referencedRelation: "items"
+            referencedColumns: ["id"]
+          },
+          {
+            foreignKeyName: "user_item_state_last_event_id_fkey"
+            columns: ["last_event_id"]
+            isOneToOne: false
+            referencedRelation: "scheduling_events"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
+      user_knowledge_state: {
+        Row: {
+          band: string
+          confidence: number
+          coverage: number
+          evidence_count: number
+          id: string
+          knowledge_unit_id: string
+          last_evidence_at: string | null
+          misconception_flags: string[]
+          owner_id: string
+          predicted_recall: number | null
+          projection_version: string
+          updated_at: string
+          weighted_failure: number
+          weighted_success: number
+        }
+        Insert: {
+          band?: string
+          confidence?: number
+          coverage?: number
+          evidence_count?: number
+          id?: string
+          knowledge_unit_id: string
+          last_evidence_at?: string | null
+          misconception_flags?: string[]
+          owner_id: string
+          predicted_recall?: number | null
+          projection_version?: string
+          updated_at?: string
+          weighted_failure?: number
+          weighted_success?: number
+        }
+        Update: {
+          band?: string
+          confidence?: number
+          coverage?: number
+          evidence_count?: number
+          id?: string
+          knowledge_unit_id?: string
+          last_evidence_at?: string | null
+          misconception_flags?: string[]
+          owner_id?: string
+          predicted_recall?: number | null
+          projection_version?: string
+          updated_at?: string
+          weighted_failure?: number
+          weighted_success?: number
+        }
+        Relationships: [
+          {
+            foreignKeyName: "user_knowledge_state_knowledge_unit_id_fkey"
+            columns: ["knowledge_unit_id"]
+            isOneToOne: false
+            referencedRelation: "knowledge_units"
+            referencedColumns: ["id"]
+          },
+        ]
+      }
       user_roles: {
         Row: {
           created_at: string
@@ -1783,6 +2717,56 @@ export type Database = {
           name?: string | null
         }
         Relationships: []
+      }
+      validation_runs: {
+        Row: {
+          candidate_id: string
+          confidence: number | null
+          cost_usd: number
+          created_at: string
+          decision: string
+          id: string
+          latency_ms: number | null
+          owner_id: string
+          reason_codes: string[]
+          stage: string
+          validator_version: string
+        }
+        Insert: {
+          candidate_id: string
+          confidence?: number | null
+          cost_usd?: number
+          created_at?: string
+          decision: string
+          id?: string
+          latency_ms?: number | null
+          owner_id: string
+          reason_codes?: string[]
+          stage: string
+          validator_version: string
+        }
+        Update: {
+          candidate_id?: string
+          confidence?: number | null
+          cost_usd?: number
+          created_at?: string
+          decision?: string
+          id?: string
+          latency_ms?: number | null
+          owner_id?: string
+          reason_codes?: string[]
+          stage?: string
+          validator_version?: string
+        }
+        Relationships: [
+          {
+            foreignKeyName: "validation_runs_candidate_id_fkey"
+            columns: ["candidate_id"]
+            isOneToOne: false
+            referencedRelation: "item_candidates"
+            referencedColumns: ["id"]
+          },
+        ]
       }
       weekly_goals: {
         Row: {
@@ -1910,15 +2894,20 @@ export type Database = {
         Args: { _kind: string; _lease_seconds?: number; _n?: number }
         Returns: {
           attempts: number
+          cancelled_at: string | null
+          cost_estimate_usd: number
           created_at: string
           id: string
           key: string
           kind: string
+          lane: string
           last_error: string | null
           lease_until: string | null
           max_attempts: number
           next_run_at: string
+          owner_id: string | null
           payload: Json
+          priority: number
           status: Database["public"]["Enums"]["job_status"]
           trace_id: string | null
           updated_at: string
