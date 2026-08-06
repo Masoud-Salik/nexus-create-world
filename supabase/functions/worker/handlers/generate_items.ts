@@ -1,12 +1,19 @@
 /**
- * E5.1 / M5.1b — generate study items from a document's chunks.
+ * DEPRECATED — legacy M5.1 eager generator.
  *
- * Idempotent: items are deduplicated by (user_id, item_hash) where item_hash is
- * a SHA-256 of the normalized question text. A reclaimed lease resumes by
- * skipping chunks that already have items linked to them.
+ * Knowledge Engine (E5) replaces this: model output is now written to
+ * `item_candidates`, validated, and only then published as an immutable
+ * `item_versions` row. Nothing enqueues this kind any more; the handler stays
+ * registered only so queued legacy jobs drain instead of dead-lettering.
  */
 import { Job, JobContext } from "../../_shared/queue.ts";
-import { callModel, fenceData, resolvePrompt } from "../../_shared/ai/call.ts";
+
+export async function generateItemsHandler(job: Job, ctx: JobContext): Promise<void> {
+  ctx.log.warn("generate_items.deprecated", {
+    job_id: job.id,
+    document_id: job.payload.document_id ?? null,
+  });
+}
 
 const CHUNKS_PER_BATCH = 6;
 
