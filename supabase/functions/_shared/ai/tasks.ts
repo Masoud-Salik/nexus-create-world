@@ -19,7 +19,11 @@ export type TaskName =
   | "doc_embeddings"
   | "ocr_page"
   | "text_to_speech"
-  | "generate_items";
+  | "generate_items"
+  | "extract_units"
+  | "generate_candidates"
+  | "verify_item";
+
 
 export type Provider = "lovable" | "openai";
 export type TaskKind = "chat" | "embedding" | "tts";
