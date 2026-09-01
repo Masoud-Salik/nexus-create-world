@@ -114,6 +114,43 @@ export const studyItemsSchema = z.object({
   items: z.array(studyItemSchema).min(1).max(40),
 });
 
+/* -------------------------------------------- E5 Phase C: knowledge engine */
+
+export const knowledgeUnitsSchema = z.object({
+  units: z.array(
+    z.object({
+      statement: z.string().min(8).max(600),
+      kind: z.enum(["fact", "concept", "procedure", "principle", "definition", "relationship"]),
+      quote: z.string().min(12).max(600),
+      chunk_index: z.number().int().nonnegative(),
+      importance: z.number().min(0).max(1).optional().nullable(),
+    }),
+  ).min(1).max(30),
+});
+
+export const itemCandidatesSchema = z.object({
+  items: z.array(
+    z.object({
+      item_type: z.enum([
+        "flashcard", "mcq", "true_false", "fill_blank", "short_answer", "numeric",
+      ]),
+      prompt: z.string().min(8).max(2000),
+      answer: z.string().min(1).max(600),
+      options: z.array(mcqOptionSchema).min(3).max(6).optional().nullable(),
+      explanation: z.string().max(1200).optional().nullable(),
+      quote: z.string().min(12).max(600),
+      chunk_index: z.number().int().nonnegative(),
+    }),
+  ).min(1).max(20),
+});
+
+export const itemVerificationSchema = z.object({
+  grounded: z.boolean(),
+  entailed: z.boolean(),
+  confidence: z.number().min(0).max(1),
+  reason: z.string().max(300).optional().nullable(),
+});
+
 export const SCHEMAS: Record<string, z.ZodTypeAny> = {
   extract_memory: extractMemorySchema,
   study_plan: studyPlanSchema,
@@ -123,7 +160,11 @@ export const SCHEMAS: Record<string, z.ZodTypeAny> = {
   daily_coach: dailyCoachSchema,
   chat_title: chatTitleSchema,
   study_items: studyItemsSchema,
+  knowledge_units: knowledgeUnitsSchema,
+  item_candidates: itemCandidatesSchema,
+  item_verification: itemVerificationSchema,
 };
+
 
 export function getSchema(key: string): z.ZodTypeAny {
   const schema = SCHEMAS[key];
