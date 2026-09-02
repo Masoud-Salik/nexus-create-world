@@ -4,7 +4,7 @@
  * Only rows with a NULL embedding are processed, so a reclaimed lease resumes
  * where the previous attempt stopped instead of re-paying for finished work.
  */
-import { Job, JobContext } from "../../_shared/queue.ts";
+import { Job, JobContext, enqueue } from "../../_shared/queue.ts";
 import { embed } from "../../_shared/ai/call.ts";
 
 const BATCH = 64;
@@ -49,8 +49,13 @@ export async function embedHandler(job: Job, ctx: JobContext): Promise<void> {
 
   await svc.from("documents").update({ status: "ready", error: null }).eq("id", documentId);
 
-  // Knowledge Engine (E5): item generation is NO LONGER triggered eagerly here.
-  // Inventory is created on study intent (bounded starter set + lazy
-  // replenishment) so we never pay to generate items nobody reviews.
+  // Knowledge Engine (E5): no eager item generation. Source readiness triggers
+  // bounded knowledge-unit extraction, which requests a small starter batch.
+  await enqueue(svc, "extract_units", {
+    key: `extract_units:${documentId}:v1`,
+    payload: { document_id: documentId },
+    traceId,
+  });
+
   log.info("embed.done", { document_id: documentId, eager_generation: false });
 }
