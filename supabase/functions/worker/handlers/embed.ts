@@ -4,7 +4,7 @@
  * Only rows with a NULL embedding are processed, so a reclaimed lease resumes
  * where the previous attempt stopped instead of re-paying for finished work.
  */
-import { Job, JobContext } from "../../_shared/queue.ts";
+import { Job, JobContext, enqueue } from "../../_shared/queue.ts";
 import { embed } from "../../_shared/ai/call.ts";
 
 const BATCH = 64;
