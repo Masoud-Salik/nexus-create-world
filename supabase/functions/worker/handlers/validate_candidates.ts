@@ -109,6 +109,7 @@ export async function validateCandidatesHandler(job: Job, ctx: JobContext): Prom
           {
             role: "user",
             content: fenceData(
+              "source_and_item",
               `SOURCE:\n${String(chunk?.content ?? "").slice(0, 2000)}\n\n` +
               `ITEM:\nprompt: ${payload.prompt}\nanswer: ${JSON.stringify(payload.answer)}`,
             ),

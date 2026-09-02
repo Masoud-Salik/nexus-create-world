@@ -86,7 +86,7 @@ export async function generateCandidatesHandler(job: Job, ctx: JobContext): Prom
       { role: "system", content: SYSTEM },
       {
         role: "user",
-        content: fenceData(`Write ${request.requested_count} items covering these units.\n\n${brief}`),
+        content: fenceData("source_units", `Write ${request.requested_count} items covering these units.\n\n${brief}`),
       },
     ],
     schemaKey: "item_candidates",

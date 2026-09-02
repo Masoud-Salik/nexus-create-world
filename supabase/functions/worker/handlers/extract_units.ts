@@ -72,6 +72,7 @@ export async function extractUnitsHandler(job: Job, ctx: JobContext): Promise<vo
         {
           role: "user",
           content: fenceData(
+            "source_document",
             `Document: ${doc.title}\nExtract up to 20 high-value units.\n\n${corpus}`,
           ),
         },
