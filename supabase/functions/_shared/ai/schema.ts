@@ -99,16 +99,6 @@ const mcqOptionSchema = z.object({
   is_correct: z.boolean(),
 });
 
-const studyItemSchema = z.object({
-  type: z.enum(["flashcard", "mcq", "true_false", "fill_blank", "short_answer"]),
-  question: z.string().min(1).max(2000),
-  answer: z.string().max(4000).nullable().optional(),
-  options: z.array(mcqOptionSchema).min(2).max(6).nullable().optional(),
-  correct_answer: z.string().max(1000).nullable().optional(),
-  explanation: z.string().max(4000).nullable().optional(),
-  difficulty: z.enum(["easy", "medium", "hard"]),
-  chunk_index: z.number().int().nullable().optional(),
-});
 
 /* -------------------------------------------- E5 Phase C: knowledge engine */
 
