@@ -13,6 +13,9 @@ import { ocrHandler } from "./handlers/ocr.ts";
 import { chunkHandler } from "./handlers/chunk.ts";
 import { embedHandler } from "./handlers/embed.ts";
 import { generateItemsHandler } from "./handlers/generate_items.ts";
+import { generateCandidateHandler } from "./handlers/generate_candidate.ts";
+import { validateCandidateHandler } from "./handlers/validate_candidate.ts";
+import { publishItemHandler } from "./handlers/publish_item.ts";
 
 const noop: JobHandler = async (job: Job, ctx: JobContext) => {
   // Test-only kinds. `__fail` always throws so the poison-message path is exercisable.
@@ -27,6 +30,9 @@ export const handlers: Record<string, JobHandler> = {
   chunk: chunkHandler,
   embed: embedHandler,
   generate_items: generateItemsHandler,
+  generate_candidate: generateCandidateHandler,
+  validate_candidate: validateCandidateHandler,
+  publish_item: publishItemHandler,
 };
 
 export const registeredKinds = () => Object.keys(handlers);

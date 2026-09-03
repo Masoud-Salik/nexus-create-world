@@ -247,6 +247,145 @@ Deno.serve(
       return json({ ok: true, kind, job_id: jobId, trace_id: traceId });
     }
 
+    // ---- prepare: request bounded starter inventory for a ready document.
+    // E5 — demand-driven generation. Creates knowledge units from the document's
+    // chunks, then enqueues generation_requests for a bounded starter set.
+    if (action === "prepare") {
+      if (doc.user_id !== userId) throw new AppError("forbidden");
+
+      const { data: docStatus } = await svc
+        .from("documents").select("status").eq("id", documentId).maybeSingle();
+      if (docStatus?.status !== "ready") {
+        throw new AppError("validation_failed", "Document must be fully processed before preparing inventory.");
+      }
+
+      const { data: version } = await svc
+        .from("source_versions")
+        .select("id")
+        .eq("document_id", documentId)
+        .order("version_no", { ascending: false })
+        .limit(1)
+        .maybeSingle();
+      if (!version) {
+        throw new AppError("validation_failed", "Source version not found. Re-process the document.");
+      }
+
+      const { data: chunks } = await svc
+        .from("document_chunks")
+        .select("id, content, page_no, char_start, char_end")
+        .eq("document_id", documentId)
+        .order("chunk_index")
+        .limit(15);
+
+      if (!chunks || chunks.length === 0) {
+        throw new AppError("validation_failed", "No chunks found. The document has no readable content.");
+      }
+
+      const STARTER_CAP = 12;
+      let unitsCreated = 0;
+      let requestsCreated = 0;
+
+      for (const chunk of chunks.slice(0, STARTER_CAP)) {
+        const statement = chunk.content.slice(0, 200).replace(/\n/g, " ").trim();
+        const spanHash = await hashContent(`${chunk.id}:${chunk.char_start}:${chunk.char_end}`);
+
+        const { data: existingUnit } = await svc
+          .from("knowledge_units")
+          .select("id")
+          .eq("owner_id", userId)
+          .eq("source_version_id", version.id)
+          .eq("statement", statement)
+          .maybeSingle();
+
+        let unitId: string;
+        if (existingUnit) {
+          unitId = existingUnit.id;
+        } else {
+          const { data: unit, error: unitErr } = await svc
+            .from("knowledge_units")
+            .insert({
+              owner_id: userId,
+              owner_kind: "user",
+              source_version_id: version.id,
+              kind: "fact",
+              statement,
+              language: "en",
+              status: "grounded",
+              derivation_version: "e5.v1",
+            })
+            .select("id")
+            .single();
+          if (unitErr) throw new AppError("internal", undefined, unitErr);
+          unitId = unit.id;
+
+          await svc.from("knowledge_unit_spans").insert({
+            knowledge_unit_id: unitId,
+            document_chunk_id: chunk.id,
+            page_no: chunk.page_no,
+            char_start: chunk.char_start,
+            char_end: chunk.char_end,
+            span_hash: spanHash,
+          });
+          unitsCreated++;
+        }
+
+        const idempotencyKey = `starter:${userId}:${version.id}:${unitId}:flashcard`;
+        const { data: existingReq } = await svc
+          .from("generation_requests")
+          .select("id")
+          .eq("idempotency_key", idempotencyKey)
+          .maybeSingle();
+        if (existingReq) continue;
+
+        const { data: genReq, error: genErr } = await svc
+          .from("generation_requests")
+          .insert({
+            owner_id: userId,
+            owner_kind: "user",
+            source_version_id: version.id,
+            knowledge_unit_id: unitId,
+            probe_goal: "starter",
+            item_type: "flashcard",
+            language: "en",
+            policy_version: "e5.v1",
+            reason: "starter",
+            status: "pending",
+            idempotency_key: idempotencyKey,
+          })
+          .select("id")
+          .single();
+        if (genErr) throw new AppError("internal", undefined, genErr);
+
+        await enqueue(svc, "generate_candidate", {
+          key: `generate_candidate:${genReq.id}`,
+          payload: { generation_request_id: genReq.id },
+          traceId,
+        });
+        requestsCreated++;
+      }
+
+      log.info("ingest.prepare", {
+        document_id: documentId,
+        version_id: version.id,
+        units_created: unitsCreated,
+        requests_created: requestsCreated,
+      });
+
+      return json({
+        ok: true,
+        version_id: version.id,
+        units_created: unitsCreated,
+        requests_created: requestsCreated,
+        trace_id: traceId,
+      });
+    }
+
     throw new AppError("validation_failed", "Unknown action.");
   }),
 );
+
+async function hashContent(content: string): Promise<string> {
+  const bytes = new TextEncoder().encode(content);
+  const digest = await crypto.subtle.digest("SHA-256", bytes);
+  return [...new Uint8Array(digest)].map((b) => b.toString(16).padStart(2, "0")).join("");
+}

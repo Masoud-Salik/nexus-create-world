@@ -45,6 +45,9 @@ const DEAD_MESSAGE: Record<string, string> = {
   chunk: "We could not organise this document. Try again, or upload it once more.",
   embed: "We could not finish indexing this document. Try again in a few minutes.",
   generate_items: "We could not generate study items from this document. Try again in a few minutes.",
+  generate_candidate: "We could not generate a study item candidate. Try again in a few minutes.",
+  validate_candidate: "We could not validate a study item candidate. Try again in a few minutes.",
+  publish_item: "We could not publish a study item. Try again in a few minutes.",
 };
 
 /**
@@ -54,6 +57,9 @@ const DEAD_MESSAGE: Record<string, string> = {
  * `generate_items` is independent from ingestion: the document itself is ready,
  * only item generation failed, so we update `generation_status` and leave
  * `documents.status` untouched.
+ *
+ * E5 candidate/validation/publish jobs are owner-scoped and don't touch the
+ * document status — they only update the candidate's own status.
  */
 async function reconcileDeadJob(svc: SupabaseClient, job: Job): Promise<void> {
   const message = DEAD_MESSAGE[job.kind];
@@ -65,6 +71,16 @@ async function reconcileDeadJob(svc: SupabaseClient, job: Job): Promise<void> {
       .update({ generation_status: "failed" })
       .eq("id", documentId)
       .not("generation_status", "in", "(failed,ready,skipped)");
+    return;
+  }
+
+  // E5 jobs: mark the candidate as rejected if we can identify it
+  const candidateId = String(job.payload?.candidate_id ?? "");
+  if (candidateId && (job.kind === "generate_candidate" || job.kind === "validate_candidate" || job.kind === "publish_item")) {
+    await svc.from("item_candidates")
+      .update({ status: "rejected", rejection_reason: `dead_job:${job.kind}` })
+      .eq("id", candidateId)
+      .in("status", ["pending", "validating", "approved"]);
     return;
   }
 
