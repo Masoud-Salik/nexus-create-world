@@ -110,10 +110,6 @@ const studyItemSchema = z.object({
   chunk_index: z.number().int().nullable().optional(),
 });
 
-export const studyItemsSchema = z.object({
-  items: z.array(studyItemSchema).min(1).max(40),
-});
-
 /* -------------------------------------------- E5 Phase C: knowledge engine */
 
 export const knowledgeUnitsSchema = z.object({
@@ -159,7 +155,6 @@ export const SCHEMAS: Record<string, z.ZodTypeAny> = {
   weekly_report: weeklyReportSchema,
   daily_coach: dailyCoachSchema,
   chat_title: chatTitleSchema,
-  study_items: studyItemsSchema,
   knowledge_units: knowledgeUnitsSchema,
   item_candidates: itemCandidatesSchema,
   item_verification: itemVerificationSchema,
