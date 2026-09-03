@@ -7,10 +7,15 @@
  * skipped, so a reclaimed lease never double-charges or duplicates rows.
  */
 import { Job, JobContext } from "../../_shared/queue.ts";
-import { callModel, fenceData } from "../../_shared/ai/call.ts";
+import { callModel, fenceData, resolvePrompt } from "../../_shared/ai/call.ts";
 import { enqueue } from "../../_shared/queue.ts";
 
 const MAX_PAGES = 300;
+
+const OCR_SYSTEM_PROMPT =
+  "You transcribe scanned study material. Return ONLY the text visible in the image, " +
+  "preserving reading order, headings and list structure. No commentary, no markdown fences. " +
+  "If the page is blank or unreadable, return an empty string.";
 
 export async function ocrHandler(job: Job, ctx: JobContext): Promise<void> {
   const documentId = String(job.payload.document_id ?? "");
@@ -49,16 +54,19 @@ export async function ocrHandler(job: Job, ctx: JobContext): Promise<void> {
       continue;
     }
 
+    const prompted = await resolvePrompt(
+      { supabase: svc, ownerId: doc.user_id, traceId, log },
+      "ocr_page",
+      OCR_SYSTEM_PROMPT,
+    );
+
     const result = await callModel(
       "ocr_page",
       {
         messages: [
           {
             role: "system",
-            content:
-              "You transcribe scanned study material. Return ONLY the text visible in the image, " +
-              "preserving reading order, headings and list structure. No commentary, no markdown fences. " +
-              "If the page is blank or unreadable, return an empty string.",
+            content: prompted.systemPrompt ?? OCR_SYSTEM_PROMPT,
           },
           {
             role: "user",
@@ -68,6 +76,7 @@ export async function ocrHandler(job: Job, ctx: JobContext): Promise<void> {
             ],
           },
         ],
+        extraBody: { prompt_version: prompted.promptVersion },
       },
       { supabase: svc, ownerId: doc.user_id, traceId, log },
     );

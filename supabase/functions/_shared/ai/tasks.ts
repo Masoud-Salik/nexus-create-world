@@ -19,10 +19,7 @@ export type TaskName =
   | "doc_embeddings"
   | "ocr_page"
   | "text_to_speech"
-  | "extract_units"
-  | "generate_candidates"
-  | "verify_item";
-
+  | "generate_items";
 
 export type Provider = "lovable" | "openai";
 export type TaskKind = "chat" | "embedding" | "tts";
@@ -217,53 +214,22 @@ export const TASKS: Record<TaskName, TaskConfig> = {
     windowLimit: 60,
     windowSeconds: 3600,
   },
-  /** E5 Phase C — propose grounded knowledge units from a bounded chunk set. */
-  extract_units: {
-    task: "extract_units",
-    primaryModel: "google/gemini-3.1-flash-lite",
-    fallbackModels: ["google/gemini-2.5-flash"],
-    maxTokens: 2048,
-    temperature: 0.2,
-    promptKey: "extract_units.v1",
-    outputSchema: "knowledge_units",
-    provider: "lovable",
-    kind: "chat",
-    cacheable: true,
-    windowLimit: 200,
-    windowSeconds: 3600,
-  },
-  /** E5 Phase C — propose item candidates for specific knowledge units. */
-  generate_candidates: {
-    task: "generate_candidates",
+  /** E5.1 — generate study items from document chunks. */
+  generate_items: {
+    task: "generate_items",
     primaryModel: "google/gemini-2.5-flash",
-    fallbackModels: ["google/gemini-3.1-flash-lite"],
-    maxTokens: 3072,
+    fallbackModels: ["google/gemini-2.5-flash-lite"],
+    maxTokens: 4096,
     temperature: 0.3,
-    promptKey: "generate_candidates.v1",
-    outputSchema: "item_candidates",
+    promptKey: "generate_items.v1",
+    outputSchema: "study_items",
     provider: "lovable",
     kind: "chat",
     cacheable: false,
-    windowLimit: 200,
-    windowSeconds: 3600,
-  },
-  /** E5 Phase C — independent grounding/entailment verifier. */
-  verify_item: {
-    task: "verify_item",
-    primaryModel: "google/gemini-3.1-flash-lite",
-    fallbackModels: ["google/gemini-2.5-flash-lite"],
-    maxTokens: 384,
-    temperature: 0,
-    promptKey: "verify_item.v1",
-    outputSchema: "item_verification",
-    provider: "lovable",
-    kind: "chat",
-    cacheable: true,
-    windowLimit: 600,
+    windowLimit: 100,
     windowSeconds: 3600,
   },
 };
-
 
 export function getTask(task: TaskName): TaskConfig {
   const config = TASKS[task];

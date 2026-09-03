@@ -1,9 +1,12 @@
+// E3 / M3.2 — migrated onto the shared AI boundary. No direct provider calls.
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
+import { verifyProviderKey } from "../_shared/ai/call.ts";
+import { createLogger, traceIdFrom } from "../_shared/logging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
   "Access-Control-Allow-Headers":
-    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
+    "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version, x-trace-id",
 };
 
 async function getEncKey(): Promise<CryptoKey> {
@@ -25,6 +28,9 @@ export async function encrypt(plaintext: string): Promise<string> {
 
 Deno.serve(async (req) => {
   if (req.method === "OPTIONS") return new Response(null, { headers: corsHeaders });
+
+  const traceId = traceIdFrom(req);
+  const log = createLogger("connect-openai", traceId);
 
   try {
     const supabaseUrl = Deno.env.get("SUPABASE_URL")!;
@@ -55,13 +61,11 @@ Deno.serve(async (req) => {
       });
     }
 
-    // Verify against OpenAI
-    const verify = await fetch("https://api.openai.com/v1/models", {
-      headers: { Authorization: `Bearer ${apiKey}` },
-    });
+    // Verify against OpenAI via the shared boundary
+    const verification = await verifyProviderKey("openai", apiKey, traceId);
 
-    if (!verify.ok) {
-      const status = verify.status;
+    if (!verification.ok) {
+      const status = verification.status;
       let msg = "Could not verify your OpenAI key.";
       if (status === 401) msg = "Invalid API key. Double-check it on platform.openai.com.";
       else if (status === 429) msg = "Your OpenAI account is rate-limited or out of quota.";
@@ -70,10 +74,7 @@ Deno.serve(async (req) => {
       });
     }
 
-    const modelsJson = await verify.json().catch(() => ({ data: [] }));
-    const availableModels: string[] = (modelsJson?.data || [])
-      .map((m: any) => m.id)
-      .filter((id: string) => typeof id === "string" && /^gpt-/.test(id));
+    const availableModels: string[] = verification.models.filter((id: string) => /^gpt-/.test(id));
 
     const encrypted = await encrypt(apiKey);
     const last4 = apiKey.slice(-4);
@@ -94,7 +95,7 @@ Deno.serve(async (req) => {
     });
 
     if (upsertErr) {
-      console.error("upsert error:", upsertErr);
+      log.error("upsert_failed", { detail: upsertErr.message });
       return new Response(JSON.stringify({ error: "Could not save your key. Try again." }), {
         status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
       });
@@ -104,7 +105,7 @@ Deno.serve(async (req) => {
       headers: { ...corsHeaders, "Content-Type": "application/json" },
     });
   } catch (e) {
-    console.error("connect-openai error:", e);
+    log.error("request.failed", { detail: String(e) });
     return new Response(JSON.stringify({ error: e instanceof Error ? e.message : "Unknown error" }), {
       status: 500, headers: { ...corsHeaders, "Content-Type": "application/json" },
     });

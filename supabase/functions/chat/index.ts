@@ -7,8 +7,10 @@ import {
   embed,
   fenceToolResult,
   ProviderError,
+  resolvePrompt,
   streamModel,
 } from "../_shared/ai/call.ts";
+import { getTask } from "../_shared/ai/tasks.ts";
 import { createLogger, traceIdFrom } from "../_shared/logging.ts";
 
 const corsHeaders = {
@@ -17,11 +19,10 @@ const corsHeaders = {
     "authorization, x-client-info, apikey, content-type, x-supabase-client-platform, x-supabase-client-platform-version, x-supabase-client-runtime, x-supabase-client-runtime-version",
 };
 
-// Fast model used when the request looks like simple chat (no tools needed).
-// gemini-3.1-flash-lite is the lowest-latency multimodal Gemini available.
-const FAST_MODEL = "google/gemini-3.1-flash-lite";
-// Default model when tool calls are needed (needs stronger reasoning + JSON schema).
-const TOOL_MODEL = "google/gemini-3-flash-preview";
+// Model names come from the task registry, not hardcoded here.
+const chatTask = getTask("chat");
+const FAST_MODEL = chatTask.primaryModel;
+const TOOL_MODEL = chatTask.fallbackModels[0] || chatTask.primaryModel;
 
 // Sliding window for conversation history.
 const MAX_HISTORY_MESSAGES = 12;
@@ -488,26 +489,15 @@ Deno.serve(async (req) => {
     const safeLocalTime = safeUserTime(userLocalTime);
     const safeTOD = safeTimeOfDay(userTimeOfDay);
 
-    // Build system prompt — prefer admin-configured active version, fall back to default.
-    let systemContent = SYSTEM_PROMPT;
-    let activePromptId: string | null = null;
-    let fewShots: Array<{ user: string; assistant: string }> = [];
-    try {
-      const { data: active } = await supabase
-        .from("ai_prompt_versions")
-        .select("id, system_prompt, few_shots, persona")
-        .eq("is_active", true)
-        .order("updated_at", { ascending: false })
-        .limit(1)
-        .maybeSingle();
-      if (active?.system_prompt) {
-        systemContent = active.system_prompt;
-        activePromptId = active.id;
-        if (Array.isArray(active.few_shots)) fewShots = active.few_shots;
-      }
-    } catch (e) {
-      console.warn("active prompt load failed:", e);
-    }
+    // Prompt resolution via the shared boundary — single source of truth.
+    const prompted = await resolvePrompt(
+      { supabase, ownerId: user.id, traceId, log },
+      "chat",
+      SYSTEM_PROMPT,
+    );
+    let systemContent = prompted.systemPrompt ?? SYSTEM_PROMPT;
+    const activePromptId = prompted.promptVersion;
+    let fewShots = prompted.fewShots;
     // userContext is intentionally NOT accepted from the client to prevent system-prompt injection.
     if (safeLocalTime) systemContent += `\nCurrent time: ${safeLocalTime}${safeTOD ? ` (${safeTOD})` : ""}`;
 

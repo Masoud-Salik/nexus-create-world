@@ -99,42 +99,19 @@ const mcqOptionSchema = z.object({
   is_correct: z.boolean(),
 });
 
-
-/* -------------------------------------------- E5 Phase C: knowledge engine */
-
-export const knowledgeUnitsSchema = z.object({
-  units: z.array(
-    z.object({
-      statement: z.string().min(8).max(600),
-      kind: z.enum(["fact", "concept", "procedure", "principle", "definition", "relationship"]),
-      quote: z.string().min(12).max(600),
-      chunk_index: z.number().int().nonnegative(),
-      importance: z.number().min(0).max(1).optional().nullable(),
-    }),
-  ).min(1).max(30),
+const studyItemSchema = z.object({
+  type: z.enum(["flashcard", "mcq", "true_false", "fill_blank", "short_answer"]),
+  question: z.string().min(1).max(2000),
+  answer: z.string().max(4000).nullable().optional(),
+  options: z.array(mcqOptionSchema).min(2).max(6).nullable().optional(),
+  correct_answer: z.string().max(1000).nullable().optional(),
+  explanation: z.string().max(4000).nullable().optional(),
+  difficulty: z.enum(["easy", "medium", "hard"]),
+  chunk_index: z.number().int().nullable().optional(),
 });
 
-export const itemCandidatesSchema = z.object({
-  items: z.array(
-    z.object({
-      item_type: z.enum([
-        "flashcard", "mcq", "true_false", "fill_blank", "short_answer", "numeric",
-      ]),
-      prompt: z.string().min(8).max(2000),
-      answer: z.string().min(1).max(600),
-      options: z.array(mcqOptionSchema).min(3).max(6).optional().nullable(),
-      explanation: z.string().max(1200).optional().nullable(),
-      quote: z.string().min(12).max(600),
-      chunk_index: z.number().int().nonnegative(),
-    }),
-  ).min(1).max(20),
-});
-
-export const itemVerificationSchema = z.object({
-  grounded: z.boolean(),
-  entailed: z.boolean(),
-  confidence: z.number().min(0).max(1),
-  reason: z.string().max(300).optional().nullable(),
+export const studyItemsSchema = z.object({
+  items: z.array(studyItemSchema).min(1).max(40),
 });
 
 export const SCHEMAS: Record<string, z.ZodTypeAny> = {
@@ -145,11 +122,8 @@ export const SCHEMAS: Record<string, z.ZodTypeAny> = {
   weekly_report: weeklyReportSchema,
   daily_coach: dailyCoachSchema,
   chat_title: chatTitleSchema,
-  knowledge_units: knowledgeUnitsSchema,
-  item_candidates: itemCandidatesSchema,
-  item_verification: itemVerificationSchema,
+  study_items: studyItemsSchema,
 };
-
 
 export function getSchema(key: string): z.ZodTypeAny {
   const schema = SCHEMAS[key];

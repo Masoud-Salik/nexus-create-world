@@ -1,6 +1,7 @@
 import { createClient } from "https://esm.sh/@supabase/supabase-js@2";
 import { embed } from "../_shared/ai/call.ts";
 import { chunkPages } from "../_shared/ingest/chunk.ts";
+import { createLogger, traceIdFrom } from "../_shared/logging.ts";
 
 const corsHeaders = {
   "Access-Control-Allow-Origin": "*",
@@ -34,8 +35,9 @@ Deno.serve(async (req) => {
     }
     const user = gate.user;
 
-    const traceId = req.headers.get("X-Trace-Id") || crypto.randomUUID();
-    const aiCtx = { supabase, ownerId: user.id, traceId };
+    const traceId = traceIdFrom(req);
+    const log = createLogger("ai-training", traceId);
+    const aiCtx = { supabase, ownerId: user.id, traceId, log };
 
     const { action, ...payload } = await req.json();
 

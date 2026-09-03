@@ -133,17 +133,6 @@ Deno.serve(
     if (!doc) throw new AppError("not_found");
     if (doc.user_id !== userId) throw new AppError("forbidden");
 
-    // ---- fail: the browser could not finish the upload. Pipeline state is
-    // backend-owned, so the client reports and we record.
-    if (action === "fail") {
-      const reason = String(body.reason ?? "Upload failed.").slice(0, 300);
-      await svc.from("documents")
-        .update({ status: "failed", error: reason })
-        .eq("id", documentId)
-        .not("status", "in", "(ready,failed)");
-      return json({ ok: true });
-    }
-
     if (action === "process" || action === "retry") {
       if ((doc.page_count ?? 0) > limits.maxPages) {
         await failDocument(

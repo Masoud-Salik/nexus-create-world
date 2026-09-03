@@ -85,6 +85,7 @@ export async function uploadDocument(
       storage_path: "",
       sha256,
       page_count: pageCount,
+      status: "extracting",
     })
     .select("id")
     .single();
@@ -144,13 +145,10 @@ export async function uploadDocument(
     onProgress?.({ phase: "queued", done: 1, total: 1 });
     return documentId;
   } catch (err) {
-    // Pipeline state is backend-owned (E5 Phase D): the client reports the
-    // failure, the control plane records it.
-    await invokeIngest({
-      action: "fail",
-      document_id: documentId,
-      reason: err instanceof Error ? err.message.slice(0, 300) : "Upload failed.",
-    }).catch(() => undefined);
+    await supabase.from("documents").update({
+      status: "failed",
+      error: err instanceof Error ? err.message.slice(0, 300) : "Upload failed.",
+    }).eq("id", documentId);
     throw err;
   }
 }
