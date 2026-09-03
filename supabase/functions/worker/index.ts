@@ -44,29 +44,16 @@ const DEAD_MESSAGE: Record<string, string> = {
   ocr: "We could not read the text in this file. Try uploading a clearer copy.",
   chunk: "We could not organise this document. Try again, or upload it once more.",
   embed: "We could not finish indexing this document. Try again in a few minutes.",
-  generate_items: "We could not generate study items from this document. Try again in a few minutes.",
 };
 
 /**
- * Dead job → failed document (ingestion) or failed generation. Idempotent,
- * and never overwrites a document that already reached a terminal state.
- *
- * `generate_items` is independent from ingestion: the document itself is ready,
- * only item generation failed, so we update `generation_status` and leave
- * `documents.status` untouched.
+ * Dead job → failed document. Idempotent, and never overwrites a document that
+ * already reached a terminal state.
  */
 async function reconcileDeadJob(svc: SupabaseClient, job: Job): Promise<void> {
   const message = DEAD_MESSAGE[job.kind];
   const documentId = String(job.payload?.document_id ?? "");
   if (!message || !documentId) return;
-
-  if (job.kind === "generate_items") {
-    await svc.from("documents")
-      .update({ generation_status: "failed" })
-      .eq("id", documentId)
-      .not("generation_status", "in", "(failed,ready,skipped)");
-    return;
-  }
 
   await svc.from("documents")
     .update({ status: "failed", error: message })
