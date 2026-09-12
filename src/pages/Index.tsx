@@ -841,7 +841,7 @@ export default function Index() {
                       key={`${index}-${message.role}`}
                       role={message.role}
                       content={message.content}
-                      conversationId={activeConversationId}
+                      conversationId={conversationId}
                       isLastAssistant={
                         message.role === "assistant" &&
                         index === messages.length - 1
