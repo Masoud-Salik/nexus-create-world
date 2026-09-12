@@ -839,7 +839,13 @@ export default function Index() {
                   (message, index) => (
                     <ChatMessage
                       key={`${index}-${message.role}`}
-                      message={message}
+                      role={message.role}
+                      content={message.content}
+                      conversationId={activeConversationId}
+                      isLastAssistant={
+                        message.role === "assistant" &&
+                        index === messages.length - 1
+                      }
                     />
                   )
                 )}
