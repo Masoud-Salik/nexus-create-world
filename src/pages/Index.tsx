@@ -1,627 +1,1634 @@
-import { useState, useRef, useEffect, useCallback } from "react";
+import {
+  useState,
+  useRef,
+  useEffect,
+  useCallback,
+  useMemo,
+} from "react";
+
 import { Button } from "@/components/ui/button";
 import { ScrollArea } from "@/components/ui/scroll-area";
-import { Send, Plus, MessageSquare, Sparkles, StopCircle, Menu, Edit3, Search } from "lucide-react";
-import { useToast } from "@/hooks/use-toast";
-import { usePageMeta } from "@/hooks/usePageMeta";
+
+import {
+  Menu,
+  Pencil,
+  Plus,
+  Search,
+  Pin,
+  PinOff,
+  Trash2,
+  Check,
+  X,
+  MoreHorizontal,
+} from "lucide-react";
+
 import { supabase } from "@/integrations/supabase/client";
-import { Auth } from "@/components/Auth";
-import { Onboarding } from "@/components/Onboarding";
-import { ChatMessage } from "@/components/ChatMessage";
-import { TypingIndicator } from "@/components/TypingIndicator";
-import { WelcomeScreen } from "@/components/WelcomeScreen";
-import { AIProviderBanner } from "@/components/chat/AIProviderBanner";
-import { getTimeOfDay, getLocalTime } from "@/utils/getTimeOfDay";
-import { getUserFriendlyError, logError, requireAuth } from "@/utils/errorUtils";
-import { isToday, isYesterday, subDays, isAfter } from "date-fns";
 
-const CHAT_URL = `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
+import ChatMessage from "@/components/ChatMessage";
+import TypingIndicator from "@/components/TypingIndicator";
+import WelcomeScreen from "@/components/WelcomeScreen";
+import AIProviderBanner from "@/components/AIProviderBanner";
 
-type Message = { role: "user" | "assistant"; content: string };
+import { useAuth } from "@/hooks/useAuth";
 
-// Group conversations by date
-function groupConversations(conversations: any[]) {
-  const groups: { label: string; items: any[] }[] = [];
-  const pinned: any[] = [];
-  const today: any[] = [];
-  const yesterday: any[] = [];
-  const last7: any[] = [];
-  const older: any[] = [];
+import {
+  format,
+  isToday,
+  isYesterday,
+  isThisWeek,
+} from "date-fns";
 
-  const sevenDaysAgo = subDays(new Date(), 7);
 
-  for (const c of conversations) {
-    if (c.is_pinned) { pinned.push(c); continue; }
-    const d = new Date(c.updated_at || c.created_at);
-    if (isToday(d)) today.push(c);
-    else if (isYesterday(d)) yesterday.push(c);
-    else if (isAfter(d, sevenDaysAgo)) last7.push(c);
-    else older.push(c);
-  }
+/* -------------------------------------------------------------------------- */
+/*                                   TYPES                                    */
+/* -------------------------------------------------------------------------- */
 
-  if (pinned.length) groups.push({ label: "📌 Pinned", items: pinned });
-  if (today.length) groups.push({ label: "Today", items: today });
-  if (yesterday.length) groups.push({ label: "Yesterday", items: yesterday });
-  if (last7.length) groups.push({ label: "Previous 7 Days", items: last7 });
-  if (older.length) groups.push({ label: "Older", items: older });
+type Message = {
+  role: "user" | "assistant";
+  content: string;
+};
+
+type Conversation = {
+  id: string;
+  title: string;
+  created_at: string;
+  updated_at?: string | null;
+  pinned?: boolean;
+};
+
+
+/* -------------------------------------------------------------------------- */
+/*                              CONSTANTS                                     */
+/* -------------------------------------------------------------------------- */
+
+const CHAT_URL = "/functions/v1/chat";
+
+const LONG_PRESS_DURATION = 600;
+
+const ACTIVE_CHAT_KEY = "studytime-active-chat";
+
+
+/* -------------------------------------------------------------------------- */
+/*                           CONVERSATION GROUPING                            */
+/* -------------------------------------------------------------------------- */
+
+function groupConversations(conversations: Conversation[]) {
+  const groups: Record<string, Conversation[]> = {
+    Today: [],
+    Yesterday: [],
+    "This week": [],
+    Earlier: [],
+  };
+
+  conversations.forEach((conversation) => {
+    const date = new Date(
+      conversation.updated_at || conversation.created_at
+    );
+
+    if (isToday(date)) {
+      groups.Today.push(conversation);
+    } else if (isYesterday(date)) {
+      groups.Yesterday.push(conversation);
+    } else if (isThisWeek(date)) {
+      groups["This week"].push(conversation);
+    } else {
+      groups.Earlier.push(conversation);
+    }
+  });
+
   return groups;
 }
 
-const Index = () => {
-  usePageMeta({ title: "AI Chat", description: "Chat with your personal AI study companion." });
-  const [user, setUser] = useState<any>(null);
-  const [needsOnboarding, setNeedsOnboarding] = useState(false);
-  const [checkingOnboarding, setCheckingOnboarding] = useState(true);
+
+/* -------------------------------------------------------------------------- */
+/*                                  PAGE                                      */
+/* -------------------------------------------------------------------------- */
+
+export default function Index() {
+  const { user } = useAuth();
+
+  /* ------------------------------- Chat state ---------------------------- */
+
   const [conversationId, setConversationId] = useState<string | null>(null);
-  const [conversations, setConversations] = useState<any[]>([]);
+
   const [messages, setMessages] = useState<Message[]>([]);
+
   const [input, setInput] = useState("");
-  const [isLoading, setIsLoading] = useState(false);
-  const [editingIndex, setEditingIndex] = useState<number | null>(null);
+
+  const [loading, setLoading] = useState(false);
+
+  const [userName, setUserName] = useState("");
+
+  /* ---------------------------- Conversation state ---------------------- */
+
+  const [conversations, setConversations] = useState<Conversation[]>([]);
+
   const [showChatList, setShowChatList] = useState(false);
-  const [userName, setUserName] = useState<string | undefined>();
-  const [showAuthDialog, setShowAuthDialog] = useState(false);
+
   const [chatSearch, setChatSearch] = useState("");
-  const scrollRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const textareaRef = useRef<HTMLTextAreaElement>(null);
-  const abortControllerRef = useRef<AbortController | null>(null);
-  const { toast } = useToast();
 
-  // ===== Finger-following drawer state =====
-  const [drawerWidth, setDrawerWidth] = useState(280);
-  const [dragX, setDragX] = useState<number | null>(null); // px offset while dragging (0..drawerWidth)
-  const dragRef = useRef<{ startX: number; startY: number; startedOpen: boolean; active: boolean; locked: boolean } | null>(null);
+  /* ----------------------------- Selection state ------------------------- */
+
+  const [selectionMode, setSelectionMode] = useState(false);
+
+  const [selectedChats, setSelectedChats] = useState<Set<string>>(
+    new Set()
+  );
+
+  /* ----------------------------- Action card ----------------------------- */
+
+  const [actionChat, setActionChat] =
+    useState<Conversation | null>(null);
+
+  const [showActionCard, setShowActionCard] = useState(false);
+
+  /* ------------------------------ Rename --------------------------------- */
+
+  const [renamingChatId, setRenamingChatId] =
+    useState<string | null>(null);
+
+  const [renameValue, setRenameValue] = useState("");
+
+  /* ------------------------------- Refs ---------------------------------- */
+
+  const longPressTimer = useRef<ReturnType<typeof setTimeout> | null>(
+    null
+  );
+
+  const longPressTriggered = useRef(false);
+
+  const textareaRef = useRef<HTMLTextAreaElement | null>(null);
+
+  const messagesEndRef = useRef<HTMLDivElement | null>(null);
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                              LOAD USER                                   */
+  /* ------------------------------------------------------------------------ */
 
   useEffect(() => {
-    const compute = () => {
-      const w = window.innerWidth;
-      // 65vw capped at 320px, min 220px
-      setDrawerWidth(Math.max(220, Math.min(320, Math.round(w * 0.65))));
+    if (!user) return;
+
+    const loadUser = async () => {
+      const { data } = await supabase
+        .from("profiles")
+        .select("full_name")
+        .eq("id", user.id)
+        .maybeSingle();
+
+      if (data?.full_name) {
+        setUserName(data.full_name.split(" ")[0]);
+      }
     };
-    compute();
-    window.addEventListener("resize", compute);
-    return () => window.removeEventListener("resize", compute);
-  }, []);
 
-  const scrollToBottom = (instant = false) => {
-    messagesEndRef.current?.scrollIntoView({ behavior: instant ? "instant" : "smooth" });
-  };
-
-  // Auto-resize textarea
-  const adjustTextarea = useCallback(() => {
-    const ta = textareaRef.current;
-    if (!ta) return;
-    ta.style.height = "auto";
-    ta.style.height = Math.min(ta.scrollHeight, 160) + "px"; // max ~5 rows
-  }, []);
-
-  useEffect(() => {
-    const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
-      setUser(session?.user ?? null);
-    });
-    supabase.auth.getSession().then(({ data: { session } }) => {
-      setUser(session?.user ?? null);
-    });
-    return () => subscription.unsubscribe();
-  }, []);
-
-  // Pre-warm the chat edge function so the first user message doesn't pay cold-start.
-  useEffect(() => {
-    const id = setTimeout(() => {
-      fetch(CHAT_URL, { method: "OPTIONS" }).catch(() => { /* ignore */ });
-    }, 600);
-    return () => clearTimeout(id);
-  }, []);
-
-  // Ensure chat-typing class is cleared when leaving the chat page
-  useEffect(() => () => { document.body.classList.remove("chat-typing"); }, []);
-
-  useEffect(() => {
-    if (user) checkOnboardingStatus();
+    loadUser();
   }, [user]);
 
-  const checkOnboardingStatus = async () => {
+
+  /* ------------------------------------------------------------------------ */
+  /*                          LOAD CONVERSATIONS                              */
+  /* ------------------------------------------------------------------------ */
+
+  const loadConversations = useCallback(async () => {
     if (!user) return;
-    setCheckingOnboarding(true);
-    const { data } = await supabase.from('profiles').select('onboarding_completed, name').eq('id', user.id).single();
-    if (data) {
-      setUserName(data.name || undefined);
-      if (!data.onboarding_completed) { setNeedsOnboarding(true); }
-      else { setNeedsOnboarding(false); loadOrCreateConversation(); }
+
+    const { data, error } = await supabase
+      .from("conversations")
+      .select("*")
+      .eq("user_id", user.id)
+      .order("updated_at", { ascending: false });
+
+    if (error) {
+      console.error("Failed to load conversations:", error);
+      return;
     }
-    setCheckingOnboarding(false);
-  };
 
-  const handleOnboardingComplete = () => { setNeedsOnboarding(false); loadOrCreateConversation(); };
+    setConversations((data || []) as Conversation[]);
+  }, [user]);
 
-  const loadConversations = async () => {
-    if (!user) return;
-    const { data } = await supabase.from('conversations').select('*').eq('user_id', user.id).order('updated_at', { ascending: false });
-    if (data) {
-      setConversations(data);
-      if (data.length > 0 && !conversationId) { setConversationId(data[0].id); loadMessages(data[0].id); }
-    }
-  };
 
-  const loadOrCreateConversation = async () => {
-    if (!user) return;
-    const { data: convs } = await supabase.from('conversations').select('*').eq('user_id', user.id).order('updated_at', { ascending: false }).limit(1);
-    if (convs && convs.length > 0) { setConversations([convs[0]]); setConversationId(convs[0].id); loadMessages(convs[0].id); }
-    else { await createNewChat(); }
+  useEffect(() => {
     loadConversations();
-  };
+  }, [loadConversations]);
 
-  const createNewChat = async () => {
+
+  /* ------------------------------------------------------------------------ */
+  /*                      RESTORE CURRENT CHAT                                */
+  /* ------------------------------------------------------------------------ */
+
+  useEffect(() => {
     if (!user) return;
-    if (conversationId && messages.length === 0) { setShowChatList(false); return; }
-    const existingEmpty = conversations.find(c => c.title === "New Chat" && c.id !== conversationId);
-    if (existingEmpty) {
-      const { data: msgs } = await supabase.from('messages').select('id').eq('conversation_id', existingEmpty.id).limit(1);
-      if (!msgs || msgs.length === 0) { setConversationId(existingEmpty.id); setMessages([]); setShowChatList(false); return; }
+
+    /*
+     * sessionStorage is intentional.
+     *
+     * Route/page navigation:
+     *     sessionStorage survives → restore last chat.
+     *
+     * New browser/app session:
+     *     sessionStorage is normally empty → show WelcomeScreen.
+     */
+
+    const storedConversationId =
+      sessionStorage.getItem(ACTIVE_CHAT_KEY);
+
+    if (!storedConversationId) {
+      setConversationId(null);
+      setMessages([]);
+      return;
     }
-    const { data: newConv } = await supabase.from('conversations').insert({ user_id: user.id, title: "New Chat", local_time: getLocalTime(), time_of_day: getTimeOfDay() }).select().single();
-    if (newConv) { setConversationId(newConv.id); setMessages([]); setShowChatList(false); await loadConversations(); }
+
+    setConversationId(storedConversationId);
+
+    loadMessages(storedConversationId);
+  }, [user]);
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                              LOAD MESSAGES                               */
+  /* ------------------------------------------------------------------------ */
+
+  const loadMessages = async (id: string) => {
+    const { data, error } = await supabase
+      .from("messages")
+      .select("role, content")
+      .eq("conversation_id", id)
+      .order("created_at", { ascending: true });
+
+    if (error) {
+      console.error("Failed to load messages:", error);
+      return;
+    }
+
+    setMessages((data || []) as Message[]);
   };
 
-  const generateChatTitle = async (convId: string, userMessage: string, assistantMessage: string) => {
+
+  /* ------------------------------------------------------------------------ */
+  /*                            AUTO SCROLL                                   */
+  /* ------------------------------------------------------------------------ */
+
+  useEffect(() => {
+    requestAnimationFrame(() => {
+      messagesEndRef.current?.scrollIntoView({
+        behavior: "smooth",
+        block: "end",
+      });
+    });
+  }, [messages, loading]);
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                         SELECT CONVERSATION                              */
+  /* ------------------------------------------------------------------------ */
+
+  const openConversation = async (id: string) => {
+    if (longPressTriggered.current) {
+      longPressTriggered.current = false;
+      return;
+    }
+
+    setConversationId(id);
+
+    sessionStorage.setItem(ACTIVE_CHAT_KEY, id);
+
+    await loadMessages(id);
+
+    setShowChatList(false);
+    setSelectionMode(false);
+    setSelectedChats(new Set());
+  };
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                              NEW CHAT                                    */
+  /* ------------------------------------------------------------------------ */
+
+  const startNewChat = () => {
+    setConversationId(null);
+
+    setMessages([]);
+
+    sessionStorage.removeItem(ACTIVE_CHAT_KEY);
+
+    setShowChatList(false);
+
+    setSelectionMode(false);
+
+    setSelectedChats(new Set());
+
+    textareaRef.current?.focus();
+  };
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                         LONG PRESS HANDLING                              */
+  /* ------------------------------------------------------------------------ */
+
+  const startLongPress = (conversation: Conversation) => {
+    longPressTriggered.current = false;
+
+    longPressTimer.current = setTimeout(() => {
+      longPressTriggered.current = true;
+
+      setActionChat(conversation);
+
+      setShowActionCard(true);
+    }, LONG_PRESS_DURATION);
+  };
+
+
+  const cancelLongPress = () => {
+    if (longPressTimer.current) {
+      clearTimeout(longPressTimer.current);
+      longPressTimer.current = null;
+    }
+  };
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                           MULTI SELECT                                   */
+  /* ------------------------------------------------------------------------ */
+
+  const toggleSelectedChat = (id: string) => {
+    setSelectedChats((previous) => {
+      const next = new Set(previous);
+
+      if (next.has(id)) {
+        next.delete(id);
+      } else {
+        next.add(id);
+      }
+
+      return next;
+    });
+  };
+
+
+  const enterSelectionMode = () => {
+    setSelectionMode(true);
+    setShowActionCard(false);
+    setActionChat(null);
+  };
+
+
+  const exitSelectionMode = () => {
+    setSelectionMode(false);
+    setSelectedChats(new Set());
+  };
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                                DELETE                                    */
+  /* ------------------------------------------------------------------------ */
+
+  const deleteConversation = async (id: string) => {
+    const { error } = await supabase
+      .from("conversations")
+      .delete()
+      .eq("id", id);
+
+    if (error) {
+      console.error("Failed to delete conversation:", error);
+      return;
+    }
+
+    if (conversationId === id) {
+      startNewChat();
+    }
+
+    setConversations((previous) =>
+      previous.filter((conversation) => conversation.id !== id)
+    );
+  };
+
+
+  const deleteSelectedChats = async () => {
+    const ids = Array.from(selectedChats);
+
+    if (!ids.length) return;
+
+    const { error } = await supabase
+      .from("conversations")
+      .delete()
+      .in("id", ids);
+
+    if (error) {
+      console.error("Failed to delete conversations:", error);
+      return;
+    }
+
+    if (
+      conversationId &&
+      selectedChats.has(conversationId)
+    ) {
+      startNewChat();
+    }
+
+    setConversations((previous) =>
+      previous.filter(
+        (conversation) => !selectedChats.has(conversation.id)
+      )
+    );
+
+    exitSelectionMode();
+  };
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                                  PIN                                     */
+  /* ------------------------------------------------------------------------ */
+
+  const togglePinConversation = async (
+    conversation: Conversation
+  ) => {
+    const nextPinned = !conversation.pinned;
+
+    const { error } = await supabase
+      .from("conversations")
+      .update({
+        pinned: nextPinned,
+      })
+      .eq("id", conversation.id);
+
+    if (error) {
+      console.error("Failed to pin conversation:", error);
+      return;
+    }
+
+    setConversations((previous) =>
+      previous.map((item) =>
+        item.id === conversation.id
+          ? {
+              ...item,
+              pinned: nextPinned,
+            }
+          : item
+      )
+    );
+
+    setShowActionCard(false);
+    setActionChat(null);
+  };
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                                RENAME                                    */
+  /* ------------------------------------------------------------------------ */
+
+  const beginRename = (conversation: Conversation) => {
+    setRenamingChatId(conversation.id);
+
+    setRenameValue(conversation.title || "New chat");
+
+    setShowActionCard(false);
+
+    setActionChat(null);
+  };
+
+
+  const saveRename = async () => {
+    if (!renamingChatId) return;
+
+    const trimmed = renameValue.trim();
+
+    if (!trimmed) {
+      setRenamingChatId(null);
+      return;
+    }
+
+    const { error } = await supabase
+      .from("conversations")
+      .update({
+        title: trimmed,
+      })
+      .eq("id", renamingChatId);
+
+    if (error) {
+      console.error("Failed to rename conversation:", error);
+      return;
+    }
+
+    setConversations((previous) =>
+      previous.map((conversation) =>
+        conversation.id === renamingChatId
+          ? {
+              ...conversation,
+              title: trimmed,
+            }
+          : conversation
+      )
+    );
+
+    setRenamingChatId(null);
+    setRenameValue("");
+  };
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                              SEND MESSAGE                                */
+  /* ------------------------------------------------------------------------ */
+
+  const sendMessage = async () => {
+    const trimmed = input.trim();
+
+    if (!trimmed || loading) return;
+
+    setInput("");
+
+    setLoading(true);
+
     try {
-      const { data } = await supabase.functions.invoke("generate-chat-title", { body: { userMessage, assistantMessage } });
-      if (data?.title) {
-        await supabase.from("conversations").update({ title: data.title }).eq("id", convId);
-        setConversations(prev => prev.map(c => c.id === convId ? { ...c, title: data.title } : c));
+      let activeConversationId = conversationId;
+
+      /*
+       * Create conversation when this is the first message.
+       */
+
+      if (!activeConversationId) {
+        const { data, error } = await supabase
+          .from("conversations")
+          .insert({
+            user_id: user?.id,
+            title:
+              trimmed.length > 40
+                ? `${trimmed.slice(0, 40)}...`
+                : trimmed,
+          })
+          .select()
+          .single();
+
+        if (error || !data) {
+          throw error || new Error("Conversation creation failed");
+        }
+
+        activeConversationId = data.id;
+
+        setConversationId(activeConversationId);
+
+        sessionStorage.setItem(
+          ACTIVE_CHAT_KEY,
+          activeConversationId
+        );
       }
-    } catch (error) { console.error("Failed to generate chat title:", error); }
-  };
 
-  const switchChat = (chatId: string) => { setConversationId(chatId); loadMessages(chatId); setShowChatList(false); };
+      const userMessage: Message = {
+        role: "user",
+        content: trimmed,
+      };
 
-  const loadMessages = async (convId: string) => {
-    const { data } = await supabase.from('messages').select('*').eq('conversation_id', convId).order('created_at', { ascending: true });
-    if (data) setMessages(data.map(m => ({ role: m.role as "user" | "assistant", content: m.content })));
-  };
+      setMessages((previous) => [
+        ...previous,
+        userMessage,
+      ]);
 
-  const saveMessage = async (role: string, content: string) => {
-    if (!conversationId || !user) return;
-    await supabase.from('messages').insert({ conversation_id: conversationId, user_id: user.id, role, content, local_time: getLocalTime(), time_of_day: getTimeOfDay() });
-  };
+      await supabase.from("messages").insert({
+        conversation_id: activeConversationId,
+        role: "user",
+        content: trimmed,
+      });
 
-  useEffect(() => { scrollToBottom(); }, [messages]);
-
-  const handleEdit = (index: number) => setEditingIndex(index);
-
-  const handleSaveEdit = async (index: number, newContent: string) => {
-    if (!newContent.trim()) return;
-    const updatedMessages = [...messages]; updatedMessages[index].content = newContent; setMessages(updatedMessages);
-    if (conversationId && user) {
-      const messageToUpdate = await supabase.from('messages').select('id').eq('conversation_id', conversationId).order('created_at').limit(index + 1);
-      if (messageToUpdate.data && messageToUpdate.data[index]) await supabase.from('messages').update({ content: newContent }).eq('id', messageToUpdate.data[index].id);
-    }
-    setEditingIndex(null);
-  };
-
-  const handleStopGeneration = () => {
-    if (abortControllerRef.current) { abortControllerRef.current.abort(); abortControllerRef.current = null; setIsLoading(false); }
-  };
-
-  const handleRegenerate = async () => {
-    if (messages.length < 2) return;
-    const newMessages = messages.slice(0, -1); setMessages(newMessages);
-    if (conversationId && user) {
-      const { data: allMessages } = await supabase.from('messages').select('id').eq('conversation_id', conversationId).order('created_at', { ascending: false }).limit(1);
-      if (allMessages && allMessages[0]) await supabase.from('messages').delete().eq('id', allMessages[0].id);
-    }
-    const lastUserMessage = newMessages[newMessages.length - 1];
-    if (lastUserMessage && lastUserMessage.role === "user") await handleSend(lastUserMessage.content, false, true);
-  };
-
-  const getUserContext = async () => {
-    if (!user) return "";
-    const { data: profile } = await supabase.from("profiles").select("*").eq("id", user.id).single();
-    const { data: goals } = await supabase.from("goals").select("*").eq("user_id", user.id);
-    const { data: activities } = await supabase.from("daily_activities").select("*").eq("user_id", user.id).order("activity_date", { ascending: false }).limit(30);
-    const { data: abilities } = await supabase.from("abilities_skills").select("*").eq("user_id", user.id).maybeSingle();
-    const { data: interests } = await supabase.from("interests").select("*").eq("user_id", user.id).maybeSingle();
-    const { data: friends } = await supabase.from("friends_identities").select("*").eq("user_id", user.id);
-    const { data: memories } = await supabase.from("ai_memory").select("category, content, sentiment").eq("user_id", user.id).order("updated_at", { ascending: false }).limit(40);
-    const { count: convCount } = await supabase.from("conversations").select("id", { count: "exact", head: true }).eq("user_id", user.id);
-    const { count: msgCount } = await supabase.from("messages").select("id", { count: "exact", head: true }).eq("user_id", user.id);
-
-    let ctx = "";
-    if (profile) ctx += `\n\nUser Profile:\n- Name: ${profile.name || "Not set"}\n- Age: ${profile.age || "Not set"}\n- Occupation: ${profile.occupation_or_status || "Not set"}\n- Personal Motto: ${profile.personal_motto || "Not set"}`;
-    if (goals?.length) { ctx += `\n\nUser Goals:`; goals.forEach((g: any) => { ctx += `\n- ${g.goal_title}: ${g.goal_description || ""} (${g.goal_duration_days}d)`; }); }
-    if (abilities) {
-      ctx += `\n\nAbilities:`;
-      if (abilities.technical_skills?.length) ctx += `\n- Tech: ${abilities.technical_skills.join(", ")}`;
-      if (abilities.soft_skills?.length) ctx += `\n- Soft: ${abilities.soft_skills.join(", ")}`;
-      if (abilities.languages?.length) ctx += `\n- Languages: ${abilities.languages.join(", ")}`;
-      if (abilities.strengths?.length) ctx += `\n- Strengths: ${abilities.strengths.join(", ")}`;
-      if (abilities.weaknesses?.length) ctx += `\n- Growth: ${abilities.weaknesses.join(", ")}`;
-    }
-    if (interests) {
-      ctx += `\n\nInterests:`;
-      if (interests.hobbies?.length) ctx += `\n- Hobbies: ${interests.hobbies.join(", ")}`;
-      if (interests.music?.length) ctx += `\n- Music: ${interests.music.join(", ")}`;
-    }
-    if (friends?.length) { ctx += `\n\nFriends:`; friends.forEach((f: any) => { ctx += `\n- ${f.friend_name} (${f.relationship || "Friend"})`; }); }
-    if (activities?.length) { ctx += `\n\nRecent Activities:`; activities.slice(0, 10).forEach((a: any) => { ctx += `\n- ${a.activity_date}: Mood: ${a.mood || "?"}`; }); }
-
-    // Inject AI memories (likes, dislikes, preferences learned over time)
-    if (memories?.length) {
-      const grouped: Record<string, string[]> = {};
-      for (const m of memories) {
-        const key = m.category || "other";
-        if (!grouped[key]) grouped[key] = [];
-        grouped[key].push(`${m.content}${m.sentiment === "strong" ? " (strongly)" : ""}`);
-      }
-      ctx += `\n\nAI Memories (things learned about this user):`;
-      for (const [cat, items] of Object.entries(grouped)) {
-        ctx += `\n${cat}: ${items.join("; ")}`;
-      }
-    }
-
-    // Relationship depth signal
-    ctx += `\n\nRelationship: ${convCount || 0} conversations, ${msgCount || 0} total messages exchanged.`;
-
-    return ctx;
-  };
-
-  const extractMemory = async (messageContent: string, messageId?: string) => {
-    try {
-      const { data: profile } = await supabase.from("profiles").select("ai_learning_enabled").eq("id", user?.id).single();
-      if (!profile?.ai_learning_enabled) return;
-      const { data, error } = await supabase.functions.invoke("extract-memory", { body: { message: messageContent, messageId } });
-      if (error) return;
-      if (data?.should_save && data.category && data.content) {
-        await supabase.from("ai_memory").insert({ user_id: user?.id, category: data.category, content: data.content, sentiment: data.sentiment || "moderate", source_message_id: messageId || null });
-      }
-    } catch (e) { console.error("Memory extraction failed:", e); }
-  };
-
-  const handleSend = async (messageText?: string, includeContext: boolean = false, isRegenerate: boolean = false) => {
-    const textToSend = messageText || input;
-    if (!textToSend.trim() || isLoading) return;
-    if (!requireAuth(user, "chat with the AI", () => setShowAuthDialog(true), (msg) => toast({ title: msg }))) return;
-
-    if (!isRegenerate) {
-      const userMessage: Message = { role: "user", content: textToSend };
-      setMessages(prev => [...prev, userMessage]);
-      await saveMessage("user", textToSend);
-      extractMemory(textToSend);
-    }
-
-    if (!messageText) setInput("");
-    setIsLoading(true);
-    abortControllerRef.current = new AbortController();
-    setTimeout(() => scrollToBottom(true), 0);
-
-    // Reset textarea height
-    if (textareaRef.current) { textareaRef.current.style.height = "auto"; }
-
-    let assistantContent = "";
-    let userContext = "";
-    if (includeContext) userContext = await getUserContext();
-
-    try {
-      const messagesToSend = isRegenerate ? messages : [...messages, { role: "user", content: textToSend }];
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) { toast({ title: "Session expired", description: "Please sign in again.", variant: "destructive" }); setIsLoading(false); return; }
+      /*
+       * Send to AI backend.
+       */
 
       const response = await fetch(CHAT_URL, {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session.access_token}` },
-        body: JSON.stringify({ messages: messagesToSend, userContext, userLocalTime: getLocalTime(), userTimeOfDay: getTimeOfDay() }),
-        signal: abortControllerRef.current.signal,
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          conversationId: activeConversationId,
+          messages: [
+            ...messages,
+            userMessage,
+          ],
+        }),
       });
 
       if (!response.ok) {
-        if (response.status === 429) { toast({ title: "Rate limit exceeded", variant: "destructive" }); setIsLoading(false); return; }
-        if (response.status === 402) { toast({ title: "Payment required", variant: "destructive" }); setIsLoading(false); return; }
-        if (response.status === 401 || response.status === 403) {
-          toast({ title: "Session expired", description: "Please sign in to continue.", variant: "destructive" });
-          setShowAuthDialog(true);
-          setIsLoading(false);
-          if (!isRegenerate) setMessages(prev => prev.slice(0, -1));
-          return;
-        }
-        throw new Error("Failed to start stream");
+        throw new Error("AI request failed");
       }
 
-      if (!response.body) throw new Error("No response body");
-      const reader = response.body.getReader();
-      const decoder = new TextDecoder();
-      let textBuffer = "";
+      const result = await response.json();
 
-      while (true) {
-        const { done, value } = await reader.read();
-        if (done) break;
-        textBuffer += decoder.decode(value, { stream: true });
-        let newlineIndex: number;
-        while ((newlineIndex = textBuffer.indexOf("\n")) !== -1) {
-          let line = textBuffer.slice(0, newlineIndex); textBuffer = textBuffer.slice(newlineIndex + 1);
-          if (line.endsWith("\r")) line = line.slice(0, -1);
-          if (line.startsWith(":") || line.trim() === "") continue;
-          if (!line.startsWith("data: ")) continue;
-          const jsonStr = line.slice(6).trim();
-          if (jsonStr === "[DONE]") break;
-          try {
-            const parsed = JSON.parse(jsonStr);
-            const content = parsed.choices?.[0]?.delta?.content as string | undefined;
-            if (content) {
-              assistantContent += content;
-              setMessages(prev => {
-                const last = prev[prev.length - 1];
-                if (last?.role === "assistant") return prev.map((m, i) => i === prev.length - 1 ? { ...m, content: assistantContent } : m);
-                return [...prev, { role: "assistant", content: assistantContent }];
-              });
-            }
-          } catch { textBuffer = line + "\n" + textBuffer; break; }
-        }
+      const assistantContent =
+        result?.message ||
+        result?.content ||
+        result?.response ||
+        "";
+
+      if (!assistantContent) {
+        throw new Error("AI returned an empty response");
       }
 
-      await saveMessage("assistant", assistantContent);
-      const currentConv = conversations.find(c => c.id === conversationId);
-      if (conversationId && !isRegenerate && currentConv && (currentConv.title === "New Chat" || currentConv.title?.startsWith("Chat "))) {
-        generateChatTitle(conversationId, textToSend, assistantContent);
-      }
-      setIsLoading(false); abortControllerRef.current = null;
-    } catch (error: any) {
-      logError("Chat handleSend", error);
-      if (error.name === 'AbortError') return;
-      toast({ title: "Error", description: getUserFriendlyError(error), variant: "destructive" });
-      if (!isRegenerate) setMessages(prev => prev.slice(0, -1));
-      setIsLoading(false); abortControllerRef.current = null;
+      const assistantMessage: Message = {
+        role: "assistant",
+        content: assistantContent,
+      };
+
+      setMessages((previous) => [
+        ...previous,
+        assistantMessage,
+      ]);
+
+      await supabase.from("messages").insert({
+        conversation_id: activeConversationId,
+        role: "assistant",
+        content: assistantContent,
+      });
+
+      await loadConversations();
+
+    } catch (error) {
+      console.error("Chat error:", error);
+    } finally {
+      setLoading(false);
+
+      requestAnimationFrame(() => {
+        textareaRef.current?.focus();
+      });
     }
   };
 
-  const handleSuggestion = (prompt: string) => {
-    handleSend(prompt, true);
+
+  /* ------------------------------------------------------------------------ */
+  /*                             KEYBOARD                                     */
+  /* ------------------------------------------------------------------------ */
+
+  const handleInputKeyDown = (
+    event: React.KeyboardEvent<HTMLTextAreaElement>
+  ) => {
+    if (
+      event.key === "Enter" &&
+      !event.shiftKey
+    ) {
+      event.preventDefault();
+
+      sendMessage();
+    }
   };
 
-  const isGuest = !user;
-  const currentTitle = conversations.find(c => c.id === conversationId)?.title || "New Chat";
 
-  if (user && checkingOnboarding) {
-    return (
-      <div className="flex h-screen items-center justify-center particle-bg">
-        <div className="flex flex-col items-center gap-4 animate-fade-in">
-          <div className="relative">
-            <div className="w-16 h-16 rounded-full bg-primary/20 animate-ping absolute inset-0" />
-            <div className="w-16 h-16 rounded-full bg-gradient-to-br from-primary to-primary/60 flex items-center justify-center relative">
-              <Sparkles className="h-8 w-8 text-primary-foreground animate-pulse" />
-            </div>
-          </div>
-          <p className="text-muted-foreground animate-pulse">Initializing...</p>
-        </div>
-      </div>
+  /* ------------------------------------------------------------------------ */
+  /*                         FILTER CONVERSATIONS                             */
+  /* ------------------------------------------------------------------------ */
+
+  const filteredConversations = useMemo(() => {
+    const search = chatSearch.trim().toLowerCase();
+
+    if (!search) {
+      return conversations;
+    }
+
+    return conversations.filter((conversation) =>
+      conversation.title
+        ?.toLowerCase()
+        .includes(search)
     );
-  }
+  }, [conversations, chatSearch]);
 
-  if (user && needsOnboarding) return <Onboarding userId={user.id} onComplete={handleOnboardingComplete} />;
 
-  const filteredConversations = chatSearch.trim()
-    ? conversations.filter(c => (c.title || "").toLowerCase().includes(chatSearch.toLowerCase()))
-    : conversations;
-  const conversationGroups = groupConversations(filteredConversations);
+  const groupedConversations =
+    groupConversations(filteredConversations);
+
+
+  /* ------------------------------------------------------------------------ */
+  /*                              RENDER                                      */
+  /* ------------------------------------------------------------------------ */
 
   return (
     <div
-      className="flex h-[calc(100dvh-4rem)] md:h-[100dvh] bg-background overflow-hidden [body.chat-typing_&]:h-[100dvh] transition-[height] duration-200"
-      onTouchStart={(e) => {
-        const t = e.touches[0];
-        const target = e.target as HTMLElement;
-        if (target.closest('textarea, input, pre, [data-no-swipe]')) {
-          dragRef.current = null;
-          return;
-        }
-        const startedOpen = showChatList;
-        // Only start a drag if it begins in the left 35% (to open) or anywhere (to close when open)
-        if (!startedOpen && t.clientX > window.innerWidth * 0.35) {
-          dragRef.current = null;
-          return;
-        }
-        dragRef.current = { startX: t.clientX, startY: t.clientY, startedOpen, active: true, locked: false };
-      }}
-      onTouchMove={(e) => {
-        const d = dragRef.current;
-        if (!d || !d.active) return;
-        const t = e.touches[0];
-        const dx = t.clientX - d.startX;
-        const dy = t.clientY - d.startY;
-        // Lock axis on first meaningful movement
-        if (!d.locked) {
-          if (Math.abs(dx) < 6 && Math.abs(dy) < 6) return;
-          if (Math.abs(dy) > Math.abs(dx)) { d.active = false; return; } // vertical scroll wins
-          d.locked = true;
-        }
-        const base = d.startedOpen ? drawerWidth : 0;
-        const next = Math.max(0, Math.min(drawerWidth, base + dx));
-        setDragX(next);
-      }}
-      onTouchEnd={() => {
-        const d = dragRef.current;
-        dragRef.current = null;
-        if (!d || !d.locked) { setDragX(null); return; }
-        const current = dragX ?? (d.startedOpen ? drawerWidth : 0);
-        const open = current > drawerWidth * 0.4;
-        setShowChatList(open);
-        if (open && !d.startedOpen) navigator.vibrate?.(10);
-        setDragX(null);
-      }}
+      className="
+        fixed
+        inset-0
+        flex
+        flex-col
+        bg-background
+        overflow-hidden
+      "
     >
-      {/* Guest Auth Dialog */}
-      {isGuest && showAuthDialog && (
-        <div className="fixed inset-0 z-50 bg-black/50 flex items-center justify-center p-4" onClick={() => setShowAuthDialog(false)}>
-          <div onClick={(e) => e.stopPropagation()}><Auth /></div>
-        </div>
-      )}
 
-      {/* ===== Custom finger-following Chat History Drawer ===== */}
-      {(() => {
-        const offset = dragX ?? (showChatList ? drawerWidth : 0);
-        const progress = offset / drawerWidth; // 0..1
-        const dragging = dragX !== null;
-        return (
-          <>
-            {/* Backdrop */}
-            <div
-              onClick={() => setShowChatList(false)}
-              aria-hidden={offset <= 0}
-              style={{ opacity: progress * 0.5, pointerEvents: offset > 8 ? "auto" : "none" }}
-              className={`fixed inset-0 z-40 bg-black ${dragging ? "" : "transition-opacity duration-150"}`}
-            />
-            {/* Drawer */}
-            <aside
-              role="dialog"
-              aria-label="Chat history"
-              style={{
-                width: drawerWidth,
-                transform: `translate3d(${offset - drawerWidth}px, 0, 0)`,
-                transition: dragging ? "none" : "transform 150ms ease-out",
-              }}
-              className="fixed top-0 left-0 z-50 h-[100dvh] bg-background border-r border-border shadow-2xl flex flex-col"
-            >
-              <div className="p-4 border-b space-y-2">
-                <Button onClick={createNewChat} className="w-full gap-2" variant="outline">
-                  <Plus className="h-4 w-4" /> New Chat
-                </Button>
-                <div className="relative">
-                  <Search className="absolute left-3 top-1/2 -translate-y-1/2 h-3.5 w-3.5 text-muted-foreground" />
-                  <input
-                    value={chatSearch}
-                    onChange={e => setChatSearch(e.target.value)}
-                    placeholder="Search chats..."
-                    data-no-swipe
-                    className="w-full pl-9 pr-3 py-2 text-sm rounded-lg bg-muted/50 border border-border/50 focus:outline-none focus:border-primary/50 transition-colors"
-                  />
-                </div>
+      {/* ================================================================== */}
+      {/* CHAT HEADER                                                        */}
+      {/* ================================================================== */}
+
+      <header
+        className="
+          shrink-0
+          h-14
+          border-b
+          bg-background/95
+          backdrop-blur
+          flex
+          items-center
+          justify-between
+          px-3
+          z-20
+        "
+      >
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10"
+          onClick={() => setShowChatList(true)}
+          aria-label="Open chat history"
+        >
+          <Menu className="h-5 w-5" />
+        </Button>
+
+
+        <div
+          className="
+            min-w-0
+            flex-1
+            text-center
+            px-3
+          "
+        >
+          <div className="truncate text-sm font-medium">
+            {conversationId
+              ? conversations.find(
+                  (conversation) =>
+                    conversation.id === conversationId
+                )?.title || "StudyTime AI"
+              : "StudyTime AI"}
+          </div>
+        </div>
+
+
+        <Button
+          variant="ghost"
+          size="icon"
+          className="h-10 w-10"
+          onClick={startNewChat}
+          aria-label="New chat"
+        >
+          <Pencil className="h-5 w-5" />
+        </Button>
+
+      </header>
+
+
+      {/* ================================================================== */}
+      {/* MAIN CHAT AREA                                                     */}
+      {/* ================================================================== */}
+
+      <main
+        className="
+          flex-1
+          min-h-0
+          flex
+          flex-col
+          overflow-hidden
+        "
+      >
+
+        {/* -------------------------------------------------------------- */}
+        {/* AI PROVIDER BANNER                                              */}
+        {/* -------------------------------------------------------------- */}
+
+        <div className="shrink-0">
+          <AIProviderBanner />
+        </div>
+
+
+        {/* -------------------------------------------------------------- */}
+        {/* MESSAGES                                                        */}
+        {/* -------------------------------------------------------------- */}
+
+        <ScrollArea
+          className="
+            flex-1
+            min-h-0
+            w-full
+          "
+        >
+
+          <div
+            className="
+              w-full
+              max-w-3xl
+              mx-auto
+              px-4
+              py-5
+              md:px-6
+              md:py-8
+            "
+          >
+
+            {messages.length === 0 ? (
+
+              <WelcomeScreen
+                userName={userName}
+                onSuggestion={(suggestion: string) => {
+                  setInput(suggestion);
+
+                  requestAnimationFrame(() => {
+                    textareaRef.current?.focus();
+                  });
+                }}
+              />
+
+            ) : (
+
+              <div className="space-y-5">
+
+                {messages.map(
+                  (message, index) => (
+                    <ChatMessage
+                      key={`${index}-${message.role}`}
+                      message={message}
+                    />
+                  )
+                )}
+
+                {loading && (
+                  <TypingIndicator />
+                )}
+
+                <div ref={messagesEndRef} />
+
               </div>
-              <ScrollArea className="flex-1 min-h-0">
-                <div className="p-2 space-y-4">
-                  {conversationGroups.map((group) => (
-                    <div key={group.label}>
-                      <p className="text-xs font-semibold text-muted-foreground px-3 py-1">{group.label}</p>
-                      {group.items.map((conv) => (
-                        <button
-                          key={conv.id}
-                          onClick={() => switchChat(conv.id)}
-                          className={`w-full text-left px-3 py-2.5 rounded-lg text-sm truncate transition-colors tap-effect ${
-                            conversationId === conv.id ? "bg-primary/10 text-primary font-medium" : "text-foreground hover:bg-muted/50"
-                          }`}
-                        >
-                          {conv.title || "New Chat"}
-                        </button>
-                      ))}
-                    </div>
-                  ))}
-                  {conversationGroups.length === 0 && (
-                    <p className="text-xs text-muted-foreground text-center py-8">No chats yet.</p>
-                  )}
-                </div>
-              </ScrollArea>
-            </aside>
-          </>
-        );
-      })()}
 
-      <div className="flex-1 flex flex-col min-w-0 min-h-0 overflow-hidden">
-        {/* Guest inline sign-in prompt */}
-        {isGuest && (
-          <div className="px-4 py-2 bg-primary/5 border-b border-border/50 flex items-center justify-between">
-            <span className="text-xs text-muted-foreground">Sign in to save your chats</span>
-            <div className="flex gap-1.5">
-              <Button size="sm" variant="ghost" className="h-7 text-xs" onClick={() => setShowAuthDialog(true)}>Sign In</Button>
-              <Button size="sm" className="h-7 text-xs" onClick={() => setShowAuthDialog(true)}>Sign Up</Button>
-            </div>
+            )}
+
           </div>
-        )}
 
-        {/* Header — ChatGPT style: [≡] [title] [+ new chat] */}
-        <div className="border-b px-4 py-3 flex items-center justify-between glass sticky top-0 z-20">
-          <div className="flex items-center gap-2">
-            <Button
-              variant="ghost"
-              size="icon"
-              className="h-9 w-9 tap-effect"
-              onClick={() => setShowChatList(true)}
-              aria-label="Open chat history"
-            >
-              <Menu className="h-5 w-5" />
-            </Button>
-            <h1 className="text-sm font-semibold text-foreground truncate max-w-[200px] sm:max-w-xs">
-              {currentTitle}
-            </h1>
-          </div>
-          <Button variant="ghost" size="icon" className="h-9 w-9 tap-effect" onClick={createNewChat}>
-            <Edit3 className="h-4 w-4" />
-          </Button>
-        </div>
-
-        {/* AI provider status banner */}
-        {!isGuest && <AIProviderBanner />}
-
-        {/* Messages */}
-        <ScrollArea className="flex-1 min-h-0 w-full">
-          {messages.length === 0 ? (
-            <WelcomeScreen userName={userName} onSuggestion={handleSuggestion} />
-          ) : (
-            <div>
-              {messages.map((msg, idx) => (
-                <ChatMessage
-                  key={idx}
-                  content={msg.content}
-                  role={msg.role}
-                  isEditing={editingIndex === idx}
-                  onEdit={msg.role === "user" ? () => handleEdit(idx) : undefined}
-                  onSaveEdit={(content) => handleSaveEdit(idx, content)}
-                  onCancelEdit={() => setEditingIndex(null)}
-                  onRegenerate={msg.role === "assistant" && idx === messages.length - 1 && !isLoading ? handleRegenerate : undefined}
-                  isLastAssistant={msg.role === "assistant" && idx === messages.length - 1}
-                  conversationId={conversationId}
-                />
-              ))}
-              {isLoading && !messages.find(m => m.role === "assistant" && m.content === "") && <TypingIndicator />}
-            </div>
-          )}
-          <div ref={messagesEndRef} />
         </ScrollArea>
 
-        {/* Input — auto-growing textarea */}
-        <div className="shrink-0 border-t p-3 sm:p-4 glass z-10">
-          <div className="mx-auto max-w-3xl">
-            <div className="flex items-end gap-2 bg-background/80 border border-border/60 rounded-2xl px-3 py-2 focus-within:border-primary/50 transition-colors">
-              <textarea
-                ref={textareaRef}
-                value={input}
-                onChange={(e) => { setInput(e.target.value); adjustTextarea(); }}
-                onFocus={() => document.body.classList.add("chat-typing")}
-                onBlur={() => document.body.classList.remove("chat-typing")}
-                onKeyDown={(e) => {
-                  if (e.key === "Enter" && !e.shiftKey && !isLoading) { e.preventDefault(); handleSend(); }
-                }}
-                placeholder="Message StudyTime AI..."
-                rows={1}
-                disabled={isLoading}
-                className="flex-1 bg-transparent resize-none text-sm sm:text-base text-foreground placeholder:text-muted-foreground focus:outline-none py-1 max-h-40"
-              />
-              {isLoading ? (
-                <Button onClick={handleStopGeneration} size="icon" variant="ghost" className="h-9 w-9 shrink-0 tap-effect">
-                  <StopCircle className="h-5 w-5" />
-                </Button>
-              ) : (
-                <Button onClick={() => handleSend()} size="icon" className="h-9 w-9 shrink-0 rounded-xl tap-effect bg-primary hover:bg-primary/90" disabled={!input.trim()}>
-                  <Send className="h-4 w-4" />
-                </Button>
-              )}
-            </div>
-            <p className="text-center text-[10px] text-muted-foreground mt-1.5">
-              Enter to send · Shift+Enter for new line
-            </p>
+
+        {/* -------------------------------------------------------------- */}
+        {/* MESSAGE COMPOSER                                                */}
+        {/* -------------------------------------------------------------- */}
+
+        <div
+          className="
+            shrink-0
+            w-full
+            border-t
+            bg-background
+            px-3
+            pt-2
+            pb-[max(8px,env(safe-area-inset-bottom))]
+            md:px-6
+            md:pb-4
+          "
+        >
+
+          <div
+            className="
+              max-w-3xl
+              mx-auto
+              flex
+              items-end
+              gap-2
+              rounded-3xl
+              border
+              bg-muted/40
+              px-3
+              py-2
+              shadow-sm
+              focus-within:ring-1
+              focus-within:ring-ring
+            "
+          >
+
+            <textarea
+              ref={textareaRef}
+              value={input}
+              onChange={(event) =>
+                setInput(event.target.value)
+              }
+              onKeyDown={handleInputKeyDown}
+              placeholder="Message StudyTime AI..."
+              rows={1}
+              disabled={loading}
+              className="
+                flex-1
+                min-h-[40px]
+                max-h-32
+                resize-none
+                bg-transparent
+                border-0
+                outline-none
+                px-2
+                py-2
+                text-sm
+                leading-5
+                placeholder:text-muted-foreground
+              "
+            />
+
+            <Button
+              size="icon"
+              className="
+                h-10
+                w-10
+                shrink-0
+                rounded-full
+              "
+              disabled={!input.trim() || loading}
+              onClick={sendMessage}
+              aria-label="Send message"
+            >
+              <span className="text-base">
+                ➤
+              </span>
+            </Button>
+
           </div>
+
         </div>
-      </div>
+
+      </main>
+
+
+      {/* ================================================================== */}
+      {/* CHAT HISTORY DRAWER                                                */}
+      {/* ================================================================== */}
+
+      {showChatList && (
+
+        <>
+
+          {/* Backdrop */}
+
+          <button
+            type="button"
+            aria-label="Close chat history"
+            className="
+              fixed
+              inset-0
+              z-40
+              bg-black/40
+              backdrop-blur-[1px]
+              border-0
+              p-0
+              cursor-default
+            "
+            onClick={() => {
+              setShowChatList(false);
+              setSelectionMode(false);
+              setSelectedChats(new Set());
+            }}
+          />
+
+
+          {/* Drawer */}
+
+          <aside
+            className="
+              fixed
+              left-0
+              top-0
+              bottom-0
+              z-50
+              w-[min(86vw,340px)]
+              bg-background
+              border-r
+              shadow-xl
+              flex
+              flex-col
+            "
+            role="dialog"
+            aria-label="Chat history"
+          >
+
+            {/* Drawer header */}
+
+            <div
+              className="
+                shrink-0
+                h-14
+                flex
+                items-center
+                justify-between
+                px-3
+                border-b
+              "
+            >
+
+              {selectionMode ? (
+
+                <>
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={exitSelectionMode}
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+
+                  <span className="text-sm font-medium">
+                    {selectedChats.size} selected
+                  </span>
+
+                  <Button
+                    variant="destructive"
+                    size="icon"
+                    disabled={selectedChats.size === 0}
+                    onClick={deleteSelectedChats}
+                  >
+                    <Trash2 className="h-5 w-5" />
+                  </Button>
+                </>
+
+              ) : (
+
+                <>
+                  <h2 className="font-semibold">
+                    Chat history
+                  </h2>
+
+                  <Button
+                    variant="ghost"
+                    size="icon"
+                    onClick={() =>
+                      setShowChatList(false)
+                    }
+                  >
+                    <X className="h-5 w-5" />
+                  </Button>
+                </>
+
+              )}
+
+            </div>
+
+
+            {/* New chat */}
+
+            {!selectionMode && (
+              <div className="p-3">
+
+                <Button
+                  className="w-full justify-start gap-2"
+                  onClick={startNewChat}
+                >
+                  <Plus className="h-4 w-4" />
+                  New chat
+                </Button>
+
+              </div>
+            )}
+
+
+            {/* Search */}
+
+            {!selectionMode && (
+              <div className="px-3 pb-3">
+
+                <div
+                  className="
+                    flex
+                    items-center
+                    gap-2
+                    rounded-xl
+                    border
+                    bg-muted/30
+                    px-3
+                  "
+                >
+
+                  <Search
+                    className="
+                      h-4
+                      w-4
+                      shrink-0
+                      text-muted-foreground
+                    "
+                  />
+
+                  <input
+                    value={chatSearch}
+                    onChange={(event) =>
+                      setChatSearch(event.target.value)
+                    }
+                    placeholder="Search chats..."
+                    className="
+                      h-10
+                      min-w-0
+                      flex-1
+                      bg-transparent
+                      text-sm
+                      outline-none
+                    "
+                  />
+
+                </div>
+
+              </div>
+            )}
+
+
+            {/* Conversation list */}
+
+            <ScrollArea className="flex-1 min-h-0">
+
+              <div className="px-2 pb-5">
+
+                {Object.entries(
+                  groupedConversations
+                ).map(([group, items]) => {
+
+                  if (!items.length) {
+                    return null;
+                  }
+
+                  return (
+                    <section
+                      key={group}
+                      className="mb-5"
+                    >
+
+                      <div
+                        className="
+                          px-2
+                          py-2
+                          text-xs
+                          font-medium
+                          text-muted-foreground
+                        "
+                      >
+                        {group}
+                      </div>
+
+
+                      <div className="space-y-1">
+
+                        {items.map(
+                          (conversation) => {
+
+                            const selected =
+                              selectedChats.has(
+                                conversation.id
+                              );
+
+                            const isRenaming =
+                              renamingChatId ===
+                              conversation.id;
+
+                            return (
+                              <div
+                                key={conversation.id}
+                                className="
+                                  relative
+                                  rounded-xl
+                                  overflow-hidden
+                                "
+                                onPointerDown={() =>
+                                  startLongPress(
+                                    conversation
+                                  )
+                                }
+                                onPointerUp={
+                                  cancelLongPress
+                                }
+                                onPointerLeave={
+                                  cancelLongPress
+                                }
+                                onPointerCancel={
+                                  cancelLongPress
+                                }
+                              >
+
+                                {isRenaming ? (
+
+                                  <div
+                                    className="
+                                      flex
+                                      items-center
+                                      gap-2
+                                      p-2
+                                      rounded-xl
+                                      bg-muted
+                                    "
+                                  >
+
+                                    <input
+                                      autoFocus
+                                      value={
+                                        renameValue
+                                      }
+                                      onChange={(
+                                        event
+                                      ) =>
+                                        setRenameValue(
+                                          event.target
+                                            .value
+                                        )
+                                      }
+                                      onKeyDown={(
+                                        event
+                                      ) => {
+                                        if (
+                                          event.key ===
+                                          "Enter"
+                                        ) {
+                                          saveRename();
+                                        }
+
+                                        if (
+                                          event.key ===
+                                          "Escape"
+                                        ) {
+                                          setRenamingChatId(
+                                            null
+                                          );
+                                        }
+                                      }}
+                                      className="
+                                        min-w-0
+                                        flex-1
+                                        h-9
+                                        rounded-lg
+                                        border
+                                        bg-background
+                                        px-2
+                                        text-sm
+                                        outline-none
+                                      "
+                                    />
+
+                                    <Button
+                                      size="icon"
+                                      className="h-9 w-9"
+                                      onClick={
+                                        saveRename
+                                      }
+                                    >
+                                      <Check className="h-4 w-4" />
+                                    </Button>
+
+                                  </div>
+
+                                ) : (
+
+                                  <button
+                                    type="button"
+                                    className={`
+                                      w-full
+                                      flex
+                                      items-center
+                                      gap-2
+                                      text-left
+                                      px-3
+                                      py-3
+                                      rounded-xl
+                                      transition-colors
+                                      ${
+                                        selected
+                                          ? "bg-primary/10"
+                                          : "hover:bg-muted"
+                                      }
+                                    `}
+                                    onClick={() => {
+
+                                      if (
+                                        selectionMode
+                                      ) {
+                                        toggleSelectedChat(
+                                          conversation.id
+                                        );
+                                      } else {
+                                        openConversation(
+                                          conversation.id
+                                        );
+                                      }
+
+                                    }}
+                                  >
+
+                                    {selectionMode && (
+                                      <div
+                                        className={`
+                                          h-5
+                                          w-5
+                                          shrink-0
+                                          rounded-md
+                                          border
+                                          flex
+                                          items-center
+                                          justify-center
+                                          ${
+                                            selected
+                                              ? "bg-primary border-primary text-primary-foreground"
+                                              : ""
+                                          }
+                                        `}
+                                      >
+                                        {selected && (
+                                          <Check className="h-3.5 w-3.5" />
+                                        )}
+                                      </div>
+                                    )}
+
+
+                                    <div
+                                      className="
+                                        min-w-0
+                                        flex-1
+                                      "
+                                    >
+
+                                      <div
+                                        className="
+                                          truncate
+                                          text-sm
+                                        "
+                                      >
+                                        {
+                                          conversation.title ||
+                                          "New chat"
+                                        }
+                                      </div>
+
+                                    </div>
+
+
+                                    {conversation.pinned &&
+                                      !selectionMode && (
+                                        <Pin
+                                          className="
+                                            h-3.5
+                                            w-3.5
+                                            shrink-0
+                                            text-muted-foreground
+                                          "
+                                        />
+                                      )}
+
+                                  </button>
+
+                                )}
+
+                              </div>
+                            );
+                          }
+                        )}
+
+                      </div>
+
+                    </section>
+                  );
+                })}
+
+
+                {filteredConversations.length === 0 && (
+
+                  <div
+                    className="
+                      px-4
+                      py-10
+                      text-center
+                      text-sm
+                      text-muted-foreground
+                    "
+                  >
+                    No chats found.
+                  </div>
+
+                )}
+
+              </div>
+
+            </ScrollArea>
+
+
+            {/* Selection mode footer */}
+
+            {!selectionMode &&
+              conversations.length > 0 && (
+
+                <div
+                  className="
+                    shrink-0
+                    border-t
+                    p-3
+                  "
+                >
+
+                  <Button
+                    variant="ghost"
+                    className="
+                      w-full
+                      justify-start
+                      text-muted-foreground
+                    "
+                    onClick={enterSelectionMode}
+                  >
+                    <Check className="mr-2 h-4 w-4" />
+                    Select chats
+                  </Button>
+
+                </div>
+
+              )}
+
+          </aside>
+
+        </>
+
+      )}
+
+
+      {/* ================================================================== */}
+      {/* LONG-PRESS ACTION CARD                                             */}
+      {/* ================================================================== */}
+
+      {showActionCard && actionChat && (
+
+        <div
+          className="
+            fixed
+            inset-0
+            z-[70]
+            flex
+            items-end
+            justify-center
+            p-3
+            sm:items-center
+          "
+        >
+
+          {/* Backdrop */}
+
+          <button
+            type="button"
+            aria-label="Close actions"
+            className="
+              absolute
+              inset-0
+              bg-black/40
+              backdrop-blur-[2px]
+              border-0
+            "
+            onClick={() => {
+              setShowActionCard(false);
+              setActionChat(null);
+            }}
+          />
+
+
+          {/* Native-style action card */}
+
+          <div
+            className="
+              relative
+              w-full
+              max-w-sm
+              overflow-hidden
+              rounded-2xl
+              border
+              bg-background
+              shadow-2xl
+              animate-in
+              slide-in-from-bottom-3
+              duration-150
+            "
+          >
+
+            <div className="px-4 py-3 border-b">
+
+              <div
+                className="
+                  text-sm
+                  font-medium
+                  truncate
+                "
+              >
+                {actionChat.title ||
+                  "New chat"}
+              </div>
+
+              <div
+                className="
+                  text-xs
+                  text-muted-foreground
+                  mt-1
+                "
+              >
+                Chat actions
+              </div>
+
+            </div>
+
+
+            <div className="p-2">
+
+              {/* PIN */}
+
+              <button
+                type="button"
+                className="
+                  w-full
+                  flex
+                  items-center
+                  gap-3
+                  rounded-xl
+                  px-3
+                  py-3
+                  text-left
+                  hover:bg-muted
+                "
+                onClick={() =>
+                  togglePinConversation(
+                    actionChat
+                  )
+                }
+              >
+
+                {actionChat.pinned ? (
+                  <PinOff className="h-5 w-5" />
+                ) : (
+                  <Pin className="h-5 w-5" />
+                )}
+
+                <span className="text-sm">
+                  {actionChat.pinned
+                    ? "Unpin"
+                    : "Pin"}
+                </span>
+
+              </button>
+
+
+              {/* RENAME */}
+
+              <button
+                type="button"
+                className="
+                  w-full
+                  flex
+                  items-center
+                  gap-3
+                  rounded-xl
+                  px-3
+                  py-3
+                  text-left
+                  hover:bg-muted
+                "
+                onClick={() =>
+                  beginRename(actionChat)
+                }
+              >
+
+                <Pencil className="h-5 w-5" />
+
+                <span className="text-sm">
+                  Rename
+                </span>
+
+              </button>
+
+
+              {/* DELETE */}
+
+              <button
+                type="button"
+                className="
+                  w-full
+                  flex
+                  items-center
+                  gap-3
+                  rounded-xl
+                  px-3
+                  py-3
+                  text-left
+                  text-destructive
+                  hover:bg-destructive/10
+                "
+                onClick={async () => {
+
+                  setShowActionCard(false);
+
+                  setActionChat(null);
+
+                  await deleteConversation(
+                    actionChat.id
+                  );
+
+                }}
+              >
+
+                <Trash2 className="h-5 w-5" />
+
+                <span className="text-sm">
+                  Delete
+                </span>
+
+              </button>
+
+            </div>
+
+          </div>
+
+        </div>
+
+      )}
+
     </div>
   );
-};
-
-export default Index;
+}
