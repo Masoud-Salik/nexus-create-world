@@ -1,23 +1,13 @@
-import { Flame, Zap, ShieldCheck, Check } from "lucide-react";
+import { Flame, Zap, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { StudyProgress } from "@/hooks/useStudyProgress";
-
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
 export function LifeProgress({ progress, streak }: { progress: StudyProgress; streak: number }) {
   const xpPct = Math.min(100, Math.round((progress.xpInLevel / Math.max(1, progress.xpForLevel)) * 100));
   const goalPct = Math.min(100, Math.round((progress.todayMinutes / Math.max(1, progress.dailyGoalMinutes)) * 100));
-  const peak = Math.max(1, ...progress.weekMinutesPerDay);
-
-  // Today index = last column; align week labels so today is rightmost
-  const todayDow = (new Date().getDay() + 6) % 7; // 0=Mon
-  const labels = Array.from({ length: 7 }, (_, i) => {
-    const idx = (todayDow + 1 + i) % 7;
-    return DAY_LABELS[idx];
-  });
 
   return (
-    <div className="rounded-2xl border border-border bg-card/60 backdrop-blur p-3 space-y-2.5 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card/60 backdrop-blur p-3 space-y-2 shadow-sm">
       {/* Level + XP + streak */}
       <div className="flex items-center gap-3">
         <div className="relative h-10 w-10 rounded-full bg-gradient-to-br from-primary to-emerald-600 flex items-center justify-center shadow-md shrink-0">
@@ -74,38 +64,6 @@ export function LifeProgress({ progress, streak }: { progress: StudyProgress; st
         ))}
       </div>
 
-      {/* Weekly heatmap — compact strip */}
-      <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center justify-between">
-          <span>7-day streak</span>
-          <span className="inline-flex items-center gap-1 text-foreground">
-            <ShieldCheck className="h-3 w-3 text-emerald-500" />
-            {progress.weekMinutesPerDay.reduce((a, b) => a + b, 0)}m
-          </span>
-        </div>
-        <div className="grid grid-cols-7 gap-0.5">
-          {progress.weekMinutesPerDay.map((m, i) => {
-            const intensity = m === 0 ? 0 : 0.25 + 0.75 * (m / peak);
-            const isToday = i === 6;
-            return (
-              <div key={i} className="flex flex-col items-center gap-0.5">
-                <div
-                  className={cn(
-                    "h-5 w-full rounded-sm border transition-all",
-                    m === 0 ? "bg-muted/40 border-border" : "border-primary/40",
-                    isToday && "ring-1 ring-primary",
-                  )}
-                  style={m > 0 ? { backgroundColor: `hsl(var(--primary) / ${intensity})` } : undefined}
-                  title={`${m}m`}
-                />
-                <span className={cn("text-[8px] font-bold leading-none", isToday ? "text-primary" : "text-muted-foreground")}>
-                  {labels[i]}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
