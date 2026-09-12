@@ -20,8 +20,8 @@ import {
   Zap,
 } from "lucide-react";
 import { StudyAnalytics } from "@/components/study-coach/StudyAnalytics";
+import type { StudyTaskData } from "@/components/study-coach/TaskCard";
 import {
-  StudyTaskData,
   StudyTaskTimer,
   ActiveTask,
   CompletionStatus,
