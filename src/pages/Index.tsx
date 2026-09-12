@@ -172,7 +172,7 @@ export default function Index() {
     const loadUser = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("name")
         .eq("id", user.id)
         .maybeSingle();
 
