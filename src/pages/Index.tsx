@@ -24,10 +24,10 @@ import {
 
 import { supabase } from "@/integrations/supabase/client";
 
-import ChatMessage from "@/components/ChatMessage";
-import TypingIndicator from "@/components/TypingIndicator";
-import WelcomeScreen from "@/components/WelcomeScreen";
-import AIProviderBanner from "@/components/AIProviderBanner";
+import { ChatMessage } from "@/components/ChatMessage";
+import { TypingIndicator } from "@/components/TypingIndicator";
+import { WelcomeScreen } from "@/components/WelcomeScreen";
+import { AIProviderBanner } from "@/components/chat/AIProviderBanner";
 
 import { useAuth } from "@/hooks/useAuth";
 
@@ -172,12 +172,12 @@ export default function Index() {
     const loadUser = async () => {
       const { data } = await supabase
         .from("profiles")
-        .select("full_name")
+        .select("name")
         .eq("id", user.id)
         .maybeSingle();
 
-      if (data?.full_name) {
-        setUserName(data.full_name.split(" ")[0]);
+      if (data?.name) {
+        setUserName(data.name.split(" ")[0]);
       }
     };
 
@@ -203,7 +203,12 @@ export default function Index() {
       return;
     }
 
-    setConversations((data || []) as Conversation[]);
+    setConversations(
+      ((data || []) as any[]).map((row) => ({
+        ...row,
+        pinned: !!row.is_pinned,
+      })) as Conversation[]
+    );
   }, [user]);
 
 
@@ -447,7 +452,7 @@ export default function Index() {
     const { error } = await supabase
       .from("conversations")
       .update({
-        pinned: nextPinned,
+        is_pinned: nextPinned,
       })
       .eq("id", conversation.id);
 
@@ -584,6 +589,7 @@ export default function Index() {
 
       await supabase.from("messages").insert({
         conversation_id: activeConversationId,
+        user_id: user.id,
         role: "user",
         content: trimmed,
       });
@@ -634,6 +640,7 @@ export default function Index() {
 
       await supabase.from("messages").insert({
         conversation_id: activeConversationId,
+        user_id: user.id,
         role: "assistant",
         content: assistantContent,
       });
@@ -839,7 +846,13 @@ export default function Index() {
                   (message, index) => (
                     <ChatMessage
                       key={`${index}-${message.role}`}
-                      message={message}
+                      role={message.role}
+                      content={message.content}
+                      conversationId={conversationId}
+                      isLastAssistant={
+                        message.role === "assistant" &&
+                        index === messages.length - 1
+                      }
                     />
                   )
                 )}
