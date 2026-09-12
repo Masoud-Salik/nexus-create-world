@@ -92,6 +92,36 @@ export function AboutSection() {
         </div>
       </div>
 
+      {/* Contact */}
+      <div className="space-y-2">
+        <h3 className="text-xs font-semibold text-muted-foreground uppercase tracking-wider px-1">
+          Contact & Connect
+        </h3>
+        <div className="space-y-2">
+          {contacts.map((c) => (
+            <a
+              key={c.href}
+              href={c.href}
+              target={c.href.startsWith("mailto:") ? undefined : "_blank"}
+              rel="noopener noreferrer"
+              className="block"
+            >
+              <Card className="transition-colors hover:border-primary/40">
+                <CardContent className="p-4 flex items-center gap-3">
+                  <div className="p-2 rounded-xl bg-primary/10 shrink-0">
+                    <c.icon className="h-4 w-4 text-primary" />
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-sm font-medium text-foreground truncate">{c.label}</p>
+                    <p className="text-xs text-muted-foreground">{c.sub}</p>
+                  </div>
+                </CardContent>
+              </Card>
+            </a>
+          ))}
+        </div>
+      </div>
+
       {/* Footer */}
       <div className="text-center space-y-2 pt-2">
         <div className="flex items-center justify-center gap-1.5 text-xs text-muted-foreground">

@@ -74,38 +74,6 @@ export function LifeProgress({ progress, streak }: { progress: StudyProgress; st
         ))}
       </div>
 
-      {/* Weekly heatmap — compact strip */}
-      <div>
-        <div className="text-[10px] font-semibold uppercase tracking-wide text-muted-foreground mb-1 flex items-center justify-between">
-          <span>7-day streak</span>
-          <span className="inline-flex items-center gap-1 text-foreground">
-            <ShieldCheck className="h-3 w-3 text-emerald-500" />
-            {progress.weekMinutesPerDay.reduce((a, b) => a + b, 0)}m
-          </span>
-        </div>
-        <div className="grid grid-cols-7 gap-0.5">
-          {progress.weekMinutesPerDay.map((m, i) => {
-            const intensity = m === 0 ? 0 : 0.25 + 0.75 * (m / peak);
-            const isToday = i === 6;
-            return (
-              <div key={i} className="flex flex-col items-center gap-0.5">
-                <div
-                  className={cn(
-                    "h-5 w-full rounded-sm border transition-all",
-                    m === 0 ? "bg-muted/40 border-border" : "border-primary/40",
-                    isToday && "ring-1 ring-primary",
-                  )}
-                  style={m > 0 ? { backgroundColor: `hsl(var(--primary) / ${intensity})` } : undefined}
-                  title={`${m}m`}
-                />
-                <span className={cn("text-[8px] font-bold leading-none", isToday ? "text-primary" : "text-muted-foreground")}>
-                  {labels[i]}
-                </span>
-              </div>
-            );
-          })}
-        </div>
-      </div>
     </div>
   );
 }
