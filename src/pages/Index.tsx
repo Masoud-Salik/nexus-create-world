@@ -27,7 +27,7 @@ import { supabase } from "@/integrations/supabase/client";
 import ChatMessage from "@/components/ChatMessage";
 import TypingIndicator from "@/components/TypingIndicator";
 import WelcomeScreen from "@/components/WelcomeScreen";
-import AIProviderBanner from "@/components/AIProviderBanner";
+import { AIProviderBanner } from "@/components/chat/AIProviderBanner";
 
 import { useAuth } from "@/hooks/useAuth";
 
