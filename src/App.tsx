@@ -15,6 +15,7 @@ import { InstallPrompt } from "@/components/InstallPrompt";
 import { OfflineIndicator } from "@/components/OfflineIndicator";
 import { GlobalTimerProvider } from "@/contexts/GlobalTimerContext";
 import { GlobalMusicProvider } from "@/contexts/GlobalMusicContext";
+import { useDailyReminder } from "@/hooks/useDailyReminder";
 
 // Lazy load pages
 const Index = lazy(() => import("./pages/Index"));
@@ -68,6 +69,8 @@ const AnimatedRoutes = () => {
 
 const AppLayout = () => {
   const isMobile = useIsMobile();
+  useDailyReminder();
+  
   
   return (
     <SidebarProvider>
