@@ -203,7 +203,12 @@ export default function Index() {
       return;
     }
 
-    setConversations((data || []) as Conversation[]);
+    setConversations(
+      ((data || []) as any[]).map((row) => ({
+        ...row,
+        pinned: !!row.is_pinned,
+      })) as Conversation[]
+    );
   }, [user]);
 
 
