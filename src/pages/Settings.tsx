@@ -7,7 +7,7 @@ import { useNavigate } from "react-router-dom";
 import {
   ArrowLeft, Moon, Sun, Bell, User, LogOut, Info,
   Shield, Trash2, MessageSquare, Download, ChevronRight,
-  Volume2, Share2, Camera
+  Volume2, Share2, Camera, Library as LibraryIcon
 } from "lucide-react";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
@@ -96,6 +96,8 @@ const Settings = () => {
     });
     const { data: { subscription } } = supabase.auth.onAuthStateChange((_event, session) => {
       setUser(session?.user ?? null);
+      // Signing in from the inline dialog should dismiss it right away.
+      if (session?.user) setAuthDialogOpen(false);
     });
     return () => subscription.unsubscribe();
   }, []);
@@ -203,6 +205,9 @@ const Settings = () => {
               </div>
               <SettingsRow icon={User} label={email || "Email"} />
               <SettingsRow icon={Brain} label="Memories" onClick={() => navigate("/memories")} />
+              {isMobile && (
+                <SettingsRow icon={LibraryIcon} label="Library" onClick={() => navigate("/library")} />
+              )}
               <SettingsRow icon={Download} label="Export Data" onClick={() => setExportDialogOpen(true)} />
             </>
           )}
