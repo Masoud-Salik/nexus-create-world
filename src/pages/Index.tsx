@@ -447,7 +447,7 @@ export default function Index() {
     const { error } = await supabase
       .from("conversations")
       .update({
-        pinned: nextPinned,
+        is_pinned: nextPinned,
       })
       .eq("id", conversation.id);
 
