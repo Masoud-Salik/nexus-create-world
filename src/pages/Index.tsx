@@ -176,8 +176,8 @@ export default function Index() {
         .eq("id", user.id)
         .maybeSingle();
 
-      if (data?.full_name) {
-        setUserName(data.full_name.split(" ")[0]);
+      if (data?.name) {
+        setUserName(data.name.split(" ")[0]);
       }
     };
 
