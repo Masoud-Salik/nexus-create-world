@@ -1,6 +1,27 @@
-import { Heart, Rocket, Brain, Globe, Lightbulb, Target } from "lucide-react";
+import { Heart, Rocket, Brain, Globe, Lightbulb, Target, Linkedin, Mail } from "lucide-react";
 import { Card, CardContent } from "@/components/ui/card";
 import teamPhoto from "@/assets/team-photo.jpeg";
+
+const contacts = [
+  {
+    icon: Linkedin,
+    label: "Masoud Salik",
+    sub: "LinkedIn",
+    href: "https://www.linkedin.com/in/masoud-salik-799187383/",
+  },
+  {
+    icon: Linkedin,
+    label: "Fatima Salik",
+    sub: "LinkedIn",
+    href: "https://my.linkedin.com/in/fatimasalik",
+  },
+  {
+    icon: Mail,
+    label: "studytime.contact2@gmail.com",
+    sub: "Email us",
+    href: "mailto:studytime.contact2@gmail.com",
+  },
+];
 
 const values = [
   {
