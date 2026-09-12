@@ -584,6 +584,7 @@ export default function Index() {
 
       await supabase.from("messages").insert({
         conversation_id: activeConversationId,
+        user_id: user.id,
         role: "user",
         content: trimmed,
       });
