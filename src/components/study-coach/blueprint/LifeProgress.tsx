@@ -1,23 +1,13 @@
-import { Flame, Zap, ShieldCheck, Check } from "lucide-react";
+import { Flame, Zap, Check } from "lucide-react";
 import { cn } from "@/lib/utils";
 import type { StudyProgress } from "@/hooks/useStudyProgress";
-
-const DAY_LABELS = ["M", "T", "W", "T", "F", "S", "S"];
 
 export function LifeProgress({ progress, streak }: { progress: StudyProgress; streak: number }) {
   const xpPct = Math.min(100, Math.round((progress.xpInLevel / Math.max(1, progress.xpForLevel)) * 100));
   const goalPct = Math.min(100, Math.round((progress.todayMinutes / Math.max(1, progress.dailyGoalMinutes)) * 100));
-  const peak = Math.max(1, ...progress.weekMinutesPerDay);
-
-  // Today index = last column; align week labels so today is rightmost
-  const todayDow = (new Date().getDay() + 6) % 7; // 0=Mon
-  const labels = Array.from({ length: 7 }, (_, i) => {
-    const idx = (todayDow + 1 + i) % 7;
-    return DAY_LABELS[idx];
-  });
 
   return (
-    <div className="rounded-2xl border border-border bg-card/60 backdrop-blur p-3 space-y-2.5 shadow-sm">
+    <div className="rounded-2xl border border-border bg-card/60 backdrop-blur p-3 space-y-2 shadow-sm">
       {/* Level + XP + streak */}
       <div className="flex items-center gap-3">
         <div className="relative h-10 w-10 rounded-full bg-gradient-to-br from-primary to-emerald-600 flex items-center justify-center shadow-md shrink-0">
