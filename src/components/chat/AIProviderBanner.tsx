@@ -3,6 +3,7 @@ import { supabase } from "@/integrations/supabase/client";
 import { Sparkles, X, Settings as SettingsIcon, ChevronDown } from "lucide-react";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
 import { AIProvidersSection } from "@/components/settings/AIProvidersSection";
+import { apiRequest } from "@/core/api/client";
 
 const DISMISS_KEY = "ai_provider_banner_dismissed_v1";
 
@@ -40,13 +41,11 @@ export function AIProviderBanner() {
     setBusy(true);
     navigator.vibrate?.(10);
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-ai-preferences`, {
+      await apiRequest<{ ok?: boolean }>("/update-ai-preferences", {
         method: "POST",
-        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
-        body: JSON.stringify({ is_default: true }),
+        body: { is_default: true },
       });
-      if (res.ok) setProvider({ ...provider, is_default: true });
+      setProvider({ ...provider, is_default: true });
     } finally {
       setBusy(false);
     }

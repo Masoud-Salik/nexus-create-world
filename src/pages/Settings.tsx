@@ -9,6 +9,7 @@ import {
   Shield, Trash2, MessageSquare, Download, ChevronRight,
   Volume2, Share2, Camera, Library as LibraryIcon
 } from "lucide-react";
+import { SettingsRow } from "@/components/settings/SettingsRow";
 import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { useTheme } from "@/components/ThemeProvider";
@@ -27,34 +28,6 @@ import { Collapsible, CollapsibleTrigger, CollapsibleContent } from "@/component
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Auth } from "@/components/Auth";
 import { Brain } from "lucide-react";
-
-// Reusable settings row
-function SettingsRow({
-  icon: Icon, label, onClick, trailing, destructive, className
-}: {
-  icon: React.ElementType;
-  label: string;
-  onClick?: () => void;
-  trailing?: React.ReactNode;
-  destructive?: boolean;
-  className?: string;
-}) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-muted/50 ${className || ""}`}
-      disabled={!onClick && !trailing}
-    >
-      <div className={`p-2 rounded-lg ${destructive ? "bg-destructive/10" : "bg-muted"}`}>
-        <Icon className={`h-4 w-4 ${destructive ? "text-destructive" : "text-muted-foreground"}`} />
-      </div>
-      <span className={`text-sm font-medium flex-1 text-left ${destructive ? "text-destructive" : "text-foreground"}`}>
-        {label}
-      </span>
-      {trailing || (onClick && <ChevronRight className="h-4 w-4 text-muted-foreground" />)}
-    </button>
-  );
-}
 
 function SectionHeader({ label, color = "text-primary" }: { label: string; color?: string }) {
   return <p className={`text-xs font-semibold uppercase tracking-wider px-4 pt-4 pb-2 ${color}`}>{label}</p>;

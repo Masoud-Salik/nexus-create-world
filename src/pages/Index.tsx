@@ -38,6 +38,7 @@ import {
   getTimeOfDay,
   getLocalTime,
 } from "@/utils/getTimeOfDay";
+import { chatStreamRequest } from "@/core/api/chat";
 
 import {
   getUserFriendlyError,
@@ -52,9 +53,6 @@ import {
   isAfter,
 } from "date-fns";
 
-
-const CHAT_URL =
-  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 const ACTIVE_CHAT_KEY = "studytime-active-chat";
 
@@ -386,15 +384,9 @@ const Index = () => {
   /* ========================================================================= */
 
   useEffect(() => {
-    const timer = setTimeout(() => {
-      fetch(CHAT_URL, {
-        method: "OPTIONS",
-      }).catch(() => {
-        /* intentionally ignored */
-      });
-    }, 600);
-
-    return () => clearTimeout(timer);
+    return () => {
+      abortControllerRef.current?.abort();
+    };
   }, []);
 
 
@@ -1392,29 +1384,18 @@ Relationship: ${
       }
 
       const response =
-        await fetch(
-          CHAT_URL,
+        await chatStreamRequest(
           {
-            method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-              Authorization:
-                `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
-              messages:
-                messagesToSend,
-              userContext,
-              userLocalTime:
-                getLocalTime(),
-              userTimeOfDay:
-                getTimeOfDay(),
-            }),
-            signal:
-              abortControllerRef.current
-                .signal,
-          }
+            messages:
+              messagesToSend,
+            userContext,
+            userLocalTime:
+              getLocalTime(),
+            userTimeOfDay:
+              getTimeOfDay(),
+          },
+          abortControllerRef.current
+            ?.signal,
         );
 
       if (!response.ok) {
