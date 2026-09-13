@@ -70,3 +70,35 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
 
   return payload as T;
 }
+
+export async function apiStreamRequest(path: string, options: RequestOptions = {}): Promise<Response> {
+  const { method = "GET", body, signal } = options;
+  const traceId = options.traceId ?? newTraceId();
+  const headers: Record<string, string> = {
+    "Content-Type": "application/json",
+    "X-Trace-Id": traceId,
+  };
+
+  const { data } = await supabase.auth.getSession();
+  if (data.session?.access_token) {
+    headers.Authorization = `Bearer ${data.session.access_token}`;
+  } else {
+    const guest = readAnonSession();
+    if (guest) headers["x-anon-session"] = guest.token;
+  }
+
+  if (method !== "GET") {
+    headers["Idempotency-Key"] = options.idempotencyKey ?? newIdempotencyKey();
+  }
+
+  try {
+    return await fetch(`${FUNCTIONS_BASE}${path}`, {
+      method,
+      headers,
+      body: body === undefined ? undefined : JSON.stringify(body),
+      signal,
+    });
+  } catch {
+    throw new ApiError("network", "Network request failed.", traceId);
+  }
+}

@@ -1,4 +1,4 @@
-import { apiRequest } from "./client";
+import { apiRequest, apiStreamRequest } from "./client";
 
 export type ChatMessage = {
   role: "user" | "assistant";
@@ -21,20 +21,9 @@ export async function chatRequest(payload: ChatRequestPayload, signal?: AbortSig
 }
 
 export async function chatStreamRequest(payload: ChatRequestPayload, signal?: AbortSignal) {
-  const { data } = await (await import("@/integrations/supabase/client")).supabase.auth.getSession();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "X-Trace-Id": crypto.randomUUID(),
-  };
-
-  if (data.session?.access_token) {
-    headers.Authorization = `Bearer ${data.session.access_token}`;
-  }
-
-  return fetch(`https://${import.meta.env.VITE_SUPABASE_PROJECT_ID}.supabase.co/functions/v1/chat`, {
+  return apiStreamRequest("/chat", {
     method: "POST",
-    headers,
-    body: JSON.stringify(payload),
+    body: payload,
     signal,
   });
 }

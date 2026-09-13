@@ -1,4 +1,4 @@
-@import url("https://fonts.googleapis.com/css2?family=Montserrat:wght@400;500;600;700&family=Cormorant+Garamond:wght@400;500;600;700&family=IBM+Plex+Mono:wght@400;700&display=swap");
+@import url("https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700&family=IBM+Plex+Mono:wght@400;700&display=swap");
 @tailwind base;
 @tailwind components;
 @tailwind utilities;
@@ -22,8 +22,8 @@ html {
 
 @layer base {
   :root {
-    --background: 150 10% 96%;
-    --foreground: 150 5% 10%;
+    --background: 120 14% 97%;
+    --foreground: 150 12% 12%;
 
     --card: 0 0% 99%;
     --card-foreground: 150 5% 10%;
@@ -31,16 +31,16 @@ html {
     --popover: 150 8% 92%;
     --popover-foreground: 150 5% 10%;
 
-    --primary: 152 76% 36%;
+    --primary: 152 80% 34%;
     --primary-foreground: 0 0% 100%;
 
-    --secondary: 150 5% 33%;
+    --secondary: 150 8% 32%;
     --secondary-foreground: 0 0% 98%;
 
     --muted: 150 6% 85%;
-    --muted-foreground: 150 5% 40%;
+    --muted-foreground: 150 8% 36%;
 
-    --accent: 152 76% 96%;
+    --accent: 152 55% 92%;
     --accent-foreground: 152 76% 30%;
 
     --destructive: 0 72% 50%;
@@ -48,25 +48,25 @@ html {
 
     --border: 150 6% 83%;
     --input: 150 6% 83%;
-    --ring: 152 76% 36%;
+    --ring: 152 80% 34%;
 
     --radius: 0.5rem;
 
     --sidebar-background: 152 15% 97%;
     --sidebar-foreground: 150 5% 10%;
-    --sidebar-primary: 152 76% 36%;
+    --sidebar-primary: 152 80% 34%;
     --sidebar-primary-foreground: 0 0% 100%;
     --sidebar-accent: 152 50% 92%;
     --sidebar-accent-foreground: 152 76% 30%;
     --sidebar-border: 150 6% 83%;
-    --sidebar-ring: 152 76% 36%;
+    --sidebar-ring: 152 80% 34%;
 
     /* Custom semantic tokens */
-    --success: 152 76% 36%;
+    --success: 152 80% 34%;
     --success-foreground: 0 0% 100%;
-    --warning: 38 92% 50%;
+    --warning: 39 80% 49%;
     --warning-foreground: 0 0% 100%;
-    --info: 199 89% 48%;
+    --info: 190 77% 38%;
     --info-foreground: 0 0% 100%;
 
     /* Gradients */
@@ -79,8 +79,9 @@ html {
     --chart-4: 130 50% 50%;
     --chart-5: 145 30% 60%;
     --sidebar: 0 0% 99%;
-    --font-sans: 'Montserrat', ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, 'Noto Sans', sans-serif;
-    --font-serif: 'Cormorant Garamond', ui-serif, Georgia, Cambria, 'Times New Roman', Times, serif;
+    --font-sans: 'Manrope', ui-sans-serif, system-ui, sans-serif;
+    --font-heading: 'Sora', 'Manrope', ui-sans-serif, system-ui, sans-serif;
+    --font-serif: 'Sora', ui-sans-serif, system-ui, sans-serif;
     --font-mono: 'IBM Plex Mono', ui-monospace, SFMono-Regular, Menlo, Monaco, Consolas, 'Liberation Mono', 'Courier New', monospace;
     --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
     --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
@@ -183,6 +184,11 @@ html {
     overscroll-behavior-y: contain;
     scroll-behavior: smooth;
     -webkit-overflow-scrolling: touch;
+  }
+
+  h1, h2, h3, h4, h5, h6 {
+    font-family: var(--font-heading);
+    letter-spacing: 0;
   }
 }
 
