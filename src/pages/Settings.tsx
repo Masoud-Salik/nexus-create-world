@@ -39,12 +39,8 @@ function SettingsRow({
   destructive?: boolean;
   className?: string;
 }) {
-  return (
-    <button
-      onClick={onClick}
-      className={`w-full flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-muted/50 ${className || ""}`}
-      disabled={!onClick && !trailing}
-    >
+  const content = (
+    <>
       <div className={`p-2 rounded-lg ${destructive ? "bg-destructive/10" : "bg-muted"}`}>
         <Icon className={`h-4 w-4 ${destructive ? "text-destructive" : "text-muted-foreground"}`} />
       </div>
@@ -52,6 +48,20 @@ function SettingsRow({
         {label}
       </span>
       {trailing || (onClick && <ChevronRight className="h-4 w-4 text-muted-foreground" />)}
+    </>
+  );
+
+  if (!onClick) {
+    return <div className={`flex min-h-12 w-full items-center gap-3 px-4 py-3.5 ${className || ""}`}>{content}</div>;
+  }
+
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      className={`w-full min-h-12 flex items-center gap-3 px-4 py-3.5 transition-colors hover:bg-muted/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-ring ${className || ""}`}
+    >
+      {content}
     </button>
   );
 }
@@ -310,8 +320,7 @@ const Settings = () => {
           <SectionHeader label="About" />
           <Card className="overflow-hidden divide-y divide-border">
             <SettingsRow icon={Share2} label="Share App" onClick={handleShare} />
-            <SettingsRow icon={Shield} label="Privacy  Policy" onClick={() => setPrivacyDialogOpen(true)} />
-            <SettingsRow icon={Shield} label="Terms of Service" onClick={() => toast({ title: "Coming soon" })} />
+            <SettingsRow icon={Shield} label="Privacy Policy" onClick={() => setPrivacyDialogOpen(true)} />
             <SettingsRow icon={MessageSquare} label="Send Feedback" onClick={() => setFeedbackDialogOpen(true)} />
             {isMobile ? (
               <Collapsible>

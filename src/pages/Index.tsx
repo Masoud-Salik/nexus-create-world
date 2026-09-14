@@ -33,6 +33,7 @@ import { ChatMessage } from "@/components/ChatMessage";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { AIProviderBanner } from "@/components/chat/AIProviderBanner";
+import { apiStream } from "@/core/api/client";
 
 import {
   getTimeOfDay,
@@ -52,9 +53,6 @@ import {
   isAfter,
 } from "date-fns";
 
-
-const CHAT_URL =
-  `${import.meta.env.VITE_SUPABASE_URL}/functions/v1/chat`;
 
 const ACTIVE_CHAT_KEY = "studytime-active-chat";
 
@@ -118,7 +116,7 @@ function groupConversations(
 
   if (pinned.length) {
     groups.push({
-      label: "📌 Pinned",
+      label: "Pinned",
       items: pinned,
     });
   }
@@ -378,23 +376,6 @@ const Index = () => {
 
     return () =>
       subscription.unsubscribe();
-  }, []);
-
-
-  /* ========================================================================= */
-  /*                              PRE-WARM CHAT                                */
-  /* ========================================================================= */
-
-  useEffect(() => {
-    const timer = setTimeout(() => {
-      fetch(CHAT_URL, {
-        method: "OPTIONS",
-      }).catch(() => {
-        /* intentionally ignored */
-      });
-    }, 600);
-
-    return () => clearTimeout(timer);
   }, []);
 
 
@@ -1392,17 +1373,11 @@ Relationship: ${
       }
 
       const response =
-        await fetch(
-          CHAT_URL,
+        await apiStream(
+          "/chat",
           {
             method: "POST",
-            headers: {
-              "Content-Type":
-                "application/json",
-              Authorization:
-                `Bearer ${session.access_token}`,
-            },
-            body: JSON.stringify({
+            body: {
               messages:
                 messagesToSend,
               userContext,
@@ -1410,7 +1385,7 @@ Relationship: ${
                 getLocalTime(),
               userTimeOfDay:
                 getTimeOfDay(),
-            }),
+            },
             signal:
               abortControllerRef.current
                 .signal,

@@ -1,10 +1,11 @@
 import { NavLink } from "react-router-dom";
-import { Target, MessageSquare, Settings } from "lucide-react";
+import { Target, MessageSquare, Settings, Library } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 const navItems = [
   { title: "AI Chat", url: "/chat", icon: MessageSquare },
   { title: "Focus Hub", url: "/", icon: Target },
+  { title: "Library", url: "/library", icon: Library },
   { title: "Settings", url: "/settings", icon: Settings },
 ];
 
@@ -45,7 +46,7 @@ export function MobileBottomNav() {
                   isActive && "scale-105 drop-shadow-sm"
                 )} />
                 <span className={cn( 
-                  "text-[9px] font-semibold tracking-wide",
+                  "text-xs font-semibold",
                   isActive && "text-primary-foreground"
                 )}>{item.title}</span>
               </>
