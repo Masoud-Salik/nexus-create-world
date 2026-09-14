@@ -21,10 +21,7 @@ export interface RequestOptions {
   signal?: AbortSignal;
 }
 
-export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
-  const { method = "GET", body, signal } = options;
-  const traceId = options.traceId ?? newTraceId();
-
+async function buildHeaders(options: RequestOptions, traceId: string) {
   const headers: Record<string, string> = {
     "Content-Type": "application/json",
     "X-Trace-Id": traceId,
@@ -38,21 +35,33 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
     if (guest) headers["x-anon-session"] = guest.token;
   }
 
-  if (method !== "GET") {
+  if ((options.method ?? "GET") !== "GET") {
     headers["Idempotency-Key"] = options.idempotencyKey ?? newIdempotencyKey();
   }
 
-  let response: Response;
+  return headers;
+}
+
+export async function apiStream(path: string, options: RequestOptions = {}): Promise<Response> {
+  const { method = "GET", body, signal } = options;
+  const traceId = options.traceId ?? newTraceId();
+  const headers = await buildHeaders(options, traceId);
+
   try {
-    response = await fetch(`${FUNCTIONS_BASE}${path}`, {
+    return await fetch(`${FUNCTIONS_BASE}${path}`, {
       method,
       headers,
       body: body === undefined ? undefined : JSON.stringify(body),
       signal,
     });
-  } catch (cause) {
+  } catch {
     throw new ApiError("network", "Network request failed.", traceId);
   }
+}
+
+export async function apiRequest<T>(path: string, options: RequestOptions = {}): Promise<T> {
+  const traceId = options.traceId ?? newTraceId();
+  const response = await apiStream(path, { ...options, traceId });
 
   if (response.status === 204) return undefined as T;
 
@@ -69,36 +78,4 @@ export async function apiRequest<T>(path: string, options: RequestOptions = {}):
   }
 
   return payload as T;
-}
-
-export async function apiStreamRequest(path: string, options: RequestOptions = {}): Promise<Response> {
-  const { method = "GET", body, signal } = options;
-  const traceId = options.traceId ?? newTraceId();
-  const headers: Record<string, string> = {
-    "Content-Type": "application/json",
-    "X-Trace-Id": traceId,
-  };
-
-  const { data } = await supabase.auth.getSession();
-  if (data.session?.access_token) {
-    headers.Authorization = `Bearer ${data.session.access_token}`;
-  } else {
-    const guest = readAnonSession();
-    if (guest) headers["x-anon-session"] = guest.token;
-  }
-
-  if (method !== "GET") {
-    headers["Idempotency-Key"] = options.idempotencyKey ?? newIdempotencyKey();
-  }
-
-  try {
-    return await fetch(`${FUNCTIONS_BASE}${path}`, {
-      method,
-      headers,
-      body: body === undefined ? undefined : JSON.stringify(body),
-      signal,
-    });
-  } catch {
-    throw new ApiError("network", "Network request failed.", traceId);
-  }
 }

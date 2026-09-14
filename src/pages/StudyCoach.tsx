@@ -18,6 +18,9 @@ import {
   BookOpen,
   Sliders,
   Zap,
+  Timer,
+  ClipboardList,
+  ChartNoAxesColumnIncreasing,
 } from "lucide-react";
 import { StudyAnalytics } from "@/components/study-coach/StudyAnalytics";
 import type { StudyTaskData } from "@/components/study-coach/TaskCard";
@@ -1425,7 +1428,7 @@ export default function StudyCoach() {
 
   return (
     <div className="min-h-[100dvh] overflow-x-hidden bg-background pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">
-      <div className="mx-auto flex min-h-[calc(100dvh-80px)] w-full min-w-0 max-w-lg flex-col px-3 py-3 sm:px-4 sm:py-4">
+      <div className="mx-auto flex min-h-[calc(100dvh-80px)] w-full min-w-0 max-w-6xl flex-col px-3 py-3 sm:px-4 sm:py-4 lg:px-8">
         {/* Header */}
         <div className="mb-2.5 flex items-center justify-between gap-3">
           <div className="min-w-0">
@@ -1433,7 +1436,7 @@ export default function StudyCoach() {
               {format(new Date(), "EEEE")}
             </div>
 
-            <div className="truncate text-[11px] leading-tight text-muted-foreground">
+            <div className="truncate text-xs leading-tight text-muted-foreground">
               {format(new Date(), "MMMM d")}
 
               {streak > 0 && (
@@ -1480,15 +1483,18 @@ export default function StudyCoach() {
               {[
                 {
                   mode: "timer" as const,
-                  label: "⏱ Focus",
+                  label: "Focus",
+                  icon: Timer,
                 },
                 {
                   mode: "plan" as const,
-                  label: "📋 Blueprint",
+                  label: "Blueprint",
+                  icon: ClipboardList,
                 },
                 {
                   mode: "stats" as const,
-                  label: "📊 Stats",
+                  label: "Stats",
+                  icon: ChartNoAxesColumnIncreasing,
                 },
               ].map((tab) => {
                 const isActive =
@@ -1512,12 +1518,13 @@ export default function StudyCoach() {
                       }
                     }}
                     className={cn(
-                      "flex min-w-0 items-center justify-center gap-1 rounded-md px-2 py-1.5 text-[11px] font-bold transition-all duration-200",
+                      "flex min-h-11 min-w-0 items-center justify-center gap-1.5 rounded-md px-2 py-2 text-xs font-bold transition-all duration-200",
                       isActive
                         ? "bg-primary text-primary-foreground shadow-sm"
                         : "text-muted-foreground hover:text-foreground"
                     )}
                   >
+                    <tab.icon className="h-4 w-4 shrink-0" aria-hidden="true" />
                     <span className="truncate">
                       {tab.label}
                     </span>

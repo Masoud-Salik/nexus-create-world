@@ -6,7 +6,6 @@ import { Switch } from "@/components/ui/switch";
 import { Sparkles, Plug, CheckCircle2, Trash2, Loader2 } from "lucide-react";
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select";
 import { ConnectOpenAIDialog } from "./ConnectOpenAIDialog";
-import { apiRequest } from "@/core/api/client";
 
 const MODEL_OPTIONS = [
   { value: "gpt-5", label: "GPT-5 (best quality)" },
@@ -48,10 +47,14 @@ export function AIProvidersSection() {
     setUpdating(true);
     navigator.vibrate?.(10);
     try {
-      await apiRequest<{ ok?: boolean }>("/update-ai-preferences", {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/update-ai-preferences`, {
         method: "POST",
-        body: updates,
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify(updates),
       });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Update failed");
       setProvider((p) => p ? { ...p, ...updates } as Provider : p);
     } catch (e: any) {
       toast({ title: "Error", description: e.message, variant: "destructive" });
@@ -64,9 +67,12 @@ export function AIProvidersSection() {
     if (!confirm("Disconnect your ChatGPT? StudyTime will go back to using NEXUS.")) return;
     setUpdating(true);
     try {
-      await apiRequest<{ ok?: boolean }>("/disconnect-openai", {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/disconnect-openai`, {
         method: "POST",
+        headers: { Authorization: `Bearer ${session?.access_token}` },
       });
+      if (!res.ok) throw new Error("Disconnect failed");
       setProvider(null);
       toast({ title: "Disconnected", description: "Back to NEXUS default." });
     } catch (e: any) {

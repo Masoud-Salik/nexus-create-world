@@ -1,9 +1,8 @@
 import { useState, useRef, useEffect } from "react";
 import { Sparkles, Send, X } from "lucide-react";
-import { supabase } from "@/integrations/supabase/client";
 import { getTimeOfDay, getLocalTime } from "@/utils/getTimeOfDay";
 import { cn } from "@/lib/utils";
-import { chatStreamRequest } from "@/core/api/chat";
+import { apiStream } from "@/core/api/client";
 
 type MiniMessage = { role: "user" | "assistant"; content: string };
 
@@ -51,9 +50,6 @@ export function FloatingAIChat({
     navigator.vibrate?.(10);
 
     try {
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session?.access_token) { setIsLoading(false); return; }
-
       const contextPreamble: MiniMessage[] = taskContext?.intent
         ? [{
             role: "user",
@@ -61,10 +57,13 @@ export function FloatingAIChat({
           }]
         : [];
       const allMessages = [...contextPreamble, ...messages, userMsg];
-      const response = await chatStreamRequest({
-        messages: allMessages.slice(-6),
-        userLocalTime: getLocalTime(),
-        userTimeOfDay: getTimeOfDay(),
+      const response = await apiStream("/chat", {
+        method: "POST",
+        body: {
+          messages: allMessages.slice(-6), // Last 6 for context, keep it light
+          userLocalTime: getLocalTime(),
+          userTimeOfDay: getTimeOfDay(),
+        },
       });
 
       if (!response.ok || !response.body) throw new Error("Stream failed");

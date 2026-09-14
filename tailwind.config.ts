@@ -132,7 +132,7 @@ export default {
   		},
   		fontFamily: {
   			sans: [
-  				'Montserrat',
+				'Manrope',
   				'ui-sans-serif',
   				'system-ui',
   				'-apple-system',
@@ -145,7 +145,8 @@ export default {
   				'sans-serif'
   			],
   			serif: [
-  				'Cormorant Garamond',
+				'Sora',
+				'Manrope',
   				'ui-serif',
   				'Georgia',
   				'Cambria',

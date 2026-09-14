@@ -3,9 +3,9 @@ import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogFooter, DialogD
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
+import { supabase } from "@/integrations/supabase/client";
 import { useToast } from "@/hooks/use-toast";
 import { Loader2, ExternalLink, ShieldCheck } from "lucide-react";
-import { apiRequest } from "@/core/api/client";
 
 interface Props {
   open: boolean;
@@ -27,11 +27,15 @@ export function ConnectOpenAIDialog({ open, onOpenChange, onConnected }: Props) 
     setLoading(true);
     navigator.vibrate?.(10);
     try {
-      const json = await apiRequest<{ last4?: string }>("/connect-openai", {
+      const { data: { session } } = await supabase.auth.getSession();
+      const res = await fetch(`${import.meta.env.VITE_SUPABASE_URL}/functions/v1/connect-openai`, {
         method: "POST",
-        body: { apiKey: trimmed },
+        headers: { "Content-Type": "application/json", Authorization: `Bearer ${session?.access_token}` },
+        body: JSON.stringify({ apiKey: trimmed }),
       });
-      toast({ title: "ChatGPT connected ✨", description: `Verified key sk-…${json.last4 ?? ""}` });
+      const json = await res.json();
+      if (!res.ok) throw new Error(json.error || "Could not connect");
+      toast({ title: "ChatGPT connected ✨", description: `Verified key sk-…${json.last4}` });
       setApiKey("");
       onConnected();
     } catch (e: any) {

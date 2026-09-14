@@ -33,12 +33,12 @@ import { ChatMessage } from "@/components/ChatMessage";
 import { TypingIndicator } from "@/components/TypingIndicator";
 import { WelcomeScreen } from "@/components/WelcomeScreen";
 import { AIProviderBanner } from "@/components/chat/AIProviderBanner";
+import { apiStream } from "@/core/api/client";
 
 import {
   getTimeOfDay,
   getLocalTime,
 } from "@/utils/getTimeOfDay";
-import { chatStreamRequest } from "@/core/api/chat";
 
 import {
   getUserFriendlyError,
@@ -116,7 +116,7 @@ function groupConversations(
 
   if (pinned.length) {
     groups.push({
-      label: "📌 Pinned",
+      label: "Pinned",
       items: pinned,
     });
   }
@@ -376,17 +376,6 @@ const Index = () => {
 
     return () =>
       subscription.unsubscribe();
-  }, []);
-
-
-  /* ========================================================================= */
-  /*                              PRE-WARM CHAT                                */
-  /* ========================================================================= */
-
-  useEffect(() => {
-    return () => {
-      abortControllerRef.current?.abort();
-    };
   }, []);
 
 
@@ -1384,18 +1373,23 @@ Relationship: ${
       }
 
       const response =
-        await chatStreamRequest(
+        await apiStream(
+          "/chat",
           {
-            messages:
-              messagesToSend,
-            userContext,
-            userLocalTime:
-              getLocalTime(),
-            userTimeOfDay:
-              getTimeOfDay(),
-          },
-          abortControllerRef.current
-            ?.signal,
+            method: "POST",
+            body: {
+              messages:
+                messagesToSend,
+              userContext,
+              userLocalTime:
+                getLocalTime(),
+              userTimeOfDay:
+                getTimeOfDay(),
+            },
+            signal:
+              abortControllerRef.current
+                .signal,
+          }
         );
 
       if (!response.ok) {
