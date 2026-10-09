@@ -35,6 +35,7 @@ import {
   PlanDuration,
 } from "@/components/study-coach/PlanDurationSelector";
 import { FocusCockpit } from "@/components/study-coach/focus/FocusCockpit";
+import { CalmStudyBackground } from "@/components/study-coach/CalmStudyBackground";
 import { StudyPath } from "@/components/study-coach/blueprint/StudyPath";
 import { LifeProgress } from "@/components/study-coach/blueprint/LifeProgress";
 import { WeekRibbon } from "@/components/study-coach/blueprint/WeekRibbon";
@@ -1427,8 +1428,9 @@ export default function StudyCoach() {
   }
 
   return (
-    <div className="min-h-[100dvh] overflow-x-hidden bg-background pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">
-      <div className="mx-auto flex min-h-[calc(100dvh-80px)] w-full min-w-0 max-w-6xl flex-col px-3 py-3 sm:px-4 sm:py-4 lg:px-8">
+    <div className="relative isolate min-h-[100dvh] overflow-x-hidden bg-background pb-[calc(5rem+env(safe-area-inset-bottom))] md:pb-6">
+      {studyMode !== "stats" && <CalmStudyBackground mode={studyMode === "plan" ? "blueprint" : "focus"} />}
+      <div className="relative mx-auto flex min-h-[calc(100dvh-80px)] w-full min-w-0 max-w-6xl flex-col px-3 py-3 sm:px-4 sm:py-4 lg:px-8">
         {/* Header */}
         <div className="mb-2.5 flex items-center justify-between gap-3">
           <div className="min-w-0">
