@@ -214,7 +214,7 @@ export function FocusCockpit({
   return (
     <div className={cn(
       "relative w-full max-w-full overflow-x-hidden flex flex-col items-center gap-3 py-3 px-1 transition-all",
-      theater && "fixed inset-0 z-50 bg-background pt-8 overflow-y-auto"
+      theater && "fixed isolate inset-0 z-50 bg-background pt-8 overflow-y-auto"
     )}>
       {theater && <CalmStudyBackground mode="focus" />}
 
