@@ -6,7 +6,7 @@ import { useSoundscape, SOUNDSCAPES, SoundscapeId } from "@/hooks/useSoundscape"
 import { useDistractionTracker } from "@/hooks/useDistractionTracker";
 import { useKeyboardShortcuts } from "@/hooks/useKeyboardShortcuts";
 import { useToast } from "@/hooks/use-toast";
-import { AuroraBackground } from "./AuroraBackground";
+import { CalmStudyBackground } from "../CalmStudyBackground";
 import { FocusRing } from "./FocusRing";
 import { PreFlight, Energy } from "./PreFlight";
 import { BreathingPrimer } from "./BreathingPrimer";
@@ -174,7 +174,6 @@ export function FocusCockpit({
   if (!isActive && !primer) {
     return (
       <div className="relative w-full max-w-full overflow-hidden flex flex-col items-center gap-3 py-3">
-        <AuroraBackground running={false} tint={tint} />
         <FocusStatsStrip
           streak={streak}
           todayMinutes={todayMinutes}
@@ -200,7 +199,6 @@ export function FocusCockpit({
   if (primer) {
     return (
       <div className="relative w-full flex flex-col items-center gap-2 py-6">
-        <AuroraBackground running tint={tint} />
         <BreathingPrimer
           onDone={() => beginSession(primer.config)}
           onSkip={() => beginSession(primer.config)}
@@ -216,9 +214,9 @@ export function FocusCockpit({
   return (
     <div className={cn(
       "relative w-full max-w-full overflow-x-hidden flex flex-col items-center gap-3 py-3 px-1 transition-all",
-      theater && "fixed inset-0 z-50 bg-background pt-8 overflow-y-auto"
+      theater && "fixed isolate inset-0 z-50 bg-background pt-8 overflow-y-auto"
     )}>
-      <AuroraBackground running={isRunning} tint={isBreak ? "rain" : tint} />
+      {theater && <CalmStudyBackground mode="focus" />}
 
       {!theater && (
         <FocusStatsStrip

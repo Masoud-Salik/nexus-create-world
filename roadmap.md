@@ -1,4 +1,5 @@
 # Frontend renewal
+- [x] Version 2.0.0: calm photographic backgrounds for Focus and Blueprint; verified phone, tablet, and desktop sizing
 - [ ] Repair chat, Settings semantics, auth completion, and first-run states
 - [ ] Apply Emerald + Signal tokens and Sora/Manrope
 - [ ] Recompose Focus, Blueprint, Chat, Library, Settings, and navigation

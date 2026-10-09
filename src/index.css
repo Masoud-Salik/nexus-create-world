@@ -91,6 +91,9 @@ html {
     --shadow-2xl: 0 1px 3px 0px hsl(0 0% 0% / 0.25);
     --tracking-normal: 0em;
     --spacing: 0.25rem;
+    --study-photo-opacity: 0.46;
+    --study-photo-brightness: 0.82;
+    --study-photo-scrim: 0.38;
   }
 
   .dark {
@@ -148,6 +151,9 @@ html {
     --chart-4: 130 45% 58%;
     --chart-5: 145 25% 50%;
     --sidebar: 150 6% 12%;
+    --study-photo-opacity: 0.32;
+    --study-photo-brightness: 0.65;
+    --study-photo-scrim: 0.48;
     --shadow-2xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
     --shadow-xs: 0 1px 3px 0px hsl(0 0% 0% / 0.05);
     --shadow-sm: 0 1px 3px 0px hsl(0 0% 0% / 0.1), 0 1px 2px -1px hsl(0 0% 0% / 0.1);
@@ -488,6 +494,34 @@ html {
 }
 
 /* Aurora rotation for Focus Cockpit */
+.calm-study-background {
+  position: absolute;
+  inset: 0;
+  z-index: -1;
+  overflow: hidden;
+  pointer-events: none;
+  background: hsl(var(--background));
+}
+.calm-study-image {
+  position: absolute;
+  inset: -8px;
+  width: calc(100% + 16px);
+  height: calc(100% + 16px);
+  max-width: none;
+  object-fit: cover;
+  object-position: center 45%;
+  opacity: var(--study-photo-opacity);
+  filter: blur(2px) brightness(var(--study-photo-brightness)) saturate(0.7);
+}
+.calm-study-scrim {
+  position: absolute;
+  inset: 0;
+  background: hsl(var(--background) / var(--study-photo-scrim));
+}
+@media (max-width: 767px) {
+  .calm-study-image { object-position: 52% center; }
+}
+
 @keyframes aurora-spin {
   from { transform: rotate(0deg) scale(1); }
   50%  { transform: rotate(180deg) scale(1.05); }
